@@ -2,10 +2,15 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 from sqlalchemy import String, DateTime, Integer, JSON, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .database import Base
+
+if TYPE_CHECKING:
+    from .node import Node
+    from .link import Link
 
 
 class Map(Base):

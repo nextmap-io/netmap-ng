@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import uuid
+from typing import TYPE_CHECKING
 from sqlalchemy import String, Float, Integer, JSON, ForeignKey, Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 import enum
 
 from .database import Base
+
+if TYPE_CHECKING:
+    from .map import Map
 
 
 class NodeType(str, enum.Enum):
