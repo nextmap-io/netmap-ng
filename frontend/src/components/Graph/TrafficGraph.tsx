@@ -23,15 +23,15 @@ export function TrafficGraphPanel({ link, onClose }: TrafficGraphPanelProps) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!link.metadata?.hostname || !link.metadata?.port_identifier) {
+    if (!link.extra?.hostname || !link.extra?.port_identifier) {
       setLoading(false);
       return;
     }
     setLoading(true);
     api
       .getTrafficHistory(
-        link.metadata.hostname as string,
-        link.metadata.port_identifier as string,
+        link.extra.hostname as string,
+        link.extra.port_identifier as string,
         timeRange,
       )
       .then(setHistory)
@@ -46,8 +46,8 @@ export function TrafficGraphPanel({ link, onClose }: TrafficGraphPanelProps) {
       }))
     : [];
 
-  const interfaceA = (link.metadata?.interface_a as string) || "";
-  const interfaceB = (link.metadata?.interface_b as string) || "";
+  const interfaceA = (link.extra?.interface_a as string) || "";
+  const interfaceB = (link.extra?.interface_b as string) || "";
 
   const timeRanges = [
     { value: "-6h", label: "6H" },

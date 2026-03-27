@@ -91,7 +91,7 @@ You must return valid JSON with this structure:
       "target_anchor": "W",
       "observium_port_id_a": 456,
       "observium_port_id_b": 789,
-      "metadata": {"provider": "Cogent", "interface_a": "Et49", "interface_b": "Et49"}
+      "extra": {"provider": "Cogent", "interface_a": "Et49", "interface_b": "Et49"}
     }
   ]
 }
@@ -117,7 +117,8 @@ Layout rules:
             }],
         )
 
-        response_text = response.content[0].text
+        text_block = next(b for b in response.content if hasattr(b, "text"))
+        response_text = text_block.text  # type: ignore[union-attr]
 
     except Exception:
         logger.exception("Claude API call failed")

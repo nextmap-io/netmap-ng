@@ -68,7 +68,7 @@ async def get_map(map_id: str, db: AsyncSession = Depends(get_db), user=Depends(
         "scales": m.scales,
         "settings": m.settings,
         "nodes": [_serialize_node(n) for n in m.nodes],
-        "links": [_serialize_link(l) for l in m.links],
+        "links": [_serialize_link(lnk) for lnk in m.links],
     }
 
 
@@ -101,20 +101,20 @@ def _serialize_node(n: Node) -> dict:
         "x": n.x, "y": n.y, "z_order": n.z_order, "parent_id": n.parent_id,
         "width": n.width, "height": n.height,
         "observium_device_id": n.observium_device_id,
-        "icon": n.icon, "style": n.style, "info_url": n.info_url, "metadata": n.metadata,
+        "icon": n.icon, "style": n.style, "info_url": n.info_url, "extra": n.extra,
     }
 
 
-def _serialize_link(l: Link) -> dict:
+def _serialize_link(lnk: Link) -> dict:
     return {
-        "id": l.id, "name": l.name, "link_type": l.link_type.value,
-        "source_id": l.source_id, "target_id": l.target_id,
-        "source_anchor": l.source_anchor, "target_anchor": l.target_anchor,
-        "bandwidth": l.bandwidth, "bandwidth_label": l.bandwidth_label,
-        "via_points": l.via_points, "via_style": l.via_style,
-        "width": l.width, "arrow_style": l.arrow_style, "duplex": l.duplex,
-        "datasource": l.datasource,
-        "observium_port_id_a": l.observium_port_id_a, "observium_port_id_b": l.observium_port_id_b,
-        "info_url_in": l.info_url_in, "info_url_out": l.info_url_out,
-        "metadata": l.metadata, "z_order": l.z_order,
+        "id": lnk.id, "name": lnk.name, "link_type": lnk.link_type.value,
+        "source_id": lnk.source_id, "target_id": lnk.target_id,
+        "source_anchor": lnk.source_anchor, "target_anchor": lnk.target_anchor,
+        "bandwidth": lnk.bandwidth, "bandwidth_label": lnk.bandwidth_label,
+        "via_points": lnk.via_points, "via_style": lnk.via_style,
+        "width": lnk.width, "arrow_style": lnk.arrow_style, "duplex": lnk.duplex,
+        "datasource": lnk.datasource,
+        "observium_port_id_a": lnk.observium_port_id_a, "observium_port_id_b": lnk.observium_port_id_b,
+        "info_url_in": lnk.info_url_in, "info_url_out": lnk.info_url_out,
+        "extra": lnk.extra, "z_order": lnk.z_order,
     }

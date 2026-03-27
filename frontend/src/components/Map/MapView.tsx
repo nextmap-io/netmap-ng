@@ -42,7 +42,7 @@ function mapNodeToFlow(n: MapNode): Node {
     data: {
       label: n.label || n.name,
       nodeType: n.node_type,
-      bandwidthLabel: n.metadata?.bandwidth_label,
+      bandwidthLabel: n.extra?.bandwidth_label,
       observiumDeviceId: n.observium_device_id,
       infoUrl: n.info_url,
       width: n.width,
@@ -81,7 +81,7 @@ function mapLinkToEdge(l: MapLink, scales: ScaleBand[], traffic: TrafficData): E
       outPct,
       inColor,
       outColor,
-      metadata: l.metadata,
+      extra: l.extra,
     },
     zIndex: l.z_order,
   };

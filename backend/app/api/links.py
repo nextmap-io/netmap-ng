@@ -27,7 +27,7 @@ class LinkCreate(BaseModel):
     observium_port_id_b: int | None = None
     info_url_in: str | None = Field(None, max_length=512)
     info_url_out: str | None = Field(None, max_length=512)
-    metadata: dict = Field(default_factory=dict)
+    extra: dict = Field(default_factory=dict)
 
 
 class LinkUpdate(BaseModel):
@@ -45,7 +45,7 @@ class LinkUpdate(BaseModel):
     observium_port_id_b: int | None = None
     info_url_in: str | None = Field(None, max_length=512)
     info_url_out: str | None = Field(None, max_length=512)
-    metadata: dict | None = None
+    extra: dict | None = None
 
 
 @router.post("")

@@ -60,8 +60,8 @@ class Link(Base):
     info_url_in: Mapped[str | None] = mapped_column(String(512), nullable=True)
     info_url_out: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
-    # Extra metadata (e.g., provider name for transit links)
-    metadata: Mapped[dict] = mapped_column(JSON, default=lambda: {})
+    # Extra data (e.g., provider name for transit links)
+    extra: Mapped[dict] = mapped_column(JSON, default=lambda: {})
 
     z_order: Mapped[int] = mapped_column(Integer, default=300)
 

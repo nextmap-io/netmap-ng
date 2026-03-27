@@ -34,7 +34,7 @@ export interface MapNode {
   icon: string | null;
   style: Record<string, unknown>;
   info_url: string | null;
-  metadata: Record<string, unknown>;
+  extra: Record<string, unknown>;
 }
 
 export interface MapLink {
@@ -57,7 +57,7 @@ export interface MapLink {
   observium_port_id_b: number | null;
   info_url_in: string | null;
   info_url_out: string | null;
-  metadata: Record<string, unknown>;
+  extra: Record<string, unknown>;
   z_order: number;
 }
 

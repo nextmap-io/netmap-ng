@@ -22,7 +22,7 @@ class NodeCreate(BaseModel):
     observium_device_id: int | None = None
     style: dict = Field(default_factory=dict)
     info_url: str | None = Field(None, max_length=512)
-    metadata: dict = Field(default_factory=dict)
+    extra: dict = Field(default_factory=dict)
 
 
 class NodeUpdate(BaseModel):
@@ -37,7 +37,7 @@ class NodeUpdate(BaseModel):
     observium_device_id: int | None = None
     style: dict | None = None
     info_url: str | None = Field(None, max_length=512)
-    metadata: dict | None = None
+    extra: dict | None = None
 
 
 class NodeMove(BaseModel):

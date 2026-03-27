@@ -49,8 +49,8 @@ class Node(Base):
     # Info URL (click-through)
     info_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
-    # Extra metadata
-    metadata: Mapped[dict] = mapped_column(JSON, default=lambda: {})
+    # Extra data
+    extra: Mapped[dict] = mapped_column(JSON, default=lambda: {})
 
     map: Mapped["Map"] = relationship("Map", back_populates="nodes")
     children: Mapped[list["Node"]] = relationship("Node", back_populates="parent", remote_side=[id])

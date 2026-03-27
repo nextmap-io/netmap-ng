@@ -84,7 +84,7 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
 
       {data.bandwidthLabel && (
         <div className="text-2xs text-noc-text-dim mt-0.5 tracking-wide">
-          {data.bandwidthLabel as string}
+          {String(data.bandwidthLabel)}
         </div>
       )}
     </div>
