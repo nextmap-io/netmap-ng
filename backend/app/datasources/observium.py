@@ -49,7 +49,8 @@ async def get_device_ports(device_id: int) -> list[dict[str, Any]]:
     """Fetch ports with current rates for a device."""
     async with get_observium_db() as conn:
         async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
-            await cur.execute("""
+            await cur.execute(
+                """
                 SELECT p.port_id, p.ifIndex, p.ifName, p.ifDescr, p.ifAlias,
                        p.ifSpeed, p.ifHighSpeed, p.ifOperStatus, p.ifAdminStatus,
                        p.ifType, p.port_label, p.port_label_short,
@@ -59,7 +60,9 @@ async def get_device_ports(device_id: int) -> list[dict[str, Any]]:
                 LEFT JOIN `ports-state` s ON p.port_id = s.port_id
                 WHERE p.device_id = %s AND p.deleted = 0
                 ORDER BY p.ifIndex
-            """, (device_id,))
+            """,
+                (device_id,),
+            )
             return await cur.fetchall()
 
 
@@ -111,7 +114,8 @@ async def get_port_traffic(port_id: int) -> dict[str, Any] | None:
     """Get current traffic rates for a single port."""
     async with get_observium_db() as conn:
         async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
-            await cur.execute("""
+            await cur.execute(
+                """
                 SELECT p.port_id, p.ifName, p.ifSpeed,
                        s.ifInOctets_rate, s.ifOutOctets_rate,
                        s.ifInOctets_perc, s.ifOutOctets_perc,
@@ -119,5 +123,7 @@ async def get_port_traffic(port_id: int) -> dict[str, Any] | None:
                 FROM ports p
                 JOIN `ports-state` s ON p.port_id = s.port_id
                 WHERE p.port_id = %s
-            """, (port_id,))
+            """,
+                (port_id,),
+            )
             return await cur.fetchone()

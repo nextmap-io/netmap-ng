@@ -51,7 +51,12 @@ class NodeBatchMove(BaseModel):
 
 
 @router.post("")
-async def create_node(map_id: str, data: NodeCreate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def create_node(
+    map_id: str,
+    data: NodeCreate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
     node = Node(map_id=map_id, **data.model_dump())
     db.add(node)
     await db.commit()
@@ -60,8 +65,16 @@ async def create_node(map_id: str, data: NodeCreate, db: AsyncSession = Depends(
 
 
 @router.put("/{node_id}")
-async def update_node(map_id: str, node_id: str, data: NodeUpdate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    result = await db.execute(select(Node).where(Node.id == node_id, Node.map_id == map_id))
+async def update_node(
+    map_id: str,
+    node_id: str,
+    data: NodeUpdate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Node).where(Node.id == node_id, Node.map_id == map_id)
+    )
     node = result.scalar_one_or_none()
     if not node:
         raise HTTPException(404, "Node not found")
@@ -72,8 +85,15 @@ async def update_node(map_id: str, node_id: str, data: NodeUpdate, db: AsyncSess
 
 
 @router.delete("/{node_id}")
-async def delete_node(map_id: str, node_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    result = await db.execute(select(Node).where(Node.id == node_id, Node.map_id == map_id))
+async def delete_node(
+    map_id: str,
+    node_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Node).where(Node.id == node_id, Node.map_id == map_id)
+    )
     node = result.scalar_one_or_none()
     if not node:
         raise HTTPException(404, "Node not found")
@@ -83,10 +103,17 @@ async def delete_node(map_id: str, node_id: str, db: AsyncSession = Depends(get_
 
 
 @router.post("/batch-move")
-async def batch_move_nodes(map_id: str, data: NodeBatchMove, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def batch_move_nodes(
+    map_id: str,
+    data: NodeBatchMove,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
     """Move multiple nodes at once (for drag-and-drop editor)."""
     for move in data.moves:
-        result = await db.execute(select(Node).where(Node.id == move.id, Node.map_id == map_id))
+        result = await db.execute(
+            select(Node).where(Node.id == move.id, Node.map_id == map_id)
+        )
         node = result.scalar_one_or_none()
         if node:
             node.x = move.x

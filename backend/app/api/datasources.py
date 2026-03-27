@@ -81,7 +81,12 @@ async def get_live_traffic(
                     "out_pct": float(out_pct),
                 }
         if link.id not in traffic_data:
-            traffic_data[link.id] = {"in_bps": 0, "out_bps": 0, "in_pct": 0, "out_pct": 0}
+            traffic_data[link.id] = {
+                "in_bps": 0,
+                "out_bps": 0,
+                "in_pct": 0,
+                "out_pct": 0,
+            }
 
     return traffic_data
 

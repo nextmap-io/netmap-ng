@@ -14,30 +14,42 @@ if TYPE_CHECKING:
 
 
 class LinkType(str, enum.Enum):
-    INTERNAL = "internal"      # Internal backbone link
-    TRANSIT = "transit"        # Transit provider
+    INTERNAL = "internal"  # Internal backbone link
+    TRANSIT = "transit"  # Transit provider
     PEERING_IX = "peering_ix"  # IX peering
     PEERING_PNI = "peering_pni"  # Private peering (PNI)
-    CUSTOMER = "customer"      # Customer link
-    TRUNK = "trunk"            # L2 trunk
-    LAG = "lag"                # LAG / Port-Channel
+    CUSTOMER = "customer"  # Customer link
+    TRUNK = "trunk"  # L2 trunk
+    LAG = "lag"  # LAG / Port-Channel
     CUSTOM = "custom"
 
 
 class Link(Base):
     __tablename__ = "links"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    map_id: Mapped[str] = mapped_column(String(36), ForeignKey("maps.id", ondelete="CASCADE"))
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    map_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("maps.id", ondelete="CASCADE")
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    link_type: Mapped[LinkType] = mapped_column(SAEnum(LinkType), default=LinkType.INTERNAL)
+    link_type: Mapped[LinkType] = mapped_column(
+        SAEnum(LinkType), default=LinkType.INTERNAL
+    )
 
     # Endpoints
-    source_id: Mapped[str] = mapped_column(String(36), ForeignKey("nodes.id", ondelete="CASCADE"))
-    target_id: Mapped[str] = mapped_column(String(36), ForeignKey("nodes.id", ondelete="CASCADE"))
+    source_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("nodes.id", ondelete="CASCADE")
+    )
+    target_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("nodes.id", ondelete="CASCADE")
+    )
 
     # Endpoint anchors: compass point or offset for distributing arrows on nodes
-    source_anchor: Mapped[str | None] = mapped_column(String(50), nullable=True)  # e.g. "E", "E:25", "45r20"
+    source_anchor: Mapped[str | None] = mapped_column(
+        String(50), nullable=True
+    )  # e.g. "E", "E:25", "45r20"
     target_anchor: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     # Bandwidth capacity (bits/sec)
@@ -46,7 +58,9 @@ class Link(Base):
 
     # Intermediate routing points: [{x, y}]
     via_points: Mapped[list] = mapped_column(JSON, default=lambda: [])
-    via_style: Mapped[str] = mapped_column(String(20), default="curved")  # curved | angled
+    via_style: Mapped[str] = mapped_column(
+        String(20), default="curved"
+    )  # curved | angled
 
     # Visual
     width: Mapped[int] = mapped_column(Integer, default=4)
@@ -57,7 +71,9 @@ class Link(Base):
     # RRD: {"type": "rrd", "file": "...", "ds_in": "INOCTETS", "ds_out": "OUTOCTETS"}
     # Observium port: {"type": "observium_port", "port_id": 123}
     # Static: {"type": "static", "in": 0, "out": 0}
-    datasource: Mapped[dict] = mapped_column(JSON, default=lambda: {"type": "static", "in": 0, "out": 0})
+    datasource: Mapped[dict] = mapped_column(
+        JSON, default=lambda: {"type": "static", "in": 0, "out": 0}
+    )
 
     # Observium binding
     observium_port_id_a: Mapped[int | None] = mapped_column(Integer, nullable=True)

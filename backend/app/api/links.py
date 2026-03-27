@@ -22,7 +22,9 @@ class LinkCreate(BaseModel):
     via_points: list[dict] = Field(default_factory=list)
     via_style: str = "curved"
     width: int = Field(4, ge=1, le=50)
-    datasource: dict = Field(default_factory=lambda: {"type": "static", "in": 0, "out": 0})
+    datasource: dict = Field(
+        default_factory=lambda: {"type": "static", "in": 0, "out": 0}
+    )
     observium_port_id_a: int | None = None
     observium_port_id_b: int | None = None
     info_url_in: str | None = Field(None, max_length=512)
@@ -49,7 +51,12 @@ class LinkUpdate(BaseModel):
 
 
 @router.post("")
-async def create_link(map_id: str, data: LinkCreate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def create_link(
+    map_id: str,
+    data: LinkCreate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
     link = Link(map_id=map_id, **data.model_dump())
     db.add(link)
     await db.commit()
@@ -58,8 +65,16 @@ async def create_link(map_id: str, data: LinkCreate, db: AsyncSession = Depends(
 
 
 @router.put("/{link_id}")
-async def update_link(map_id: str, link_id: str, data: LinkUpdate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    result = await db.execute(select(Link).where(Link.id == link_id, Link.map_id == map_id))
+async def update_link(
+    map_id: str,
+    link_id: str,
+    data: LinkUpdate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Link).where(Link.id == link_id, Link.map_id == map_id)
+    )
     link = result.scalar_one_or_none()
     if not link:
         raise HTTPException(404, "Link not found")
@@ -70,8 +85,15 @@ async def update_link(map_id: str, link_id: str, data: LinkUpdate, db: AsyncSess
 
 
 @router.delete("/{link_id}")
-async def delete_link(map_id: str, link_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    result = await db.execute(select(Link).where(Link.id == link_id, Link.map_id == map_id))
+async def delete_link(
+    map_id: str,
+    link_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    result = await db.execute(
+        select(Link).where(Link.id == link_id, Link.map_id == map_id)
+    )
     link = result.scalar_one_or_none()
     if not link:
         raise HTTPException(404, "Link not found")

@@ -13,6 +13,7 @@ from app.config import get_settings
 
 try:
     import rrdtool as _rrdtool
+
     HAS_RRDTOOL = True
 except ImportError:
     HAS_RRDTOOL = False
@@ -38,7 +39,10 @@ def _validate_port_identifier(port_id: str | int) -> str:
 
 def _validate_time(value: str, param_name: str) -> str:
     if not _TIME_RE.match(value):
-        raise HTTPException(400, f"Invalid {param_name} format. Use -Ns/-Nm/-Nh/-Nd, 'now', or Unix timestamp.")
+        raise HTTPException(
+            400,
+            f"Invalid {param_name} format. Use -Ns/-Nm/-Nh/-Nd, 'now', or Unix timestamp.",
+        )
     return value
 
 
@@ -69,7 +73,9 @@ def fetch_current(hostname: str, port_identifier: str | int) -> dict[str, float]
     else:
         result = subprocess.run(
             ["rrdtool", "lastupdate", path],
-            capture_output=True, text=True, timeout=10,
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         lines = result.stdout.strip().split("\n")
         if len(lines) >= 2:
@@ -105,10 +111,15 @@ def fetch_history(
         return {"timestamps": [], "in_bps": [], "out_bps": []}
 
     cmd = [
-        "rrdtool", "xport", "--json",
-        "--start", start,
-        "--end", end,
-        "--step", str(resolution),
+        "rrdtool",
+        "xport",
+        "--json",
+        "--start",
+        start,
+        "--end",
+        end,
+        "--step",
+        str(resolution),
         f"DEF:in={path}:INOCTETS:AVERAGE",
         f"DEF:out={path}:OUTOCTETS:AVERAGE",
         "CDEF:in_bps=in,8,*",

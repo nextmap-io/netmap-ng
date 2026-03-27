@@ -37,12 +37,28 @@ async def list_maps(
         select(Map).order_by(Map.updated_at.desc()).limit(limit).offset(offset)
     )
     maps = result.scalars().all()
-    return [{"id": m.id, "name": m.name, "description": m.description, "updated_at": m.updated_at} for m in maps]
+    return [
+        {
+            "id": m.id,
+            "name": m.name,
+            "description": m.description,
+            "updated_at": m.updated_at,
+        }
+        for m in maps
+    ]
 
 
 @router.post("")
-async def create_map(data: MapCreate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
-    m = Map(name=data.name, description=data.description, width=data.width, height=data.height, owner=user.get("email", ""))
+async def create_map(
+    data: MapCreate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    m = Map(
+        name=data.name,
+        description=data.description,
+        width=data.width,
+        height=data.height,
+        owner=user.get("email", ""),
+    )
     db.add(m)
     await db.commit()
     await db.refresh(m)
@@ -50,7 +66,9 @@ async def create_map(data: MapCreate, db: AsyncSession = Depends(get_db), user=D
 
 
 @router.get("/{map_id}")
-async def get_map(map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def get_map(
+    map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
     result = await db.execute(
         select(Map)
         .options(selectinload(Map.nodes), selectinload(Map.links))
@@ -73,7 +91,12 @@ async def get_map(map_id: str, db: AsyncSession = Depends(get_db), user=Depends(
 
 
 @router.put("/{map_id}")
-async def update_map(map_id: str, data: MapUpdate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def update_map(
+    map_id: str,
+    data: MapUpdate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
     result = await db.execute(select(Map).where(Map.id == map_id))
     m = result.scalar_one_or_none()
     if not m:
@@ -85,7 +108,9 @@ async def update_map(map_id: str, data: MapUpdate, db: AsyncSession = Depends(ge
 
 
 @router.delete("/{map_id}")
-async def delete_map(map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+async def delete_map(
+    map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
     result = await db.execute(select(Map).where(Map.id == map_id))
     m = result.scalar_one_or_none()
     if not m:
@@ -97,24 +122,45 @@ async def delete_map(map_id: str, db: AsyncSession = Depends(get_db), user=Depen
 
 def _serialize_node(n: Node) -> dict:
     return {
-        "id": n.id, "name": n.name, "label": n.label, "node_type": n.node_type.value,
-        "x": n.x, "y": n.y, "z_order": n.z_order, "parent_id": n.parent_id,
-        "width": n.width, "height": n.height,
+        "id": n.id,
+        "name": n.name,
+        "label": n.label,
+        "node_type": n.node_type.value,
+        "x": n.x,
+        "y": n.y,
+        "z_order": n.z_order,
+        "parent_id": n.parent_id,
+        "width": n.width,
+        "height": n.height,
         "observium_device_id": n.observium_device_id,
-        "icon": n.icon, "style": n.style, "info_url": n.info_url, "extra": n.extra,
+        "icon": n.icon,
+        "style": n.style,
+        "info_url": n.info_url,
+        "extra": n.extra,
     }
 
 
 def _serialize_link(lnk: Link) -> dict:
     return {
-        "id": lnk.id, "name": lnk.name, "link_type": lnk.link_type.value,
-        "source_id": lnk.source_id, "target_id": lnk.target_id,
-        "source_anchor": lnk.source_anchor, "target_anchor": lnk.target_anchor,
-        "bandwidth": lnk.bandwidth, "bandwidth_label": lnk.bandwidth_label,
-        "via_points": lnk.via_points, "via_style": lnk.via_style,
-        "width": lnk.width, "arrow_style": lnk.arrow_style, "duplex": lnk.duplex,
+        "id": lnk.id,
+        "name": lnk.name,
+        "link_type": lnk.link_type.value,
+        "source_id": lnk.source_id,
+        "target_id": lnk.target_id,
+        "source_anchor": lnk.source_anchor,
+        "target_anchor": lnk.target_anchor,
+        "bandwidth": lnk.bandwidth,
+        "bandwidth_label": lnk.bandwidth_label,
+        "via_points": lnk.via_points,
+        "via_style": lnk.via_style,
+        "width": lnk.width,
+        "arrow_style": lnk.arrow_style,
+        "duplex": lnk.duplex,
         "datasource": lnk.datasource,
-        "observium_port_id_a": lnk.observium_port_id_a, "observium_port_id_b": lnk.observium_port_id_b,
-        "info_url_in": lnk.info_url_in, "info_url_out": lnk.info_url_out,
-        "extra": lnk.extra, "z_order": lnk.z_order,
+        "observium_port_id_a": lnk.observium_port_id_a,
+        "observium_port_id_b": lnk.observium_port_id_b,
+        "info_url_in": lnk.info_url_in,
+        "info_url_out": lnk.info_url_out,
+        "extra": lnk.extra,
+        "z_order": lnk.z_order,
     }

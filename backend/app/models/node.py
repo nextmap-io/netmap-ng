@@ -18,20 +18,26 @@ class NodeType(str, enum.Enum):
     SWITCH_L3 = "switch_l3"
     SERVER = "server"
     FIREWALL = "firewall"
-    CLOUD = "cloud"            # IX / Transit / PNI
-    INTERNET = "internet"      # External connectivity
-    GROUP = "group"            # Site / rack / logical group
+    CLOUD = "cloud"  # IX / Transit / PNI
+    INTERNET = "internet"  # External connectivity
+    GROUP = "group"  # Site / rack / logical group
     CUSTOM = "custom"
 
 
 class Node(Base):
     __tablename__ = "nodes"
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
-    map_id: Mapped[str] = mapped_column(String(36), ForeignKey("maps.id", ondelete="CASCADE"))
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    map_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("maps.id", ondelete="CASCADE")
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     label: Mapped[str] = mapped_column(String(255), default="")
-    node_type: Mapped[NodeType] = mapped_column(SAEnum(NodeType), default=NodeType.SWITCH_L2)
+    node_type: Mapped[NodeType] = mapped_column(
+        SAEnum(NodeType), default=NodeType.SWITCH_L2
+    )
 
     # Position
     x: Mapped[float] = mapped_column(Float, default=0.0)
@@ -39,7 +45,9 @@ class Node(Base):
     z_order: Mapped[int] = mapped_column(Integer, default=600)
 
     # Grouping: parent node ID for site/rack containment
-    parent_id: Mapped[str | None] = mapped_column(String(36), ForeignKey("nodes.id"), nullable=True)
+    parent_id: Mapped[str | None] = mapped_column(
+        String(36), ForeignKey("nodes.id"), nullable=True
+    )
 
     # Dimensions (for group nodes)
     width: Mapped[float | None] = mapped_column(Float, nullable=True)
@@ -59,5 +67,9 @@ class Node(Base):
     extra: Mapped[dict] = mapped_column(JSON, default=lambda: {})
 
     map: Mapped["Map"] = relationship("Map", back_populates="nodes")
-    children: Mapped[list["Node"]] = relationship("Node", back_populates="parent", remote_side=[id])
-    parent: Mapped["Node | None"] = relationship("Node", back_populates="children", remote_side=[parent_id])
+    children: Mapped[list["Node"]] = relationship(
+        "Node", back_populates="parent", remote_side=[id]
+    )
+    parent: Mapped["Node | None"] = relationship(
+        "Node", back_populates="children", remote_side=[parent_id]
+    )

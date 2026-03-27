@@ -34,7 +34,9 @@ async def generate_map(data: GenerateMapRequest, user=Depends(get_current_user))
     """
     settings = get_settings()
     if not settings.anthropic_api_key:
-        raise HTTPException(503, "AI layout not available: ANTHROPIC_API_KEY not configured")
+        raise HTTPException(
+            503, "AI layout not available: ANTHROPIC_API_KEY not configured"
+        )
 
     # Gather Observium data
     devices = await observium.get_devices(data.device_ids or None)
@@ -51,6 +53,7 @@ async def generate_map(data: GenerateMapRequest, user=Depends(get_current_user))
 
     try:
         import anthropic
+
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
         system_prompt = """You are a network topology layout engine. Given network devices and their
@@ -111,10 +114,12 @@ Layout rules:
             model="claude-sonnet-4-6",
             max_tokens=8192,
             system=system_prompt,
-            messages=[{
-                "role": "user",
-                "content": f"Generate a network weathermap layout for this topology:\n\n{topology_context}\n\nAdditional instructions: {data.instructions or 'Auto-layout based on topology.'}",
-            }],
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"Generate a network weathermap layout for this topology:\n\n{topology_context}\n\nAdditional instructions: {data.instructions or 'Auto-layout based on topology.'}",
+                }
+            ],
         )
 
         text_block = next(b for b in response.content if hasattr(b, "text"))
@@ -134,7 +139,9 @@ Layout rules:
         layout = json.loads(response_text.strip())
     except json.JSONDecodeError:
         logger.error("Failed to parse AI response: %s", response_text[:500])
-        raise HTTPException(502, "AI returned an invalid layout. Try again or adjust instructions.")
+        raise HTTPException(
+            502, "AI returned an invalid layout. Try again or adjust instructions."
+        )
 
     return layout
 
@@ -142,16 +149,28 @@ Layout rules:
 def _build_topology_context(devices, neighbours, device_ports) -> str:
     lines = ["# Devices"]
     for dev in devices:
-        lines.append(f"- {dev['hostname']} (id={dev['device_id']}, hw={dev.get('hardware','?')}, os={dev.get('os','?')}, location={dev.get('location','?')})")
+        lines.append(
+            f"- {dev['hostname']} (id={dev['device_id']}, hw={dev.get('hardware', '?')}, os={dev.get('os', '?')}, location={dev.get('location', '?')})"
+        )
         ports = device_ports.get(dev["device_id"], [])
-        interesting_ports = [p for p in ports if p.get("ifOperStatus") == "up" and p.get("ifSpeed", 0) >= 1_000_000_000]
+        interesting_ports = [
+            p
+            for p in ports
+            if p.get("ifOperStatus") == "up" and p.get("ifSpeed", 0) >= 1_000_000_000
+        ]
         if interesting_ports:
             for p in interesting_ports[:30]:
-                speed_g = (p.get("ifHighSpeed") or (p.get("ifSpeed", 0) / 1_000_000)) / 1000
-                lines.append(f"  - port_id={p['port_id']} {p.get('ifName','?')} ({speed_g:.0f}G) alias=\"{p.get('ifAlias','')}\" in={p.get('ifInOctets_rate',0):.0f}B/s out={p.get('ifOutOctets_rate',0):.0f}B/s")
+                speed_g = (
+                    p.get("ifHighSpeed") or (p.get("ifSpeed", 0) / 1_000_000)
+                ) / 1000
+                lines.append(
+                    f'  - port_id={p["port_id"]} {p.get("ifName", "?")} ({speed_g:.0f}G) alias="{p.get("ifAlias", "")}" in={p.get("ifInOctets_rate", 0):.0f}B/s out={p.get("ifOutOctets_rate", 0):.0f}B/s'
+                )
 
     lines.append("\n# CDP/LLDP Links")
     for n in neighbours:
-        lines.append(f"- {n['local_hostname']}:{n.get('local_port','?')} <-> {n.get('remote_hostname','?')}:{n.get('remote_port','?')} (protocol={n['protocol']}, speed={n.get('local_port_speed',0)})")
+        lines.append(
+            f"- {n['local_hostname']}:{n.get('local_port', '?')} <-> {n.get('remote_hostname', '?')}:{n.get('remote_port', '?')} (protocol={n['protocol']}, speed={n.get('local_port_speed', 0)})"
+        )
 
     return "\n".join(lines)
