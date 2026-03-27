@@ -82,11 +82,11 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
         </span>
       </div>
 
-      {data.bandwidthLabel && (
+      {data.bandwidthLabel ? (
         <div className="text-2xs text-noc-text-dim mt-0.5 tracking-wide">
           {String(data.bandwidthLabel)}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

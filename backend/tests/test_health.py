@@ -1,5 +1,11 @@
+import os
+
 import pytest
 from httpx import ASGITransport, AsyncClient
+
+os.environ.setdefault("APP_SECRET_KEY", "test-secret-key-for-tests")
+os.environ.setdefault("AUTH_DISABLED", "true")
+os.environ.setdefault("APP_DB_URL", "sqlite+aiosqlite:///:memory:")
 
 
 @pytest.fixture
