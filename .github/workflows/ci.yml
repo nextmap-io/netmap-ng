@@ -52,7 +52,7 @@ jobs:
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r requirements.txt
       - name: Mypy
-        run: pip install mypy && mypy app/ --ignore-missing-imports
+        run: pip install mypy sqlalchemy[mypy] && mypy app/
 
   backend-test:
     name: Backend Test
