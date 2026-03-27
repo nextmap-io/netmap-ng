@@ -1,0 +1,150 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    font-family: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    color: hsl(210 20% 88%);
+    background: hsl(220 20% 7%);
+  }
+
+  body {
+    background: hsl(220 20% 7%);
+    min-height: 100vh;
+  }
+
+  ::selection {
+    background: hsl(190 90% 50% / 0.3);
+    color: white;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: hsl(220 15% 10%);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: hsl(220 15% 24%);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: hsl(220 15% 30%);
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 1px hsl(190 90% 50% / 0.6);
+  }
+}
+
+/* ─── NOC-themed ReactFlow overrides ─── */
+
+.react-flow__background {
+  background-color: hsl(220 20% 7%) !important;
+}
+
+.react-flow__minimap {
+  background-color: hsl(220 18% 10%) !important;
+  border: 1px solid hsl(220 15% 16%) !important;
+  border-radius: 6px !important;
+}
+
+.react-flow__controls {
+  border-radius: 6px !important;
+  overflow: hidden;
+  border: 1px solid hsl(220 15% 16%) !important;
+  box-shadow: none !important;
+}
+
+.react-flow__controls button {
+  background-color: hsl(220 18% 10%) !important;
+  color: hsl(210 20% 88%) !important;
+  border-color: hsl(220 15% 16%) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+
+.react-flow__controls button:hover {
+  background-color: hsl(220 16% 13%) !important;
+}
+
+.react-flow__controls button svg {
+  fill: hsl(215 15% 55%) !important;
+}
+
+.react-flow__controls button:hover svg {
+  fill: hsl(210 20% 88%) !important;
+}
+
+.react-flow__attribution {
+  display: none !important;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  filter: drop-shadow(0 0 6px hsl(190 90% 50% / 0.5));
+}
+
+/* ─── Recharts dark tooltip ─── */
+
+.recharts-default-tooltip {
+  background: hsl(220 18% 10%) !important;
+  border: 1px solid hsl(220 15% 16%) !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 24px hsl(220 20% 4% / 0.5) !important;
+  font-family: "JetBrains Mono", monospace !important;
+  font-size: 11px !important;
+}
+
+.recharts-tooltip-label {
+  color: hsl(215 15% 55%) !important;
+  font-size: 10px !important;
+  margin-bottom: 4px !important;
+}
+
+/* ─── Utility ─── */
+
+@layer utilities {
+  .noc-glass {
+    background: hsl(220 18% 10% / 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid hsl(220 15% 16%);
+  }
+
+  .noc-card {
+    background: hsl(220 18% 10%);
+    border: 1px solid hsl(220 15% 16%);
+    border-radius: 6px;
+  }
+
+  .noc-label {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: hsl(215 15% 55%);
+  }
+
+  .stagger-1 { animation-delay: 0.05s; }
+  .stagger-2 { animation-delay: 0.10s; }
+  .stagger-3 { animation-delay: 0.15s; }
+  .stagger-4 { animation-delay: 0.20s; }
+  .stagger-5 { animation-delay: 0.25s; }
+  .stagger-6 { animation-delay: 0.30s; }
+}

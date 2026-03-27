@@ -1,0 +1,233 @@
+name: Release
+
+# Two triggers:
+# 1. Manual: Actions > Release > Run workflow > enter version (e.g. "1.0.0")
+# 2. Tag push: git tag v1.0.0 && git push origin v1.0.0
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version (e.g. 1.0.0 — without 'v' prefix)"
+        required: true
+        type: string
+      prerelease:
+        description: "Mark as pre-release"
+        required: false
+        type: boolean
+        default: false
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  packages: write
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_PREFIX: ghcr.io/${{ github.repository_owner }}/netmap-ng
+
+jobs:
+  # ──────────────────────────────────────────────
+  # Prepare: determine version and create tag if needed
+  # ──────────────────────────────────────────────
+  prepare:
+    name: Prepare Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+            TAG="v${VERSION}"
+          else
+            TAG="${GITHUB_REF_NAME}"
+            VERSION="${TAG#v}"
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Release: ${TAG} (${VERSION})"
+
+      - name: Create and push tag
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "${TAG}" -m "Release ${TAG}"
+          git push origin "${TAG}"
+
+  # ──────────────────────────────────────────────
+  # Test before releasing
+  # ──────────────────────────────────────────────
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    needs: prepare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: pip install -r backend/requirements.txt
+      - run: pip install pytest pytest-asyncio httpx
+      - run: cd backend && python -m pytest tests/ -v --tb=short
+        env:
+          APP_SECRET_KEY: test-secret-key-ci-only
+          AUTH_DISABLED: "true"
+
+  # ──────────────────────────────────────────────
+  # Build frontend
+  # ──────────────────────────────────────────────
+  build-frontend:
+    name: Build Frontend
+    runs-on: ubuntu-latest
+    needs: [prepare, test]
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Archive
+        run: tar -czf ../frontend-dist.tar.gz -C dist .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: frontend-dist.tar.gz
+
+  # ──────────────────────────────────────────────
+  # Build and push Docker images
+  # ──────────────────────────────────────────────
+  docker:
+    name: Docker ${{ matrix.image.name }}
+    runs-on: ubuntu-latest
+    needs: [prepare, test]
+    strategy:
+      matrix:
+        image:
+          - { name: backend, dockerfile: backend/Dockerfile, context: backend }
+          - { name: frontend, dockerfile: frontend/Dockerfile, context: frontend }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_PREFIX }}-${{ matrix.image.name }}
+          tags: |
+            type=semver,pattern={{version}},value=${{ needs.prepare.outputs.tag }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.tag }}
+            type=semver,pattern={{major}},value=${{ needs.prepare.outputs.tag }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.image.context }}
+          file: ${{ matrix.image.dockerfile }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ──────────────────────────────────────────────
+  # Create GitHub Release with changelog + artifacts
+  # ──────────────────────────────────────────────
+  release:
+    name: GitHub Release
+    runs-on: ubuntu-latest
+    needs: [prepare, build-frontend, docker]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release
+          cp artifacts/frontend-dist/frontend-dist.tar.gz release/ 2>/dev/null || true
+          cd release && sha256sum * > checksums.txt
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG="${{ needs.prepare.outputs.tag }}"
+          PREV_TAG=$(git tag --sort=-v:refname | grep -v "^${TAG}$" | head -1)
+          if [ -n "$PREV_TAG" ]; then
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" "${PREV_TAG}..${TAG}" -- . ':!.github')
+          else
+            CHANGELOG=$(git log --pretty=format:"- %s (%h)" "${TAG}" -- . ':!.github')
+          fi
+          {
+            echo "changelog<<EOF"
+            echo "$CHANGELOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: "Netmap NG ${{ needs.prepare.outputs.tag }}"
+          prerelease: ${{ inputs.prerelease || false }}
+          generate_release_notes: true
+          body: |
+            ## What's Changed
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Docker Images
+
+            ```bash
+            docker pull ${{ env.IMAGE_PREFIX }}-backend:${{ needs.prepare.outputs.version }}
+            docker pull ${{ env.IMAGE_PREFIX }}-frontend:${{ needs.prepare.outputs.version }}
+            ```
+
+            Available architectures: `linux/amd64`, `linux/arm64`
+
+            ## Quick Start
+
+            ```bash
+            export IMAGE_TAG="${{ needs.prepare.outputs.version }}"
+
+            curl -LO https://raw.githubusercontent.com/${{ github.repository }}/${{ needs.prepare.outputs.tag }}/docker-compose.yml
+            curl -LO https://raw.githubusercontent.com/${{ github.repository }}/${{ needs.prepare.outputs.tag }}/.env.example
+            cp .env.example .env
+            # Edit .env with your Observium DB credentials + OAuth config
+
+            docker compose up -d
+            ```
+          files: release/*

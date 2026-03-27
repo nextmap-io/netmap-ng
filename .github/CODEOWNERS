@@ -1,0 +1,16 @@
+# Code Owners for Netmap NG
+# These users will be automatically requested for review on PRs
+# that modify files matching the patterns.
+
+# Default owners for everything
+* @nextmap-io/platform
+
+# Python backend
+/backend/ @nextmap-io/platform
+
+# Frontend
+/frontend/ @nextmap-io/platform
+
+# Infrastructure & CI
+/docker-compose*.yml @nextmap-io/platform
+/.github/ @nextmap-io/platform
