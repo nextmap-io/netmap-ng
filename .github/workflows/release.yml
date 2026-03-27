@@ -80,7 +80,7 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: pip install -r backend/requirements.txt
-      - run: pip install pytest pytest-asyncio httpx
+      - run: pip install pytest pytest-asyncio httpx anyio
       - run: cd backend && python -m pytest tests/ -v --tb=short
         env:
           APP_SECRET_KEY: test-secret-key-ci-only
