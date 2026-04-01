@@ -203,16 +203,18 @@ export function LinkProperties({
         <div className="h-px bg-noc-border/50 mb-3" />
         <div className="space-y-2">
           <div>
-            <label className={labelClass}>Via Style</label>
+            <label className={labelClass}>Routing</label>
             <select
-              value={link.via_style}
+              value={String(link.extra?.routing || "auto")}
               onChange={(e) =>
-                onUpdate({ via_style: e.target.value as "curved" | "angled" })
+                onUpdate({ extra: { ...link.extra, routing: e.target.value } })
               }
               className={inputClass}
             >
-              <option value="curved">Curved</option>
-              <option value="angled">Angled</option>
+              <option value="auto">Auto</option>
+              <option value="straight">Straight</option>
+              <option value="step">Right-angle (Step)</option>
+              <option value="bezier">Curved (Bezier)</option>
             </select>
           </div>
           <div>
@@ -227,6 +229,50 @@ export function LinkProperties({
               <option value="full">Full</option>
               <option value="half">Half</option>
             </select>
+          </div>
+          <div>
+            <label className={labelClass}>Line Style</label>
+            <select
+              value={String(link.extra?.line_style || "auto")}
+              onChange={(e) =>
+                onUpdate({ extra: { ...link.extra, line_style: e.target.value } })
+              }
+              className={inputClass}
+            >
+              <option value="auto">Auto (from type)</option>
+              <option value="solid">Solid</option>
+              <option value="dashed">Dashed</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Color Override</label>
+            <div className="flex items-center gap-2">
+              <input
+                type="color"
+                value={String(link.extra?.color_override || "#3b82f6")}
+                onChange={(e) =>
+                  onUpdate({ extra: { ...link.extra, color_override: e.target.value } })
+                }
+                className="w-8 h-6 rounded border border-noc-border bg-noc-bg cursor-pointer"
+              />
+              <label className="flex items-center gap-1.5 text-2xs text-noc-text-muted">
+                <input
+                  type="checkbox"
+                  checked={!!link.extra?.color_override}
+                  onChange={(e) =>
+                    onUpdate({
+                      extra: {
+                        ...link.extra,
+                        color_override: e.target.checked ? "#3b82f6" : undefined,
+                      },
+                    })
+                  }
+                  className="accent-accent"
+                />
+                Override
+              </label>
+            </div>
           </div>
         </div>
       </section>

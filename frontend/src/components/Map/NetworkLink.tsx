@@ -2,6 +2,7 @@ import { memo } from "react";
 import {
   getSmoothStepPath,
   getStraightPath,
+  getBezierPath,
   type EdgeProps,
   EdgeLabelRenderer,
 } from "@xyflow/react";
@@ -26,16 +27,38 @@ function TrafficEdgeComponent({
   const bandwidthLabel = String(data?.bandwidthLabel || "");
   const linkType = String(data?.linkType || "internal");
 
+  // Style overrides from extra
+  const extra = data?.extra as Record<string, unknown> | undefined;
+  const lineStyle = String(extra?.line_style || "auto");
+  const colorOverride = extra?.color_override ? String(extra.color_override) : null;
+
+  // Compute dash pattern
+  const dashArray = lineStyle === "dashed" ? "6 3"
+    : lineStyle === "dotted" ? "2 3"
+    : lineStyle === "auto" && linkType === "transit" ? "6 3"
+    : undefined;
+
+  // Override colors if set
+  const strokeOut = colorOverride || outColor;
+  const strokeIn = colorOverride || inColor;
+
+  // Routing mode: auto (default), straight, step, bezier
+  const routing = String(extra?.routing || "auto");
   const isHorizontal = Math.abs(sourceY - targetY) < 15;
 
-  const [edgePath, labelX, labelY] = isHorizontal
-    ? getStraightPath({ sourceX, sourceY, targetX, targetY })
-    : getSmoothStepPath({
-        sourceX, sourceY, targetX, targetY,
-        sourcePosition, targetPosition,
-        borderRadius: 6,
-        offset: 15,
-      });
+  let edgePath: string, labelX: number, labelY: number;
+  if (routing === "straight" || (routing === "auto" && isHorizontal)) {
+    [edgePath, labelX, labelY] = getStraightPath({ sourceX, sourceY, targetX, targetY });
+  } else if (routing === "bezier") {
+    [edgePath, labelX, labelY] = getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
+  } else {
+    // step (default for non-horizontal)
+    [edgePath, labelX, labelY] = getSmoothStepPath({
+      sourceX, sourceY, targetX, targetY,
+      sourcePosition, targetPosition,
+      borderRadius: 6, offset: 15,
+    });
+  }
 
   const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
   const showBpsLabels = dist > 80;
@@ -59,10 +82,10 @@ function TrafficEdgeComponent({
         id={`${id}-out`}
         d={edgePath}
         fill="none"
-        stroke={outColor}
+        stroke={strokeOut}
         strokeWidth={width}
         opacity={selected ? 1 : 0.7}
-        strokeDasharray={linkType === "transit" ? "6 3" : undefined}
+        strokeDasharray={dashArray}
         filter={selected ? "drop-shadow(0 0 6px hsl(190 90% 50% / 0.4))" : undefined}
         style={{ transition: "stroke 0.3s, opacity 0.15s" }}
       />
@@ -70,7 +93,7 @@ function TrafficEdgeComponent({
         id={`${id}-in`}
         d={edgePath}
         fill="none"
-        stroke={inColor}
+        stroke={strokeIn}
         strokeWidth={Math.max(width - 1, 1.5)}
         opacity={0.3}
       />
