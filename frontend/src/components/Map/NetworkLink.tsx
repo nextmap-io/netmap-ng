@@ -60,12 +60,11 @@ function TrafficEdgeComponent({
   const strokeOut = colorOverride || outColor;
   const strokeIn = colorOverride || inColor;
 
-  // Label positions: out near source (20%), in near target (80%)
-  // Before the midpoint arrows, closer to the nodes
-  const outLabelX = sourceX * 0.78 + targetX * 0.22;
-  const outLabelY = sourceY * 0.78 + targetY * 0.22 - 8;
-  const inLabelX = sourceX * 0.22 + targetX * 0.78;
-  const inLabelY = sourceY * 0.22 + targetY * 0.78 - 8;
+  // Labels: "out" between source and midpoint, "in" between midpoint and target
+  const outLabelX = sourceX * 0.65 + targetX * 0.35;
+  const outLabelY = sourceY * 0.65 + targetY * 0.35 - 8;
+  const inLabelX = sourceX * 0.35 + targetX * 0.65;
+  const inLabelY = sourceY * 0.35 + targetY * 0.65 - 8;
 
   const typeLabel =
     linkType === "transit" ? "TR" :
