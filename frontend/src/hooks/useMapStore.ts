@@ -220,57 +220,60 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     let updatedNodes: MapNode[];
 
+    // Helper: get the reference node
+    // For horizontal ops (left/center/right): reference = topmost node (smallest Y)
+    // For vertical ops (top/middle/bottom): reference = leftmost node (smallest X)
+    const nw = (n: MapNode) => n.width || 100;
+    const nh = (n: MapNode) => n.height || 28;
+    const refByY = [...selectedNodes].sort((a, b) => a.y - b.y)[0]; // topmost
+    const refByX = [...selectedNodes].sort((a, b) => a.x - b.x)[0]; // leftmost
+
     switch (direction) {
       case "left": {
-        const minX = Math.min(...selectedNodes.map((n) => n.x));
+        // Align left edges to the reference (topmost) node's X
+        const refX = refByY.x;
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: minX } : n
+          selectedNodeIds.includes(n.id) ? { ...n, x: refX } : n
         );
         break;
       }
       case "center": {
-        // Use center of each node (x + width/2) to compute alignment
-        const nw = (n: MapNode) => n.width || 100;
-        const centers = selectedNodes.map((n) => n.x + nw(n) / 2);
-        const minC = Math.min(...centers);
-        const maxC = Math.max(...centers);
-        const centerX = (minC + maxC) / 2;
+        // Align centers to the reference (topmost) node's center X
+        const refCenterX = refByY.x + nw(refByY) / 2;
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: centerX - nw(n) / 2 } : n
+          selectedNodeIds.includes(n.id) ? { ...n, x: refCenterX - nw(n) / 2 } : n
         );
         break;
       }
       case "right": {
-        const nw = (n: MapNode) => n.width || 100;
-        const maxRight = Math.max(...selectedNodes.map((n) => n.x + nw(n)));
+        // Align right edges to the reference (topmost) node's right edge
+        const refRight = refByY.x + nw(refByY);
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: maxRight - nw(n) } : n
+          selectedNodeIds.includes(n.id) ? { ...n, x: refRight - nw(n) } : n
         );
         break;
       }
       case "top": {
-        const minY = Math.min(...selectedNodes.map((n) => n.y));
+        // Align top edges to the reference (leftmost) node's Y
+        const refY = refByX.y;
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: minY } : n
+          selectedNodeIds.includes(n.id) ? { ...n, y: refY } : n
         );
         break;
       }
       case "middle": {
-        const nh = (n: MapNode) => n.height || 28;
-        const middles = selectedNodes.map((n) => n.y + nh(n) / 2);
-        const minM = Math.min(...middles);
-        const maxM = Math.max(...middles);
-        const middleY = (minM + maxM) / 2;
+        // Align vertical centers to the reference (leftmost) node's center Y
+        const refMiddleY = refByX.y + nh(refByX) / 2;
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: middleY - nh(n) / 2 } : n
+          selectedNodeIds.includes(n.id) ? { ...n, y: refMiddleY - nh(n) / 2 } : n
         );
         break;
       }
       case "bottom": {
-        const nh = (n: MapNode) => n.height || 28;
-        const maxBottom = Math.max(...selectedNodes.map((n) => n.y + nh(n)));
+        // Align bottom edges to the reference (leftmost) node's bottom edge
+        const refBottom = refByX.y + nh(refByX);
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: maxBottom - nh(n) } : n
+          selectedNodeIds.includes(n.id) ? { ...n, y: refBottom - nh(n) } : n
         );
         break;
       }
