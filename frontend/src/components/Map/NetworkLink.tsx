@@ -110,27 +110,36 @@ function TrafficEdgeComponent({
         style={{ transition: "opacity 0.15s" }}
       />
 
-      {/* Midpoint arrows: ►◄ touching at the center point */}
-      {/* Out arrow ► (pointing toward target) */}
-      <polygon
-        points={`
-          ${midX + dx / len * arrowSize},${midY + dy / len * arrowSize}
-          ${midX + perpX * arrowSize * 0.7},${midY + perpY * arrowSize * 0.7}
-          ${midX - perpX * arrowSize * 0.7},${midY - perpY * arrowSize * 0.7}
-        `}
-        fill={strokeOut}
-        opacity={0.9}
-      />
-      {/* In arrow ◄ (pointing toward source) */}
-      <polygon
-        points={`
-          ${midX - dx / len * arrowSize},${midY - dy / len * arrowSize}
-          ${midX + perpX * arrowSize * 0.7},${midY + perpY * arrowSize * 0.7}
-          ${midX - perpX * arrowSize * 0.7},${midY - perpY * arrowSize * 0.7}
-        `}
-        fill={strokeIn}
-        opacity={0.9}
-      />
+      {/* Midpoint arrows: ► ◄ with small gap between tips */}
+      {(() => {
+        const gap = 2;
+        const nx = dx / len;
+        const ny = dy / len;
+        return (
+          <>
+            {/* Out arrow ► */}
+            <polygon
+              points={`
+                ${midX + nx * (arrowSize + gap)},${midY + ny * (arrowSize + gap)}
+                ${midX + perpX * arrowSize * 0.7 + nx * gap},${midY + perpY * arrowSize * 0.7 + ny * gap}
+                ${midX - perpX * arrowSize * 0.7 + nx * gap},${midY - perpY * arrowSize * 0.7 + ny * gap}
+              `}
+              fill={strokeOut}
+              opacity={0.9}
+            />
+            {/* In arrow ◄ */}
+            <polygon
+              points={`
+                ${midX - nx * (arrowSize + gap)},${midY - ny * (arrowSize + gap)}
+                ${midX + perpX * arrowSize * 0.7 - nx * gap},${midY + perpY * arrowSize * 0.7 - ny * gap}
+                ${midX - perpX * arrowSize * 0.7 - nx * gap},${midY - perpY * arrowSize * 0.7 - ny * gap}
+              `}
+              fill={strokeIn}
+              opacity={0.9}
+            />
+          </>
+        );
+      })()}
 
       <EdgeLabelRenderer>
         {showBpsLabels && (
