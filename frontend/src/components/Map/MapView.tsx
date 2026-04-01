@@ -163,7 +163,7 @@ function buildEdges(
         bandwidthLabel: l.bandwidth_label,
         bandwidth: l.bandwidth,
         width: l.width,
-        forceStraight: straightNodeIds.has(l.source_id) || straightNodeIds.has(l.target_id),
+        forceOrthogonal: straightNodeIds.has(l.source_id) || straightNodeIds.has(l.target_id),
         inBps: t?.in_bps ?? 0,
         outBps: t?.out_bps ?? 0,
         inPct, outPct, inColor, outColor,

@@ -148,7 +148,7 @@ export function NodeProperties({
         </div>
         <div className="flex items-center justify-between mt-2">
           <label className="text-2xs text-noc-text-muted uppercase tracking-wider">
-            Straight Links
+            Orthogonal Links
           </label>
           <button
             type="button"
