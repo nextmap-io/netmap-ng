@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
 import { LinkCreationDialog } from "./LinkCreationDialog";
+import { MapSettingsDialog } from "./MapSettingsDialog";
 
 export function EditorToolbar() {
   const {
@@ -15,6 +16,7 @@ export function EditorToolbar() {
   } = useMapStore();
 
   const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   if (!editMode) return null;
 
@@ -68,6 +70,7 @@ export function EditorToolbar() {
         {/* Group 3 - Canvas */}
         {sep}
         {btn(true, toggleSnapToGrid, <IconGrid />, "Snap to Grid", snapToGrid)}
+        {btn(true, () => setShowSettings(true), <IconSettings />, "Map Settings")}
         {btn(true, () => setShowLinkDialog(true), <IconAddLink />, "Add Link")}
       </div>
 
@@ -79,6 +82,7 @@ export function EditorToolbar() {
           onCreate={createLink}
         />
       )}
+      <MapSettingsDialog open={showSettings} onClose={() => setShowSettings(false)} />
     </>
   );
 }
@@ -184,6 +188,15 @@ function IconGrid() {
       <line x1={1} y1={4} x2={15} y2={4} strokeOpacity={0.5} />
       <line x1={1} y1={8} x2={15} y2={8} strokeOpacity={0.5} />
       <line x1={1} y1={12} x2={15} y2={12} strokeOpacity={0.5} />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.2}>
+      <circle cx="8" cy="8" r="2" />
+      <path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.9 2.9l1.4 1.4M11.7 11.7l1.4 1.4M2.9 13.1l1.4-1.4M11.7 4.3l1.4-1.4" />
     </svg>
   );
 }

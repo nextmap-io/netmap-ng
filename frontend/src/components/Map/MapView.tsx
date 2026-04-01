@@ -22,7 +22,7 @@ import { GroupNode } from "./GroupNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
-import { MapEditor } from "../Editor/MapEditor";
+import { EditorToolbox } from "../Editor/EditorToolbox";
 import { EditorToolbar } from "../Editor/EditorToolbar";
 import { PropertyPanel } from "../Editor/PropertyPanel";
 import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
@@ -184,6 +184,13 @@ export function formatBps(bps: number): string {
   return `${bps.toFixed(0)}`;
 }
 
+function isInputFocused(): boolean {
+  const el = document.activeElement;
+  if (!el) return false;
+  const tag = el.tagName.toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || (el as HTMLElement).isContentEditable;
+}
+
 function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
   const { map, traffic, loading, error, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, createLink } =
@@ -196,6 +203,35 @@ function MapViewInner() {
   }, [mapId, loadMap, stopTrafficPolling]);
 
   const scales = useMemo(() => map?.scales?.default ?? [], [map]);
+
+  // Keyboard shortcuts for edit mode
+  useEffect(() => {
+    if (!editMode) return;
+    const handler = (e: KeyboardEvent) => {
+      // Delete selected items
+      if ((e.key === "Delete" || e.key === "Backspace") && !isInputFocused()) {
+        const { selectedNodeIds, selectedLinkIds, deleteNode, deleteLink, map: currentMap } = useMapStore.getState();
+        if (!currentMap) return;
+        for (const id of selectedLinkIds) deleteLink(id);
+        for (const id of selectedNodeIds) deleteNode(id);
+      }
+      // Escape to deselect
+      if (e.key === "Escape") {
+        clearSelection();
+      }
+      // Ctrl+A to select all non-group nodes
+      if (e.key === "a" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (map) {
+          const allIds = map.nodes.filter(n => n.node_type !== "group").map(n => n.id);
+          selectNodes(allIds);
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [editMode, clearSelection, selectNodes, map]);
 
   const initialNodes = useMemo(() => {
     if (!map) return [];
@@ -345,7 +381,7 @@ function MapViewInner() {
         </ReactFlow>
 
         <TrafficLegend scales={scales} />
-        <MapEditor />
+        <EditorToolbox />
         <EditorToolbar />
 
         {selectedLink && (

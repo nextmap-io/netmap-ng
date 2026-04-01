@@ -166,3 +166,9 @@
     opacity: 1;
   }
 }
+
+/* ─── Selection highlight for selected nodes ─── */
+
+.react-flow__node.selected .rounded {
+  box-shadow: 0 0 0 2px hsl(190 90% 50% / 0.4);
+}
