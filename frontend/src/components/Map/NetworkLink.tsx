@@ -163,11 +163,15 @@ function TrafficEdgeComponent({
             <polygon
               points={`${outTipX},${outTipY} ${outBaseX + px * s * 0.5},${outBaseY + py * s * 0.5} ${outBaseX - px * s * 0.5},${outBaseY - py * s * 0.5}`}
               fill={strokeOut}
+              stroke="hsl(220 15% 30%)"
+              strokeWidth={0.5}
               opacity={0.9}
             />
             <polygon
               points={`${inTipX},${inTipY} ${inBaseX + px * s * 0.5},${inBaseY + py * s * 0.5} ${inBaseX - px * s * 0.5},${inBaseY - py * s * 0.5}`}
               fill={strokeIn}
+              stroke="hsl(220 15% 30%)"
+              strokeWidth={0.5}
               opacity={0.9}
             />
           </>
