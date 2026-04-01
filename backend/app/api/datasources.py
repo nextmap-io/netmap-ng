@@ -72,13 +72,17 @@ async def get_live_traffic(
             if port_data:
                 in_rate = port_data.get("ifInOctets_rate", 0) or 0
                 out_rate = port_data.get("ifOutOctets_rate", 0) or 0
-                in_pct = port_data.get("ifInOctets_perc", 0) or 0
-                out_pct = port_data.get("ifOutOctets_perc", 0) or 0
+                in_bps = float(in_rate) * 8
+                out_bps = float(out_rate) * 8
+                # Calculate percentage from link bandwidth for better precision
+                bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
+                in_pct = min(100.0, (in_bps / bw) * 100)
+                out_pct = min(100.0, (out_bps / bw) * 100)
                 traffic_data[link.id] = {
-                    "in_bps": float(in_rate) * 8,
-                    "out_bps": float(out_rate) * 8,
-                    "in_pct": float(in_pct),
-                    "out_pct": float(out_pct),
+                    "in_bps": in_bps,
+                    "out_bps": out_bps,
+                    "in_pct": round(in_pct, 1),
+                    "out_pct": round(out_pct, 1),
                 }
         if link.id not in traffic_data:
             traffic_data[link.id] = {
