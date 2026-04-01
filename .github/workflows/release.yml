@@ -142,6 +142,7 @@ jobs:
         with:
           images: ${{ env.IMAGE_PREFIX }}-${{ matrix.image.name }}
           tags: |
+            type=raw,value=latest
             type=semver,pattern={{version}},value=${{ needs.prepare.outputs.tag }}
             type=semver,pattern={{major}}.{{minor}},value=${{ needs.prepare.outputs.tag }}
             type=semver,pattern={{major}},value=${{ needs.prepare.outputs.tag }}
