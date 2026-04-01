@@ -172,3 +172,80 @@
 .react-flow__node.selected .rounded {
   box-shadow: 0 0 0 2px hsl(190 90% 50% / 0.4);
 }
+
+/* ─── Light theme overrides ─── */
+
+html.light {
+  background: hsl(210 20% 97%);
+  color: hsl(220 20% 12%);
+}
+
+html.light body {
+  background: hsl(210 20% 97%);
+}
+
+/* Override noc utility classes for light mode */
+html.light .bg-noc-bg { background-color: hsl(210 20% 97%) !important; }
+html.light .bg-noc-card { background-color: hsl(0 0% 100%) !important; }
+html.light .bg-noc-surface { background-color: hsl(210 15% 94%) !important; }
+html.light .border-noc-border { border-color: hsl(210 12% 85%) !important; }
+html.light .text-noc-text { color: hsl(220 20% 12%) !important; }
+html.light .text-noc-text-muted { color: hsl(215 10% 45%) !important; }
+html.light .text-noc-text-dim { color: hsl(215 8% 60%) !important; }
+
+/* Panels and glass */
+html.light .noc-glass {
+  background: hsl(0 0% 100% / 0.9) !important;
+  border-color: hsl(210 12% 85%) !important;
+}
+html.light .noc-card {
+  background: hsl(0 0% 100%) !important;
+  border-color: hsl(210 12% 85%) !important;
+}
+html.light .noc-label {
+  color: hsl(215 10% 45%) !important;
+}
+
+/* Inputs */
+html.light .bg-noc-bg\/80 { background-color: hsl(210 20% 97% / 0.8) !important; }
+html.light .bg-noc-bg\/90 { background-color: hsl(210 20% 97% / 0.9) !important; }
+
+/* ReactFlow overrides for light mode */
+html.light .react-flow__background {
+  background-color: hsl(210 20% 97%) !important;
+}
+html.light .react-flow__minimap {
+  background-color: hsl(0 0% 100%) !important;
+  border-color: hsl(210 12% 85%) !important;
+}
+html.light .react-flow__controls button {
+  background-color: hsl(0 0% 100%) !important;
+  color: hsl(220 20% 12%) !important;
+  border-color: hsl(210 12% 85%) !important;
+}
+html.light .react-flow__controls button:hover {
+  background-color: hsl(210 15% 94%) !important;
+}
+html.light .react-flow__controls button svg {
+  fill: hsl(215 10% 45%) !important;
+}
+
+/* Recharts tooltip light */
+html.light .recharts-default-tooltip {
+  background: hsl(0 0% 100%) !important;
+  border-color: hsl(210 12% 85%) !important;
+  box-shadow: 0 4px 24px hsl(210 20% 80% / 0.3) !important;
+}
+html.light .recharts-tooltip-label {
+  color: hsl(215 10% 45%) !important;
+}
+
+/* Scrollbar light */
+html.light ::-webkit-scrollbar-track { background: hsl(210 15% 94%); }
+html.light ::-webkit-scrollbar-thumb { background: hsl(210 10% 75%); }
+
+/* Selection text color */
+html.light ::selection {
+  background: hsl(190 80% 38% / 0.3);
+  color: hsl(220 20% 12%);
+}
