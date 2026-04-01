@@ -230,7 +230,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
       }
       case "center": {
         // Use center of each node (x + width/2) to compute alignment
-        const nw = (n: MapNode) => n.width || 80;
+        const nw = (n: MapNode) => n.width || 100;
         const centers = selectedNodes.map((n) => n.x + nw(n) / 2);
         const minC = Math.min(...centers);
         const maxC = Math.max(...centers);
@@ -241,7 +241,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "right": {
-        const nw = (n: MapNode) => n.width || 80;
+        const nw = (n: MapNode) => n.width || 100;
         const maxRight = Math.max(...selectedNodes.map((n) => n.x + nw(n)));
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, x: maxRight - nw(n) } : n
@@ -256,7 +256,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "middle": {
-        const nh = (n: MapNode) => n.height || 30;
+        const nh = (n: MapNode) => n.height || 28;
         const middles = selectedNodes.map((n) => n.y + nh(n) / 2);
         const minM = Math.min(...middles);
         const maxM = Math.max(...middles);
@@ -267,7 +267,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "bottom": {
-        const nh = (n: MapNode) => n.height || 30;
+        const nh = (n: MapNode) => n.height || 28;
         const maxBottom = Math.max(...selectedNodes.map((n) => n.y + nh(n)));
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, y: maxBottom - nh(n) } : n
@@ -299,25 +299,33 @@ export const useMapStore = create<MapStore>((set, get) => ({
     let updatedNodes: MapNode[];
 
     if (axis === "horizontal") {
-      const sorted = [...selectedNodes].sort((a, b) => a.x - b.x);
-      const minX = sorted[0].x;
-      const maxX = sorted[sorted.length - 1].x;
-      const step = (maxX - minX) / (sorted.length - 1);
+      const nw = (n: MapNode) => n.width || 100;
+      const sorted = [...selectedNodes].sort((a, b) => (a.x + nw(a)/2) - (b.x + nw(b)/2));
+      const firstCenter = sorted[0].x + nw(sorted[0]) / 2;
+      const lastCenter = sorted[sorted.length - 1].x + nw(sorted[sorted.length - 1]) / 2;
+      const step = (lastCenter - firstCenter) / (sorted.length - 1);
 
       const positionMap = new Map<string, number>();
-      sorted.forEach((n, i) => positionMap.set(n.id, minX + i * step));
+      sorted.forEach((n, i) => {
+        const newCenter = firstCenter + i * step;
+        positionMap.set(n.id, newCenter - nw(n) / 2);
+      });
 
       updatedNodes = map.nodes.map((n: MapNode) =>
         positionMap.has(n.id) ? { ...n, x: positionMap.get(n.id)! } : n
       );
     } else {
-      const sorted = [...selectedNodes].sort((a, b) => a.y - b.y);
-      const minY = sorted[0].y;
-      const maxY = sorted[sorted.length - 1].y;
-      const step = (maxY - minY) / (sorted.length - 1);
+      const nh = (n: MapNode) => n.height || 28;
+      const sorted = [...selectedNodes].sort((a, b) => (a.y + nh(a)/2) - (b.y + nh(b)/2));
+      const firstCenter = sorted[0].y + nh(sorted[0]) / 2;
+      const lastCenter = sorted[sorted.length - 1].y + nh(sorted[sorted.length - 1]) / 2;
+      const step = (lastCenter - firstCenter) / (sorted.length - 1);
 
       const positionMap = new Map<string, number>();
-      sorted.forEach((n, i) => positionMap.set(n.id, minY + i * step));
+      sorted.forEach((n, i) => {
+        const newCenter = firstCenter + i * step;
+        positionMap.set(n.id, newCenter - nh(n) / 2);
+      });
 
       updatedNodes = map.nodes.map((n: MapNode) =>
         positionMap.has(n.id) ? { ...n, y: positionMap.get(n.id)! } : n
