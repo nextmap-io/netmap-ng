@@ -109,42 +109,26 @@ function TrafficEdgeComponent({
         style={{ transition: "opacity 0.15s" }}
       />
 
-      {/* Midpoint split arrows (two small chevrons pointing in each direction) */}
-      <line
-        x1={midX + perpX * arrowSize}
-        y1={midY + perpY * arrowSize}
-        x2={midX - dx / len * 3}
-        y2={midY - dy / len * 3}
-        stroke={strokeOut}
-        strokeWidth={Math.max(width * 0.6, 1.5)}
-        opacity={0.6}
+      {/* Midpoint: two small triangular arrowheads pointing in each direction */}
+      {/* Out arrow (pointing toward target) */}
+      <polygon
+        points={`
+          ${midX + dx / len * arrowSize},${midY + dy / len * arrowSize}
+          ${midX + perpX * arrowSize * 0.7 - dx / len * arrowSize * 0.3},${midY + perpY * arrowSize * 0.7 - dy / len * arrowSize * 0.3}
+          ${midX - perpX * arrowSize * 0.7 - dx / len * arrowSize * 0.3},${midY - perpY * arrowSize * 0.7 - dy / len * arrowSize * 0.3}
+        `}
+        fill={strokeOut}
+        opacity={0.7}
       />
-      <line
-        x1={midX - perpX * arrowSize}
-        y1={midY - perpY * arrowSize}
-        x2={midX - dx / len * 3}
-        y2={midY - dy / len * 3}
-        stroke={strokeOut}
-        strokeWidth={Math.max(width * 0.6, 1.5)}
-        opacity={0.6}
-      />
-      <line
-        x1={midX + perpX * arrowSize}
-        y1={midY + perpY * arrowSize}
-        x2={midX + dx / len * 3}
-        y2={midY + dy / len * 3}
-        stroke={strokeIn}
-        strokeWidth={Math.max(width * 0.6, 1.5)}
-        opacity={0.6}
-      />
-      <line
-        x1={midX - perpX * arrowSize}
-        y1={midY - perpY * arrowSize}
-        x2={midX + dx / len * 3}
-        y2={midY + dy / len * 3}
-        stroke={strokeIn}
-        strokeWidth={Math.max(width * 0.6, 1.5)}
-        opacity={0.6}
+      {/* In arrow (pointing toward source) */}
+      <polygon
+        points={`
+          ${midX - dx / len * arrowSize},${midY - dy / len * arrowSize}
+          ${midX + perpX * arrowSize * 0.7 + dx / len * arrowSize * 0.3},${midY + perpY * arrowSize * 0.7 + dy / len * arrowSize * 0.3}
+          ${midX - perpX * arrowSize * 0.7 + dx / len * arrowSize * 0.3},${midY - perpY * arrowSize * 0.7 + dy / len * arrowSize * 0.3}
+        `}
+        fill={strokeIn}
+        opacity={0.7}
       />
 
       <EdgeLabelRenderer>
@@ -173,7 +157,7 @@ function TrafficEdgeComponent({
             position: "absolute",
             transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - 6}px)`,
           }}>
-            <div className="flex items-center gap-0.5 text-2xs text-noc-text-dim whitespace-nowrap opacity-50">
+            <div className="flex items-center gap-0.5 whitespace-nowrap opacity-40" style={{ fontSize: "8px" }}>
               {typeLabel && <span className="font-semibold tracking-wider">{typeLabel}</span>}
               <span className="tabular-nums">{bandwidthLabel}</span>
             </div>
