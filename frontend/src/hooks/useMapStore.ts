@@ -69,20 +69,12 @@ export const useMapStore = create<MapStore>((set, get) => ({
   editMode: false,
   selectedNodeIds: [],
   selectedLinkIds: [],
+  selectedNodeId: null,
+  selectedLinkId: null,
   snapToGrid: false,
   saving: false,
   lastSaved: null,
   _pollTimer: null,
-
-  // Backward-compat getters
-  get selectedNodeId(): string | null {
-    const ids = get().selectedNodeIds;
-    return ids.length === 1 ? ids[0] : null;
-  },
-  get selectedLinkId(): string | null {
-    const ids = get().selectedLinkIds;
-    return ids.length === 1 ? ids[0] : null;
-  },
 
   loadMap: async (id: string) => {
     set({ loading: true, error: null });
@@ -100,22 +92,35 @@ export const useMapStore = create<MapStore>((set, get) => ({
   setEditMode: (on) =>
     set({ editMode: on, selectedNodeIds: [], selectedLinkIds: [] }),
 
-  // Legacy single-select
+  // Legacy single-select (also sets backward-compat singular fields)
   selectNode: (id) =>
     set({
       selectedNodeIds: id ? [id] : [],
       selectedLinkIds: [],
+      selectedNodeId: id,
+      selectedLinkId: null,
     }),
   selectLink: (id) =>
     set({
       selectedLinkIds: id ? [id] : [],
       selectedNodeIds: [],
+      selectedLinkId: id,
+      selectedNodeId: null,
     }),
 
-  // Multi-select
-  selectNodes: (ids) => set({ selectedNodeIds: ids, selectedLinkIds: [] }),
-  selectLinks: (ids) => set({ selectedLinkIds: ids, selectedNodeIds: [] }),
-  clearSelection: () => set({ selectedNodeIds: [], selectedLinkIds: [] }),
+  // Multi-select (also update backward-compat singular fields)
+  selectNodes: (ids) => set({
+    selectedNodeIds: ids, selectedLinkIds: [],
+    selectedNodeId: ids.length === 1 ? ids[0] : null, selectedLinkId: null,
+  }),
+  selectLinks: (ids) => set({
+    selectedLinkIds: ids, selectedNodeIds: [],
+    selectedLinkId: ids.length === 1 ? ids[0] : null, selectedNodeId: null,
+  }),
+  clearSelection: () => set({
+    selectedNodeIds: [], selectedLinkIds: [],
+    selectedNodeId: null, selectedLinkId: null,
+  }),
 
   // Optimistic node field update
   updateNodeField: async (nodeId, fields) => {
