@@ -229,18 +229,22 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "center": {
-        const minX = Math.min(...selectedNodes.map((n) => n.x));
-        const maxX = Math.max(...selectedNodes.map((n) => n.x));
-        const centerX = (minX + maxX) / 2;
+        // Use center of each node (x + width/2) to compute alignment
+        const nw = (n: MapNode) => n.width || 80;
+        const centers = selectedNodes.map((n) => n.x + nw(n) / 2);
+        const minC = Math.min(...centers);
+        const maxC = Math.max(...centers);
+        const centerX = (minC + maxC) / 2;
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: centerX } : n
+          selectedNodeIds.includes(n.id) ? { ...n, x: centerX - nw(n) / 2 } : n
         );
         break;
       }
       case "right": {
-        const maxX = Math.max(...selectedNodes.map((n) => n.x));
+        const nw = (n: MapNode) => n.width || 80;
+        const maxRight = Math.max(...selectedNodes.map((n) => n.x + nw(n)));
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: maxX } : n
+          selectedNodeIds.includes(n.id) ? { ...n, x: maxRight - nw(n) } : n
         );
         break;
       }
@@ -252,18 +256,21 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "middle": {
-        const minY = Math.min(...selectedNodes.map((n) => n.y));
-        const maxY = Math.max(...selectedNodes.map((n) => n.y));
-        const middleY = (minY + maxY) / 2;
+        const nh = (n: MapNode) => n.height || 30;
+        const middles = selectedNodes.map((n) => n.y + nh(n) / 2);
+        const minM = Math.min(...middles);
+        const maxM = Math.max(...middles);
+        const middleY = (minM + maxM) / 2;
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: middleY } : n
+          selectedNodeIds.includes(n.id) ? { ...n, y: middleY - nh(n) / 2 } : n
         );
         break;
       }
       case "bottom": {
-        const maxY = Math.max(...selectedNodes.map((n) => n.y));
+        const nh = (n: MapNode) => n.height || 30;
+        const maxBottom = Math.max(...selectedNodes.map((n) => n.y + nh(n)));
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: maxY } : n
+          selectedNodeIds.includes(n.id) ? { ...n, y: maxBottom - nh(n) } : n
         );
         break;
       }
