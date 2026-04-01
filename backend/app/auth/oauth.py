@@ -25,12 +25,24 @@ def setup_oauth(settings: Settings):
                 "All API requests will return 401. Set AUTH_DISABLED=true for local dev."
             )
         return
+    # Build server_metadata_url from authorize_url if it's an Entra ID URL
+    server_metadata = None
+    if "login.microsoftonline.com" in settings.oauth_authorize_url:
+        # Extract tenant from the authorize URL
+        parts = settings.oauth_authorize_url.split("/")
+        tenant_idx = parts.index("login.microsoftonline.com") + 1
+        if tenant_idx < len(parts):
+            tenant = parts[tenant_idx]
+            server_metadata = f"https://login.microsoftonline.com/{tenant}/v2.0/.well-known/openid-configuration"
+            logger.info("Using Entra ID OIDC discovery: %s", server_metadata)
+
     oauth.register(
         name="provider",
         client_id=settings.oauth_client_id,
         client_secret=settings.oauth_client_secret,
-        authorize_url=settings.oauth_authorize_url,
-        access_token_url=settings.oauth_token_url,
+        server_metadata_url=server_metadata,
+        authorize_url=settings.oauth_authorize_url if not server_metadata else None,
+        access_token_url=settings.oauth_token_url if not server_metadata else None,
         userinfo_endpoint=settings.oauth_userinfo_url,
         client_kwargs={"scope": settings.oauth_scopes},
     )
@@ -83,7 +95,9 @@ async def callback(request: Request):
     try:
         token = await oauth.provider.authorize_access_token(request)
     except Exception as e:
-        logger.error("OAuth callback error: %s - session has %d keys", e, len(request.session))
+        logger.error(
+            "OAuth callback error: %s - session has %d keys", e, len(request.session)
+        )
         raise
     userinfo = token.get("userinfo")
     if not userinfo:
