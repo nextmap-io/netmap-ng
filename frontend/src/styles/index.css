@@ -176,76 +176,121 @@
 /* ─── Light theme overrides ─── */
 
 html.light {
-  background: hsl(210 20% 97%);
-  color: hsl(220 20% 12%);
+  background: hsl(215 25% 93%);
+  color: hsl(220 25% 10%);
 }
 
 html.light body {
-  background: hsl(210 20% 97%);
+  background: hsl(215 25% 93%);
 }
 
 /* Override noc utility classes for light mode */
-html.light .bg-noc-bg { background-color: hsl(210 20% 97%) !important; }
+html.light .bg-noc-bg { background-color: hsl(215 25% 93%) !important; }
 html.light .bg-noc-card { background-color: hsl(0 0% 100%) !important; }
-html.light .bg-noc-surface { background-color: hsl(210 15% 94%) !important; }
-html.light .border-noc-border { border-color: hsl(210 12% 85%) !important; }
-html.light .text-noc-text { color: hsl(220 20% 12%) !important; }
-html.light .text-noc-text-muted { color: hsl(215 10% 45%) !important; }
-html.light .text-noc-text-dim { color: hsl(215 8% 60%) !important; }
+html.light .bg-noc-surface { background-color: hsl(215 18% 90%) !important; }
+html.light .border-noc-border { border-color: hsl(215 15% 78%) !important; }
+html.light .text-noc-text { color: hsl(220 25% 10%) !important; }
+html.light .text-noc-text-muted { color: hsl(215 15% 38%) !important; }
+html.light .text-noc-text-dim { color: hsl(215 10% 52%) !important; }
 
 /* Panels and glass */
 html.light .noc-glass {
-  background: hsl(0 0% 100% / 0.9) !important;
-  border-color: hsl(210 12% 85%) !important;
+  background: hsl(0 0% 100% / 0.92) !important;
+  backdrop-filter: blur(16px) !important;
+  border-color: hsl(215 15% 78%) !important;
+  box-shadow: 0 1px 3px hsl(215 20% 70% / 0.2) !important;
 }
 html.light .noc-card {
   background: hsl(0 0% 100%) !important;
-  border-color: hsl(210 12% 85%) !important;
+  border-color: hsl(215 15% 78%) !important;
+  box-shadow: 0 1px 2px hsl(215 20% 70% / 0.15) !important;
 }
 html.light .noc-label {
-  color: hsl(215 10% 45%) !important;
+  color: hsl(215 15% 38%) !important;
 }
 
-/* Inputs */
-html.light .bg-noc-bg\/80 { background-color: hsl(210 20% 97% / 0.8) !important; }
-html.light .bg-noc-bg\/90 { background-color: hsl(210 20% 97% / 0.9) !important; }
+/* Node cards: stronger borders + subtle shadow for depth */
+html.light .react-flow__node .rounded {
+  box-shadow: 0 1px 3px hsl(215 20% 60% / 0.15);
+  border-color: hsl(215 15% 75%) !important;
+}
+html.light .react-flow__node .bg-noc-card {
+  background-color: hsl(0 0% 100%) !important;
+}
 
-/* ReactFlow overrides for light mode */
+/* Group nodes: subtle pattern background */
+html.light .react-flow__node[data-type="group"] > div {
+  background: repeating-linear-gradient(
+    45deg,
+    hsl(215 18% 90%),
+    hsl(215 18% 90%) 10px,
+    hsl(215 18% 92%) 10px,
+    hsl(215 18% 92%) 20px
+  ) !important;
+  border-color: hsl(215 15% 75%) !important;
+  border-style: solid !important;
+}
+
+/* Link labels: white with border for contrast */
+html.light .bg-noc-bg\/80,
+html.light .bg-noc-bg\/90 {
+  background-color: hsl(0 0% 100% / 0.92) !important;
+  border-color: hsl(215 15% 78%) !important;
+  box-shadow: 0 1px 2px hsl(215 20% 60% / 0.1) !important;
+}
+
+/* ReactFlow canvas */
 html.light .react-flow__background {
-  background-color: hsl(210 20% 97%) !important;
+  background-color: hsl(215 25% 93%) !important;
 }
 html.light .react-flow__minimap {
   background-color: hsl(0 0% 100%) !important;
-  border-color: hsl(210 12% 85%) !important;
+  border-color: hsl(215 15% 78%) !important;
+  box-shadow: 0 1px 4px hsl(215 20% 60% / 0.15) !important;
+}
+html.light .react-flow__controls {
+  border-color: hsl(215 15% 78%) !important;
+  box-shadow: 0 1px 4px hsl(215 20% 60% / 0.15) !important;
 }
 html.light .react-flow__controls button {
   background-color: hsl(0 0% 100%) !important;
-  color: hsl(220 20% 12%) !important;
-  border-color: hsl(210 12% 85%) !important;
+  color: hsl(220 25% 10%) !important;
+  border-color: hsl(215 15% 78%) !important;
 }
 html.light .react-flow__controls button:hover {
-  background-color: hsl(210 15% 94%) !important;
+  background-color: hsl(215 18% 90%) !important;
 }
 html.light .react-flow__controls button svg {
-  fill: hsl(215 10% 45%) !important;
+  fill: hsl(215 15% 38%) !important;
+}
+
+/* Header light */
+html.light .sticky {
+  border-bottom-color: hsl(215 15% 78%) !important;
 }
 
 /* Recharts tooltip light */
 html.light .recharts-default-tooltip {
   background: hsl(0 0% 100%) !important;
-  border-color: hsl(210 12% 85%) !important;
-  box-shadow: 0 4px 24px hsl(210 20% 80% / 0.3) !important;
+  border-color: hsl(215 15% 78%) !important;
+  box-shadow: 0 4px 16px hsl(215 20% 60% / 0.2) !important;
 }
 html.light .recharts-tooltip-label {
-  color: hsl(215 10% 45%) !important;
+  color: hsl(215 15% 38%) !important;
 }
 
 /* Scrollbar light */
-html.light ::-webkit-scrollbar-track { background: hsl(210 15% 94%); }
-html.light ::-webkit-scrollbar-thumb { background: hsl(210 10% 75%); }
+html.light ::-webkit-scrollbar-track { background: hsl(215 18% 90%); }
+html.light ::-webkit-scrollbar-thumb { background: hsl(215 12% 68%); }
+html.light ::-webkit-scrollbar-thumb:hover { background: hsl(215 12% 58%); }
 
 /* Selection text color */
 html.light ::selection {
-  background: hsl(190 80% 38% / 0.3);
-  color: hsl(220 20% 12%);
+  background: hsl(190 80% 38% / 0.25);
+  color: hsl(220 25% 10%);
+}
+
+/* Edge colors: slightly darker in light mode for visibility */
+html.light .react-flow__edge path {
+  opacity: 0.85 !important;
 }
