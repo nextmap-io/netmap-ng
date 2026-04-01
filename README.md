@@ -313,6 +313,10 @@ All configuration is via environment variables (see [`.env.example`](.env.exampl
 | `OBSERVIUM_DB_NAME` | No | `observium` | Observium database name |
 | `OBSERVIUM_RRD_PATH` | No | `/opt/observium/rrd` | Path to Observium RRD files (mount into container) |
 
+## Disclaimer
+
+Netmap NG is an independent open-source project. It is **not affiliated with, endorsed by, or associated with** [Observium](https://www.observium.org/) or its team. Observium is a registered trademark of its respective owners. Netmap NG merely reads data from Observium's database in a read-only manner, similar to how any third-party tool might integrate with a monitoring platform.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code guidelines, and PR process.
