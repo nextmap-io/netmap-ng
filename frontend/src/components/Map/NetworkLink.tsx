@@ -112,27 +112,27 @@ function TrafficEdgeComponent({
 
       {/* Midpoint arrows: ► ◄ with small gap between tips */}
       {(() => {
-        const gap = 2;
+        const gap = 3;
         const nx = dx / len;
         const ny = dy / len;
         return (
           <>
-            {/* Out arrow ► */}
+            {/* Out arrow ► (shifted toward target by gap) */}
             <polygon
               points={`
-                ${midX + nx * (arrowSize + gap)},${midY + ny * (arrowSize + gap)}
-                ${midX + perpX * arrowSize * 0.7 + nx * gap},${midY + perpY * arrowSize * 0.7 + ny * gap}
-                ${midX - perpX * arrowSize * 0.7 + nx * gap},${midY - perpY * arrowSize * 0.7 + ny * gap}
+                ${midX + nx * (arrowSize * 2 + gap)},${midY + ny * (arrowSize * 2 + gap)}
+                ${midX + perpX * arrowSize * 0.7 + nx * (arrowSize + gap)},${midY + perpY * arrowSize * 0.7 + ny * (arrowSize + gap)}
+                ${midX - perpX * arrowSize * 0.7 + nx * (arrowSize + gap)},${midY - perpY * arrowSize * 0.7 + ny * (arrowSize + gap)}
               `}
               fill={strokeOut}
               opacity={0.9}
             />
-            {/* In arrow ◄ */}
+            {/* In arrow ◄ (shifted toward source by gap) */}
             <polygon
               points={`
-                ${midX - nx * (arrowSize + gap)},${midY - ny * (arrowSize + gap)}
-                ${midX + perpX * arrowSize * 0.7 - nx * gap},${midY + perpY * arrowSize * 0.7 - ny * gap}
-                ${midX - perpX * arrowSize * 0.7 - nx * gap},${midY - perpY * arrowSize * 0.7 - ny * gap}
+                ${midX - nx * (arrowSize * 2 + gap)},${midY - ny * (arrowSize * 2 + gap)}
+                ${midX + perpX * arrowSize * 0.7 - nx * (arrowSize + gap)},${midY + perpY * arrowSize * 0.7 - ny * (arrowSize + gap)}
+                ${midX - perpX * arrowSize * 0.7 - nx * (arrowSize + gap)},${midY - perpY * arrowSize * 0.7 - ny * (arrowSize + gap)}
               `}
               fill={strokeIn}
               opacity={0.9}
