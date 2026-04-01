@@ -1,18 +1,11 @@
-import { memo } from "react";
+import { memo, useMemo } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import clsx from "clsx";
 import type { NodeType } from "@/types";
 
 const NODE_ICONS: Record<NodeType, string> = {
-  router: "RTR",
-  switch_l3: "L3",
-  switch_l2: "L2",
-  server: "SRV",
-  firewall: "FW",
-  cloud: "IX",
-  internet: "EXT",
-  group: "GRP",
-  custom: "---",
+  router: "RTR", switch_l3: "L3", switch_l2: "L2", server: "SRV",
+  firewall: "FW", cloud: "IX", internet: "EXT", group: "GRP", custom: "---",
 };
 
 const NODE_BORDER: Record<NodeType, string> = {
@@ -23,8 +16,7 @@ const NODE_BORDER: Record<NodeType, string> = {
   firewall: "border-node-firewall/40 hover:border-node-firewall/70",
   cloud: "border-node-cloud/40 hover:border-node-cloud/70",
   internet: "border-node-internet/40 hover:border-node-internet/70",
-  group: "border-noc-border",
-  custom: "border-noc-border",
+  group: "border-noc-border", custom: "border-noc-border",
 };
 
 const NODE_BADGE_BG: Record<NodeType, string> = {
@@ -35,11 +27,39 @@ const NODE_BADGE_BG: Record<NodeType, string> = {
   firewall: "bg-node-firewall/20 text-node-firewall",
   cloud: "bg-node-cloud/20 text-node-cloud",
   internet: "bg-node-internet/20 text-node-internet",
-  group: "bg-noc-muted/20 text-noc-text-muted",
-  custom: "bg-noc-muted/20 text-noc-text-muted",
+  group: "bg-noc-muted/20 text-noc-text-muted", custom: "bg-noc-muted/20 text-noc-text-muted",
 };
 
-const handleBase = "!bg-noc-muted !border-0 opacity-0 hover:opacity-100 transition-opacity";
+const hStyle = "!bg-noc-muted/50 !border-0 !w-[3px] !h-[3px] !min-w-0 !min-h-0";
+
+/** Generate handles at every 5% increment on all 4 sides */
+function AllHandles() {
+  const handles = useMemo(() => {
+    const h: Array<{ pos: Position; id: string; style: React.CSSProperties; type: "source" | "target" }> = [];
+    // Primary handles at 50%
+    h.push({ pos: Position.Top, id: "N", style: {}, type: "target" });
+    h.push({ pos: Position.Bottom, id: "S", style: {}, type: "source" });
+    h.push({ pos: Position.Left, id: "W", style: {}, type: "target" });
+    h.push({ pos: Position.Right, id: "E", style: {}, type: "source" });
+    // Distribution handles every 5%
+    for (let pct = 5; pct <= 95; pct += 5) {
+      if (pct === 50) continue;
+      h.push({ pos: Position.Top, id: `N:${pct}`, style: { left: `${pct}%` }, type: "target" });
+      h.push({ pos: Position.Bottom, id: `S:${pct}`, style: { left: `${pct}%` }, type: "source" });
+      h.push({ pos: Position.Left, id: `W:${pct}`, style: { top: `${pct}%` }, type: "target" });
+      h.push({ pos: Position.Right, id: `E:${pct}`, style: { top: `${pct}%` }, type: "source" });
+    }
+    return h;
+  }, []);
+
+  return (
+    <>
+      {handles.map((h) => (
+        <Handle key={h.id} type={h.type} position={h.pos} id={h.id} style={h.style} className={hStyle} />
+      ))}
+    </>
+  );
+}
 
 function NetworkNodeComponent({ data, selected }: NodeProps) {
   const nodeType = (data.nodeType as NodeType) || "custom";
@@ -58,62 +78,17 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
       )}
       style={isLarge ? { width: nodeWidth, height: nodeHeight } : undefined}
     >
-      {/* Primary handles */}
-      <Handle type="target" position={Position.Top} id="N" className={`!w-1.5 !h-1.5 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W" className={`!w-1.5 !h-1.5 ${handleBase}`} />
-      <Handle type="source" position={Position.Bottom} id="S" className={`!w-1.5 !h-1.5 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E" className={`!w-1.5 !h-1.5 ${handleBase}`} />
-
-      {/* Distribution handles: 5 per side for large nodes, 3 for normal */}
-      {/* Top */}
-      <Handle type="target" position={Position.Top} id="N:20" style={{ left: "20%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Top} id="N:40" style={{ left: "40%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Top} id="N:60" style={{ left: "60%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Top} id="N:80" style={{ left: "80%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      {/* Bottom */}
-      <Handle type="source" position={Position.Bottom} id="S:20" style={{ left: "20%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Bottom} id="S:40" style={{ left: "40%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Bottom} id="S:60" style={{ left: "60%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Bottom} id="S:80" style={{ left: "80%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      {/* Left */}
-      <Handle type="target" position={Position.Left} id="W:10" style={{ top: "10%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:20" style={{ top: "20%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:30" style={{ top: "30%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:40" style={{ top: "40%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:50" style={{ top: "50%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:60" style={{ top: "60%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:70" style={{ top: "70%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:80" style={{ top: "80%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:90" style={{ top: "90%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      {/* Right */}
-      <Handle type="source" position={Position.Right} id="E:10" style={{ top: "10%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:20" style={{ top: "20%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:30" style={{ top: "30%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:40" style={{ top: "40%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:50" style={{ top: "50%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:60" style={{ top: "60%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:70" style={{ top: "70%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:80" style={{ top: "80%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:90" style={{ top: "90%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <AllHandles />
 
       <div className="flex items-center gap-1.5">
-        <span
-          className={clsx(
-            "text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider",
-            NODE_BADGE_BG[nodeType],
-          )}
-        >
+        <span className={clsx("text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider", NODE_BADGE_BG[nodeType])}>
           {NODE_ICONS[nodeType]}
         </span>
-        <span className="text-2xs font-medium text-noc-text truncate max-w-[110px]">
-          {label}
-        </span>
+        <span className="text-2xs font-medium text-noc-text truncate max-w-[110px]">{label}</span>
       </div>
 
       {data.bandwidthLabel ? (
-        <div className="text-2xs text-noc-text-dim mt-0.5 tracking-wide">
-          {String(data.bandwidthLabel)}
-        </div>
+        <div className="text-2xs text-noc-text-dim mt-0.5 tracking-wide">{String(data.bandwidthLabel)}</div>
       ) : null}
     </div>
   );
