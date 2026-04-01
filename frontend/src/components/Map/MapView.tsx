@@ -150,19 +150,22 @@ function buildEdges(
       const tgtStraight = straightNodeIds.has(l.target_id);
 
       if (srcStraight || tgtStraight) {
-        // Straight links: the anchor on the opposite device must align
-        // at the same Y as the source node's center, so the link arrives
-        // perfectly horizontal into the target.
+        // Straight links: anchor on each side so the link is perfectly horizontal.
+        // Source exits toward target normally.
         srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
 
-        // Force target anchor Y to match source node center Y
-        const dx = tp.x - sp.x;
-        const side = dx > 0 ? "W" : "E"; // arriving side on target
-        // Compute what percentage on the target's side matches the source Y
-        const srcCenterY = sp.y;
-        const tgtPct = tp.h > 30 ? ((srcCenterY - tp.y + tp.h / 2) / tp.h) * 100 : 50;
-        const rpct = Math.min(95, Math.max(5, Math.round(tgtPct / 5) * 5));
-        tgtHandle = (rpct === 50 ? side : `${side}:${rpct}`) + "-t";
+        // Target anchor: arrive at the same Y as the source center.
+        // sp.y and tp.y are absolute centers.
+        // The anchor pct on the target's E/W side = where sp.y falls on the target's height.
+        const arrivalSide = (tp.x > sp.x) ? "W" : "E";
+        // sp.y is already the absolute center of source.
+        // tp.y is the absolute center of target.
+        // Target top = tp.y - tp.h/2, target bottom = tp.y + tp.h/2
+        // We want the anchor at Y = sp.y, so pct = (sp.y - (tp.y - tp.h/2)) / tp.h * 100
+        const tgtTop = tp.y - tp.h / 2;
+        const pctOnTarget = tp.h > 30 ? ((sp.y - tgtTop) / tp.h) * 100 : 50;
+        const rpct = Math.min(95, Math.max(5, Math.round(pctOnTarget / 5) * 5));
+        tgtHandle = (rpct === 50 ? arrivalSide : `${arrivalSide}:${rpct}`) + "-t";
       } else {
         // Normal: anchor exits toward the target, positioned proportionally
         srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
