@@ -79,7 +79,12 @@ async def login(request: Request):
 
 @router.get("/callback")
 async def callback(request: Request):
-    token = await oauth.provider.authorize_access_token(request)
+    logger.info("OAuth callback - session keys: %s", list(request.session.keys()))
+    try:
+        token = await oauth.provider.authorize_access_token(request)
+    except Exception as e:
+        logger.error("OAuth callback error: %s - session has %d keys", e, len(request.session))
+        raise
     userinfo = token.get("userinfo")
     if not userinfo:
         userinfo = await oauth.provider.userinfo(token=token)
