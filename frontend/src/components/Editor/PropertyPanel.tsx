@@ -1,26 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
-import { api } from "@/api/client";
 import { NodeProperties } from "./NodeProperties";
 import { LinkProperties } from "./LinkProperties";
 
 export function PropertyPanel() {
-  const { map, editMode, selectedNodeId, selectedLinkId, selectNode, selectLink, clearSelection, loadMap } =
+  const { map, editMode, selectedNodeId, selectedLinkId, clearSelection, updateNodeField, updateLinkField, deleteNode, deleteLink, saving, lastSaved } =
     useMapStore();
-
-  const [saveState, setSaveState] = useState<
-    { status: "idle" } | { status: "saving" } | { status: "saved"; at: number }
-  >({ status: "idle" });
-
-  // Update the "saved X s ago" timer
-  useEffect(() => {
-    if (saveState.status !== "saved") return;
-    const interval = setInterval(() => {
-      // Force re-render to update elapsed time
-      setSaveState((s) => ({ ...s }));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [saveState.status]);
 
 
 
@@ -34,62 +19,35 @@ export function PropertyPanel() {
 
   const handleNodeUpdate = useCallback(
     async (fields: Record<string, unknown>) => {
-      if (!map || !selectedNodeId) return;
-      setSaveState({ status: "saving" });
-      try {
-        await api.updateNode(map.id, selectedNodeId, fields);
-        await loadMap(map.id);
-        setSaveState({ status: "saved", at: Date.now() });
-      } catch (e) {
-        console.error("Failed to update node:", e);
-        setSaveState({ status: "idle" });
-      }
+      if (!selectedNodeId) return;
+      await updateNodeField(selectedNodeId, fields);
     },
-    [map, selectedNodeId, loadMap],
+    [selectedNodeId, updateNodeField],
   );
 
   const handleNodeDelete = useCallback(async () => {
-    if (!map || !selectedNodeId) return;
-    try {
-      await api.deleteNode(map.id, selectedNodeId);
-      clearSelection();
-      await loadMap(map.id);
-    } catch (e) {
-      console.error("Failed to delete node:", e);
-    }
-  }, [map, selectedNodeId, clearSelection, loadMap]);
+    if (!selectedNodeId) return;
+    clearSelection();
+    await deleteNode(selectedNodeId);
+  }, [selectedNodeId, clearSelection, deleteNode]);
 
   const handleLinkUpdate = useCallback(
     async (fields: Record<string, unknown>) => {
-      if (!map || !selectedLinkId) return;
-      setSaveState({ status: "saving" });
-      try {
-        await api.updateLink(map.id, selectedLinkId, fields);
-        await loadMap(map.id);
-        setSaveState({ status: "saved", at: Date.now() });
-      } catch (e) {
-        console.error("Failed to update link:", e);
-        setSaveState({ status: "idle" });
-      }
+      if (!selectedLinkId) return;
+      await updateLinkField(selectedLinkId, fields);
     },
-    [map, selectedLinkId, loadMap],
+    [selectedLinkId, updateLinkField],
   );
 
   const handleLinkDelete = useCallback(async () => {
-    if (!map || !selectedLinkId) return;
-    try {
-      await api.deleteLink(map.id, selectedLinkId);
-      clearSelection();
-      await loadMap(map.id);
-    } catch (e) {
-      console.error("Failed to delete link:", e);
-    }
-  }, [map, selectedLinkId, clearSelection, loadMap]);
+    if (!selectedLinkId) return;
+    clearSelection();
+    await deleteLink(selectedLinkId);
+  }, [selectedLinkId, clearSelection, deleteLink]);
 
-  const savedAgo =
-    saveState.status === "saved"
-      ? Math.max(0, Math.round((Date.now() - saveState.at) / 1000))
-      : null;
+  const savedAgo = lastSaved
+    ? Math.max(0, Math.round((Date.now() - lastSaved) / 1000))
+    : null;
 
   return (
     <div
@@ -158,16 +116,16 @@ export function PropertyPanel() {
       {/* Save indicator */}
       <div className="shrink-0 px-3 py-2 border-t border-noc-border/50">
         <div className="text-2xs text-noc-text-dim text-center">
-          {saveState.status === "saving" && (
+          {saving && (
             <span className="flex items-center justify-center gap-1.5">
               <div className="w-2 h-2 border border-accent/40 border-t-accent rounded-full animate-spin-slow" />
               Saving...
             </span>
           )}
-          {saveState.status === "saved" && savedAgo !== null && (
+          {!saving && savedAgo !== null && (
             <span>Saved {savedAgo}s ago</span>
           )}
-          {saveState.status === "idle" && <span>&nbsp;</span>}
+          {!saving && savedAgo === null && <span>&nbsp;</span>}
         </div>
       </div>
     </div>

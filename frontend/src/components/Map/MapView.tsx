@@ -57,7 +57,7 @@ function mapNodeToFlow(n: MapNode): Node {
       ? { width: n.width || 400, height: n.height || 300 }
       : undefined,
     zIndex: isGroup ? -1 : (n.z_order || 0),
-    draggable: !n.style?.locked,
+    draggable: !n.locked && !n.style?.locked,
   };
 }
 
@@ -274,9 +274,14 @@ function MapViewInner() {
 
   const handleEdgeClick = useCallback(
     (_: React.MouseEvent, edge: Edge) => {
-      setSelectedEdgeId(edge.id);
-      selectLink(edge.id);
-      if (editMode) selectLinks([edge.id]);
+      if (editMode) {
+        // Edit mode: select for property panel, no graph
+        selectLinks([edge.id]);
+      } else {
+        // View mode: open traffic graph
+        setSelectedEdgeId(edge.id);
+        selectLink(edge.id);
+      }
     },
     [selectLink, editMode, selectLinks],
   );
