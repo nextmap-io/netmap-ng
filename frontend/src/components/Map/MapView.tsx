@@ -23,6 +23,7 @@ import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { MapEditor } from "../Editor/MapEditor";
+import { EditorToolbar } from "../Editor/EditorToolbar";
 import { PropertyPanel } from "../Editor/PropertyPanel";
 import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
 
@@ -185,7 +186,7 @@ export function formatBps(bps: number): string {
 
 function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
-  const { map, traffic, loading, error, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid } =
+  const { map, traffic, loading, error, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, createLink } =
     useMapStore();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
@@ -252,6 +253,24 @@ function MapViewInner() {
     [editMode, selectNodes],
   );
 
+  const handleConnect = useCallback(
+    async (connection: { source: string | null; target: string | null }) => {
+      if (!editMode || !map || !connection.source || !connection.target) return;
+      const sourceNode = map.nodes.find((n: MapNode) => n.id === connection.source);
+      const targetNode = map.nodes.find((n: MapNode) => n.id === connection.target);
+      const name = `${sourceNode?.label || "A"} - ${targetNode?.label || "B"}`;
+      await createLink({
+        name,
+        source_id: connection.source,
+        target_id: connection.target,
+        link_type: "internal",
+        bandwidth_label: "1G",
+        bandwidth: 1000000000,
+      });
+    },
+    [editMode, map, createLink],
+  );
+
   const handlePaneClick = useCallback(() => {
     clearSelection();
   }, [clearSelection]);
@@ -296,6 +315,7 @@ function MapViewInner() {
           onEdgeClick={handleEdgeClick}
           onNodeClick={handleNodeClick}
           onPaneClick={handlePaneClick}
+          onConnect={handleConnect}
           nodesDraggable={editMode}
           snapToGrid={snapToGrid}
           snapGrid={[24, 24]}
@@ -326,6 +346,7 @@ function MapViewInner() {
 
         <TrafficLegend scales={scales} />
         <MapEditor />
+        <EditorToolbar />
 
         {selectedLink && (
           <TrafficGraphPanel

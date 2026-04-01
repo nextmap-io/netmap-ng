@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MapNode, NodeType } from "@/types";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
+import { DevicePicker } from "./DevicePicker";
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "router", label: "Router" },
@@ -86,8 +87,8 @@ export function NodeProperties({
         </div>
       </section>
 
-      {/* DIMENSIONS (group only) */}
-      {node.node_type === "group" && (
+      {/* DIMENSIONS (groups and nodes with custom size) */}
+      {(node.node_type === "group" || node.width || node.height) && (
         <section>
           <div className={labelClass}>Dimensions</div>
           <div className="h-px bg-noc-border/50 mb-3" />
@@ -165,6 +166,17 @@ export function NodeProperties({
             ))}
           </select>
         </div>
+      </section>
+
+      {/* DATASOURCE */}
+      <section>
+        <div className={labelClass}>Datasource</div>
+        <div className="h-px bg-noc-border/50 mb-3" />
+        <label className={labelClass}>Observium Device</label>
+        <DevicePicker
+          value={node.observium_device_id}
+          onChange={(deviceId) => onUpdate({ observium_device_id: deviceId })}
+        />
       </section>
 
       {/* URL */}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { MapLink, MapNode, LinkType, NodeType } from "@/types";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
+import { PortPicker } from "./PortPicker";
 
 const LINK_TYPES: { value: LinkType; label: string }[] = [
   { value: "internal", label: "Internal" },
@@ -225,6 +226,25 @@ export function LinkProperties({
             </select>
           </div>
         </div>
+      </section>
+
+      {/* DATASOURCE */}
+      <section>
+        <div className={labelClass}>Datasource</div>
+        <div className="h-px bg-noc-border/50 mb-3" />
+        <PortPicker
+          deviceId={sourceNode?.observium_device_id ?? null}
+          value={link.observium_port_id_a}
+          onChange={(portId) => onUpdate({ observium_port_id_a: portId })}
+          label="Port A"
+        />
+        <div className="mt-2" />
+        <PortPicker
+          deviceId={targetNode?.observium_device_id ?? null}
+          value={link.observium_port_id_b}
+          onChange={(portId) => onUpdate({ observium_port_id_b: portId })}
+          label="Port B"
+        />
       </section>
 
       {/* URLS */}

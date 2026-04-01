@@ -147,4 +147,22 @@
   .stagger-4 { animation-delay: 0.20s; }
   .stagger-5 { animation-delay: 0.25s; }
   .stagger-6 { animation-delay: 0.30s; }
+
+  /* Handles visible on hover in edit mode */
+  .edit-mode .react-flow__handle:hover {
+    background: hsl(190 90% 50% / 0.6) !important;
+    width: 8px !important;
+    height: 8px !important;
+    border: 1px solid hsl(190 90% 50%) !important;
+    border-radius: 50%;
+    transition: all 0.15s;
+  }
+
+  .edit-mode .react-flow__handle {
+    opacity: 0.3;
+  }
+
+  .edit-mode .react-flow__handle:hover {
+    opacity: 1;
+  }
 }
