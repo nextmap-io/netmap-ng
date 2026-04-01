@@ -1,6 +1,7 @@
 import { memo } from "react";
 import {
   getSmoothStepPath,
+  getStraightPath,
   type EdgeProps,
   EdgeLabelRenderer,
 } from "@xyflow/react";
@@ -25,31 +26,34 @@ function TrafficEdgeComponent({
   const bandwidthLabel = String(data?.bandwidthLabel || "");
   const linkType = String(data?.linkType || "internal");
 
-  const [edgePath, labelX, labelY] = getSmoothStepPath({
-    sourceX, sourceY, targetX, targetY,
-    sourcePosition, targetPosition,
-    borderRadius: 8,
-    offset: 20,
-  });
+  // Use straight path when source and target are roughly aligned horizontally
+  // (within 15px Y difference) - this gives clean horizontal server links
+  const isHorizontal = Math.abs(sourceY - targetY) < 15;
+
+  const [edgePath, labelX, labelY] = isHorizontal
+    ? getStraightPath({ sourceX, sourceY, targetX, targetY })
+    : getSmoothStepPath({
+        sourceX, sourceY, targetX, targetY,
+        sourcePosition, targetPosition,
+        borderRadius: 6,
+        offset: 15,
+      });
 
   const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
-  const showBpsLabels = dist > 100;
+  const showBpsLabels = dist > 80;
 
-  // Perpendicular offset so labels sit above/below the link, not on top
+  // Perpendicular offset for labels (always above the link)
   const dx = targetX - sourceX;
   const dy = targetY - sourceY;
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  // Normalized perpendicular vector (rotated 90 degrees)
   const perpX = -dy / len;
   const perpY = dx / len;
-  // Offset distance: labels above the link
-  const labelOffset = 12;
+  const labelOff = 12;
 
-  // Out label near source (25%), In label near target (75%)
-  const outLabelX = sourceX * 0.72 + targetX * 0.28 + perpX * labelOffset;
-  const outLabelY = sourceY * 0.72 + targetY * 0.28 + perpY * labelOffset;
-  const inLabelX = sourceX * 0.28 + targetX * 0.72 + perpX * labelOffset;
-  const inLabelY = sourceY * 0.28 + targetY * 0.72 + perpY * labelOffset;
+  const outLabelX = sourceX * 0.72 + targetX * 0.28 + perpX * labelOff;
+  const outLabelY = sourceY * 0.72 + targetY * 0.28 + perpY * labelOff;
+  const inLabelX = sourceX * 0.28 + targetX * 0.72 + perpX * labelOff;
+  const inLabelY = sourceY * 0.28 + targetY * 0.72 + perpY * labelOff;
 
   const typeLabel =
     linkType === "transit" ? "TR" :
@@ -103,7 +107,7 @@ function TrafficEdgeComponent({
         {(bandwidthLabel || typeLabel) && (
           <div className="nodrag nopan" style={{
             position: "absolute",
-            transform: `translate(-50%, -100%) translate(${labelX + perpX * labelOffset}px, ${labelY + perpY * labelOffset - 2}px)`,
+            transform: `translate(-50%, -100%) translate(${labelX + perpX * labelOff}px, ${labelY + perpY * labelOff - 2}px)`,
           }}>
             <div className="flex items-center gap-0.5 text-2xs text-noc-text-dim whitespace-nowrap opacity-50">
               {typeLabel && <span className="font-semibold tracking-wider">{typeLabel}</span>}

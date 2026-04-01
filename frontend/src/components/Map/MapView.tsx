@@ -59,35 +59,32 @@ function mapNodeToFlow(n: MapNode): Node {
 }
 
 /**
- * Compute the best anchor side + percentage for a link endpoint
- * based on the absolute positions of source and target nodes.
- * Returns the handle ID to use (e.g., "E:30" for source, "W:70-t" for target).
+ * Compute the best anchor percentage on a given side of a node,
+ * based on where the target node is positioned relative to the source.
+ * For vertical sides (E/W): uses the target's Y position relative to source's height.
+ * For horizontal sides (N/S): uses the target's X position relative to source's width.
+ * This makes links exit the switch at the exact height of the server they connect to.
  */
 function computeAnchor(
   fromX: number, fromY: number, fromW: number, fromH: number,
   toX: number, toY: number,
-  nodeLinks: Map<string, number>, nodeId: string, side: string,
 ): string {
-  // Count how many links already use this side of this node
-  const key = `${nodeId}:${side}`;
-  const idx = nodeLinks.get(key) ?? 0;
-  nodeLinks.set(key, idx + 1);
+  const dx = toX - fromX;
+  const dy = toY - fromY;
+  const side = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "E" : "W") : (dy > 0 ? "S" : "N");
 
-  // Distribute links along the side at 8% intervals, centered
-  const pct = Math.min(95, Math.max(5, 15 + idx * 8));
-  const rpct = Math.round(pct / 5) * 5;
-
-  if (rpct === 50) return side;
-  return `${side}:${rpct}`;
-}
-
-function bestSide(srcX: number, srcY: number, tgtX: number, tgtY: number): string {
-  const dx = tgtX - srcX;
-  const dy = tgtY - srcY;
-  if (Math.abs(dx) > Math.abs(dy)) {
-    return dx > 0 ? "E" : "W";
+  let pct: number;
+  if (side === "E" || side === "W") {
+    // Vertical side: position based on target Y relative to node height
+    pct = fromH > 30 ? ((toY - fromY + fromH / 2) / fromH) * 100 : 50;
+  } else {
+    // Horizontal side: position based on target X relative to node width
+    pct = fromW > 30 ? ((toX - fromX + fromW / 2) / fromW) * 100 : 50;
   }
-  return dy > 0 ? "S" : "N";
+
+  pct = Math.min(95, Math.max(5, Math.round(pct / 5) * 5));
+  if (pct === 50) return side;
+  return `${side}:${pct}`;
 }
 
 /**
@@ -124,9 +121,6 @@ function buildEdges(
     nodePos.set(n.id, { x: absX + w / 2, y: absY + h / 2, w, h });
   }
 
-  // Track link count per side per node for distribution
-  const sideCounters = new Map<string, number>();
-
   return links.map((l) => {
     const t = traffic[l.id];
     const inPct = t?.in_pct ?? 0;
@@ -145,11 +139,9 @@ function buildEdges(
       srcHandle = l.source_anchor;
       tgtHandle = `${l.target_anchor}-t`;
     } else if (sp && tp) {
-      // Auto-compute based on relative position
-      const srcSide = bestSide(sp.x, sp.y, tp.x, tp.y);
-      const tgtSide = bestSide(tp.x, tp.y, sp.x, sp.y);
-      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y, sideCounters, l.source_id, srcSide);
-      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y, sideCounters, l.target_id, tgtSide) + "-t";
+      // Auto-compute: anchor exits toward the target, positioned proportionally
+      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
+      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
     }
 
     return {
