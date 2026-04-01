@@ -158,14 +158,14 @@ export function NodeProperties({
                 onChange={(e) => onUpdate({ style: { ...node.style, bg_color: e.target.value } })}
                 className="w-6 h-5 rounded border border-noc-border bg-noc-bg cursor-pointer"
               />
-              {node.style?.bg_color && (
+              {node.style?.bg_color ? (
                 <button
                   onClick={() => onUpdate({ style: { ...node.style, bg_color: undefined } })}
                   className="text-2xs text-noc-text-dim hover:text-noc-text"
                 >
                   Reset
                 </button>
-              )}
+              ) : null}
             </div>
           </div>
         )}
