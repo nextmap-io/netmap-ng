@@ -184,8 +184,6 @@ async def duplicate_map(
     if not source:
         raise HTTPException(404, "Map not found")
 
-    import uuid
-
     # Create new map
     new_map = Map(
         name=f"{source.name} (copy)",
