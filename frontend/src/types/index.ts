@@ -6,6 +6,10 @@ export type NodeType =
   | "firewall"
   | "cloud"
   | "internet"
+  | "ix"
+  | "transit"
+  | "pni"
+  | "provider"
   | "group"
   | "custom";
 

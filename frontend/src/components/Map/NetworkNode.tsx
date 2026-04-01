@@ -5,7 +5,9 @@ import type { NodeType } from "@/types";
 
 const NODE_ICONS: Record<NodeType, string> = {
   router: "RTR", switch_l3: "L3", switch_l2: "L2", server: "SRV",
-  firewall: "FW", cloud: "IX", internet: "EXT", group: "GRP", custom: "---",
+  firewall: "FW", cloud: "CLD", internet: "NET",
+  ix: "IX", transit: "TR", pni: "PNI", provider: "PRV",
+  group: "GRP", custom: "---",
 };
 
 const NODE_BORDER: Record<NodeType, string> = {
@@ -16,6 +18,10 @@ const NODE_BORDER: Record<NodeType, string> = {
   firewall: "border-node-firewall/40 hover:border-node-firewall/70",
   cloud: "border-node-cloud/40 hover:border-node-cloud/70",
   internet: "border-node-internet/40 hover:border-node-internet/70",
+  ix: "border-[hsl(280,60%,55%)]/40 hover:border-[hsl(280,60%,55%)]/70",
+  transit: "border-node-internet/40 hover:border-node-internet/70",
+  pni: "border-[hsl(160,60%,45%)]/40 hover:border-[hsl(160,60%,45%)]/70",
+  provider: "border-node-cloud/40 hover:border-node-cloud/70",
   group: "border-noc-border", custom: "border-noc-border",
 };
 
@@ -27,17 +33,15 @@ const NODE_BADGE_BG: Record<NodeType, string> = {
   firewall: "bg-node-firewall/20 text-node-firewall",
   cloud: "bg-node-cloud/20 text-node-cloud",
   internet: "bg-node-internet/20 text-node-internet",
+  ix: "bg-[hsl(280,60%,55%)]/20 text-[hsl(280,60%,55%)]",
+  transit: "bg-node-internet/20 text-node-internet",
+  pni: "bg-[hsl(160,60%,45%)]/20 text-[hsl(160,60%,45%)]",
+  provider: "bg-node-cloud/20 text-node-cloud",
   group: "bg-noc-muted/20 text-noc-text-muted", custom: "bg-noc-muted/20 text-noc-text-muted",
 };
 
 const hStyle = "!bg-transparent !border-0 !w-[3px] !h-[3px] !min-w-0 !min-h-0";
 
-/**
- * Every handle must exist as BOTH source and target.
- * ReactFlow only renders an edge if sourceHandle matches a type="source"
- * handle and targetHandle matches a type="target" handle.
- * Since links can go in any direction, we duplicate every handle.
- */
 function AllHandles() {
   const handles = useMemo(() => {
     const positions = [
@@ -46,15 +50,10 @@ function AllHandles() {
       { pos: Position.Left, prefix: "W", styleProp: "top" as const },
       { pos: Position.Right, prefix: "E", styleProp: "top" as const },
     ];
-
     const result: Array<{ pos: Position; id: string; style: React.CSSProperties; type: "source" | "target" }> = [];
-
     for (const { pos, prefix, styleProp } of positions) {
-      // Center handle (50%)
       result.push({ pos, id: prefix, style: {}, type: "source" });
       result.push({ pos, id: `${prefix}-t`, style: {}, type: "target" });
-
-      // Distribution handles at every 5%
       for (let pct = 5; pct <= 95; pct += 5) {
         if (pct === 50) continue;
         const s = { [styleProp]: `${pct}%` };
@@ -64,14 +63,7 @@ function AllHandles() {
     }
     return result;
   }, []);
-
-  return (
-    <>
-      {handles.map((h) => (
-        <Handle key={h.id} type={h.type} position={h.pos} id={h.id} style={h.style} className={hStyle} />
-      ))}
-    </>
-  );
+  return <>{handles.map((h) => <Handle key={h.id} type={h.type} position={h.pos} id={h.id} style={h.style} className={hStyle} />)}</>;
 }
 
 function NetworkNodeComponent({ data, selected }: NodeProps) {
@@ -85,21 +77,19 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
     <div
       className={clsx(
         "rounded bg-noc-card border transition-all duration-150 flex items-center justify-center",
-        NODE_BORDER[nodeType],
+        NODE_BORDER[nodeType] || NODE_BORDER.custom,
         selected && "ring-1 ring-accent/50 border-accent/40",
         isLarge ? "flex-col gap-1 p-2" : "px-2.5 py-1.5 min-w-[72px]",
       )}
       style={isLarge ? { width: nodeWidth, height: nodeHeight } : undefined}
     >
       <AllHandles />
-
       <div className="flex items-center gap-1.5">
-        <span className={clsx("text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider", NODE_BADGE_BG[nodeType])}>
-          {NODE_ICONS[nodeType]}
+        <span className={clsx("text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider", NODE_BADGE_BG[nodeType] || NODE_BADGE_BG.custom)}>
+          {NODE_ICONS[nodeType] || "---"}
         </span>
         <span className="text-2xs font-medium text-noc-text truncate max-w-[110px]">{label}</span>
       </div>
-
       {data.bandwidthLabel ? (
         <div className="text-2xs text-noc-text-dim mt-0.5 tracking-wide">{String(data.bandwidthLabel)}</div>
       ) : null}

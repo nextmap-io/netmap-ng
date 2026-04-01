@@ -1,6 +1,6 @@
-import { memo, useMemo } from "react";
+import { memo } from "react";
 import {
-  getBezierPath,
+  getStraightPath,
   type EdgeProps,
   EdgeLabelRenderer,
 } from "@xyflow/react";
@@ -12,8 +12,6 @@ function TrafficEdgeComponent({
   sourceY,
   targetX,
   targetY,
-  sourcePosition,
-  targetPosition,
   data,
   selected,
 }: EdgeProps) {
@@ -25,32 +23,17 @@ function TrafficEdgeComponent({
   const bandwidthLabel = String(data?.bandwidthLabel || "");
   const linkType = String(data?.linkType || "internal");
 
-  // Adaptive curvature based on distance
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const curvature = Math.min(0.4, Math.max(0.15, 80 / dist));
-
-  const [edgePath, labelX, labelY] = getBezierPath({
-    sourceX,
-    sourceY,
-    targetX,
-    targetY,
-    sourcePosition,
-    targetPosition,
-    curvature,
+  const [edgePath, labelX, labelY] = getStraightPath({
+    sourceX, sourceY, targetX, targetY,
   });
 
-  // Position labels at 25% and 75% along the path
-  const outLabelX = sourceX * 0.7 + targetX * 0.3;
-  const outLabelY = sourceY * 0.7 + targetY * 0.3;
-  const inLabelX = sourceX * 0.3 + targetX * 0.7;
-  const inLabelY = sourceY * 0.3 + targetY * 0.7;
+  const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
+  const showBpsLabels = dist > 100;
 
-  // Only show bps labels if link is long enough to not overlap
-  const showBpsLabels = dist > 120;
-  // Only show capacity label on longer links
-  const showCapacity = dist > 80;
+  const outLabelX = sourceX * 0.72 + targetX * 0.28;
+  const outLabelY = sourceY * 0.72 + targetY * 0.28;
+  const inLabelX = sourceX * 0.28 + targetX * 0.72;
+  const inLabelY = sourceY * 0.28 + targetY * 0.72;
 
   const typeLabel =
     linkType === "transit" ? "TR" :
@@ -58,19 +41,8 @@ function TrafficEdgeComponent({
     linkType === "peering_pni" ? "PNI" :
     linkType === "customer" ? "CX" : "";
 
-  // Compact single-line label for short links
-  const compactLabel = useMemo(() => {
-    if (showBpsLabels) return null;
-    const parts: string[] = [];
-    if (typeLabel) parts.push(typeLabel);
-    if (bandwidthLabel) parts.push(bandwidthLabel);
-    if (outBps > 0) parts.push(`${formatBps(outBps)}/${formatBps(inBps)}`);
-    return parts.join(" ");
-  }, [showBpsLabels, typeLabel, bandwidthLabel, outBps, inBps]);
-
   return (
     <>
-      {/* Out direction */}
       <path
         id={`${id}-out`}
         d={edgePath}
@@ -82,78 +54,46 @@ function TrafficEdgeComponent({
         filter={selected ? "drop-shadow(0 0 6px hsl(190 90% 50% / 0.4))" : undefined}
         style={{ transition: "stroke 0.3s, opacity 0.15s" }}
       />
-      {/* In direction overlay */}
       <path
         id={`${id}-in`}
         d={edgePath}
         fill="none"
         stroke={inColor}
         strokeWidth={Math.max(width - 1, 1.5)}
-        opacity={0.35}
+        opacity={0.3}
       />
 
       <EdgeLabelRenderer>
-        {showBpsLabels ? (
+        {showBpsLabels && (
           <>
-            {/* Out bps (near source) */}
-            <div
-              className="nodrag nopan pointer-events-auto cursor-pointer"
-              style={{
-                position: "absolute",
-                transform: `translate(-50%, -50%) translate(${outLabelX}px, ${outLabelY}px)`,
-              }}
-            >
+            <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${outLabelX}px, ${outLabelY}px)`,
+            }}>
               <div className="bg-noc-bg/80 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
                 {formatBps(outBps)}
               </div>
             </div>
-
-            {/* In bps (near target) */}
-            <div
-              className="nodrag nopan pointer-events-auto cursor-pointer"
-              style={{
-                position: "absolute",
-                transform: `translate(-50%, -50%) translate(${inLabelX}px, ${inLabelY}px)`,
-              }}
-            >
+            <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${inLabelX}px, ${inLabelY}px)`,
+            }}>
               <div className="bg-noc-bg/80 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
                 {formatBps(inBps)}
               </div>
             </div>
-
-            {/* Capacity + type at center */}
-            {showCapacity && (bandwidthLabel || typeLabel) && (
-              <div
-                className="nodrag nopan"
-                style={{
-                  position: "absolute",
-                  transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - 4}px)`,
-                }}
-              >
-                <div className="flex items-center gap-0.5 text-2xs text-noc-text-dim whitespace-nowrap opacity-60">
-                  {typeLabel && (
-                    <span className="font-semibold tracking-wider">{typeLabel}</span>
-                  )}
-                  <span className="tabular-nums">{bandwidthLabel}</span>
-                </div>
-              </div>
-            )}
           </>
-        ) : (
-          /* Compact label for short links */
-          compactLabel && (
-            <div
-              className="nodrag nopan"
-              style={{
-                position: "absolute",
-                transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)`,
-              }}
-            >
-              <div className="bg-noc-bg/80 rounded px-1 py-px text-2xs text-noc-text-dim whitespace-nowrap tabular-nums border border-noc-border/30">
-                {compactLabel}
-              </div>
+        )}
+        {(bandwidthLabel || typeLabel) && (
+          <div className="nodrag nopan" style={{
+            position: "absolute",
+            transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - 4}px)`,
+          }}>
+            <div className="flex items-center gap-0.5 text-2xs text-noc-text-dim whitespace-nowrap opacity-50">
+              {typeLabel && <span className="font-semibold tracking-wider">{typeLabel}</span>}
+              <span className="tabular-nums">{bandwidthLabel}</span>
             </div>
-          )
+          </div>
         )}
       </EdgeLabelRenderer>
     </>

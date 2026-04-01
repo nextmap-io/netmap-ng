@@ -9,8 +9,12 @@ const NODE_TYPES: { value: NodeType; label: string; badge: string }[] = [
   { value: "switch_l2", label: "Switch L2", badge: "L2" },
   { value: "server", label: "Server", badge: "SRV" },
   { value: "firewall", label: "Firewall", badge: "FW" },
-  { value: "cloud", label: "IX / Cloud", badge: "IX" },
-  { value: "internet", label: "External", badge: "EXT" },
+  { value: "ix", label: "IX Peering", badge: "IX" },
+  { value: "transit", label: "Transit", badge: "TR" },
+  { value: "pni", label: "PNI", badge: "PNI" },
+  { value: "provider", label: "Provider", badge: "PRV" },
+  { value: "cloud", label: "Cloud", badge: "CLD" },
+  { value: "internet", label: "External", badge: "NET" },
   { value: "group", label: "Group / Site", badge: "GRP" },
 ];
 

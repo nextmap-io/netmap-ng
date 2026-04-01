@@ -7,6 +7,8 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
+  ReactFlowProvider,
   type Node,
   type Edge,
   type NodeChange,
@@ -51,90 +53,125 @@ function mapNodeToFlow(n: MapNode): Node {
     style: isGroup
       ? { width: n.width || 400, height: n.height || 300 }
       : undefined,
-    zIndex: n.z_order,
+    zIndex: isGroup ? -1 : (n.z_order || 0),
     draggable: true,
   };
 }
 
-// Available handles on each side for distributing multiple links
-const SIDE_HANDLES: Record<string, string[]> = {
-  N: ["N:25", "N", "N:75"],
-  S: ["S:25", "S", "S:75"],
-  E: ["E:25", "E", "E:75"],
-  W: ["W:25", "W", "W:75"],
-};
-
 /**
- * Auto-assign anchors to links so multiple links to the same node
- * are distributed across different handles instead of overlapping.
+ * Compute the best anchor side + percentage for a link endpoint
+ * based on the absolute positions of source and target nodes.
+ * Returns the handle ID to use (e.g., "E:30" for source, "W:70-t" for target).
  */
-function autoAssignAnchors(
-  links: MapLink[],
-  nodesById: Map<string, MapNode>,
-): MapLink[] {
-  // Count links per node per side, and track which handle index to use next
-  const nodeHandleCounters: Map<string, Record<string, number>> = new Map();
+function computeAnchor(
+  fromX: number, fromY: number, fromW: number, fromH: number,
+  toX: number, toY: number,
+  nodeLinks: Map<string, number>, nodeId: string, side: string,
+): string {
+  // Count how many links already use this side of this node
+  const key = `${nodeId}:${side}`;
+  const idx = nodeLinks.get(key) ?? 0;
+  nodeLinks.set(key, idx + 1);
 
-  function getNextHandle(nodeId: string, side: string): string {
-    if (!nodeHandleCounters.has(nodeId)) {
-      nodeHandleCounters.set(nodeId, {});
-    }
-    const counters = nodeHandleCounters.get(nodeId)!;
-    const idx = counters[side] ?? 0;
-    counters[side] = idx + 1;
-    const handles = SIDE_HANDLES[side] || [side];
-    return handles[idx % handles.length];
-  }
+  // Distribute links along the side at 8% intervals, centered
+  const pct = Math.min(95, Math.max(5, 15 + idx * 8));
+  const rpct = Math.round(pct / 5) * 5;
 
-  function bestSide(fromId: string, toId: string): string {
-    const from = nodesById.get(fromId);
-    const to = nodesById.get(toId);
-    if (!from || !to) return "S";
-    const dx = to.x - from.x;
-    const dy = to.y - from.y;
-    // Pick side based on dominant direction
-    if (Math.abs(dx) > Math.abs(dy)) {
-      return dx > 0 ? "E" : "W";
-    }
-    return dy > 0 ? "S" : "N";
-  }
-
-  return links.map((l) => {
-    const srcAnchor = l.source_anchor || getNextHandle(l.source_id, bestSide(l.source_id, l.target_id));
-    const tgtAnchor = l.target_anchor || getNextHandle(l.target_id, bestSide(l.target_id, l.source_id));
-    return { ...l, source_anchor: srcAnchor, target_anchor: tgtAnchor };
-  });
+  if (rpct === 50) return side;
+  return `${side}:${rpct}`;
 }
 
-function mapLinkToEdge(l: MapLink, scales: ScaleBand[], traffic: TrafficData): Edge {
-  const t = traffic[l.id];
-  const inPct = t?.in_pct ?? 0;
-  const outPct = t?.out_pct ?? 0;
-  const inColor = getScaleColor(inPct, scales);
-  const outColor = getScaleColor(outPct, scales);
+function bestSide(srcX: number, srcY: number, tgtX: number, tgtY: number): string {
+  const dx = tgtX - srcX;
+  const dy = tgtY - srcY;
+  if (Math.abs(dx) > Math.abs(dy)) {
+    return dx > 0 ? "E" : "W";
+  }
+  return dy > 0 ? "S" : "N";
+}
 
-  return {
-    id: l.id,
-    source: l.source_id,
-    target: l.target_id,
-    type: "traffic",
-    sourceHandle: l.source_anchor || undefined,
-    targetHandle: l.target_anchor ? `${l.target_anchor}-t` : undefined,
-    data: {
-      linkType: l.link_type,
-      bandwidthLabel: l.bandwidth_label,
-      bandwidth: l.bandwidth,
-      width: l.width,
-      inBps: t?.in_bps ?? 0,
-      outBps: t?.out_bps ?? 0,
-      inPct,
-      outPct,
-      inColor,
-      outColor,
-      extra: l.extra,
-    },
-    zIndex: l.z_order,
-  };
+/**
+ * Build edges with dynamically computed anchors based on current node positions.
+ * This is called on every render so anchors update when nodes are dragged.
+ */
+function buildEdges(
+  links: MapLink[],
+  flowNodes: Node[],
+  scales: ScaleBand[],
+  traffic: TrafficData,
+): Edge[] {
+  // Build absolute position map (accounting for parent offsets)
+  const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
+  const parentPos = new Map<string, { x: number; y: number }>();
+
+  // First pass: get parent positions
+  for (const n of flowNodes) {
+    if (n.type === "group") {
+      parentPos.set(n.id, { x: n.position.x, y: n.position.y });
+    }
+  }
+
+  // Second pass: compute absolute positions
+  for (const n of flowNodes) {
+    let absX = n.position.x;
+    let absY = n.position.y;
+    if (n.parentId) {
+      const pp = parentPos.get(n.parentId);
+      if (pp) { absX += pp.x; absY += pp.y; }
+    }
+    const w = Number(n.data?.width) || 80;
+    const h = Number(n.data?.height) || 30;
+    nodePos.set(n.id, { x: absX + w / 2, y: absY + h / 2, w, h });
+  }
+
+  // Track link count per side per node for distribution
+  const sideCounters = new Map<string, number>();
+
+  return links.map((l) => {
+    const t = traffic[l.id];
+    const inPct = t?.in_pct ?? 0;
+    const outPct = t?.out_pct ?? 0;
+    const inColor = getScaleColor(inPct, scales);
+    const outColor = getScaleColor(outPct, scales);
+
+    const sp = nodePos.get(l.source_id);
+    const tp = nodePos.get(l.target_id);
+
+    let srcHandle: string | undefined;
+    let tgtHandle: string | undefined;
+
+    if (l.source_anchor && l.target_anchor) {
+      // Use explicit anchors from DB
+      srcHandle = l.source_anchor;
+      tgtHandle = `${l.target_anchor}-t`;
+    } else if (sp && tp) {
+      // Auto-compute based on relative position
+      const srcSide = bestSide(sp.x, sp.y, tp.x, tp.y);
+      const tgtSide = bestSide(tp.x, tp.y, sp.x, sp.y);
+      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y, sideCounters, l.source_id, srcSide);
+      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y, sideCounters, l.target_id, tgtSide) + "-t";
+    }
+
+    return {
+      id: l.id,
+      source: l.source_id,
+      target: l.target_id,
+      type: "traffic",
+      sourceHandle: srcHandle,
+      targetHandle: tgtHandle,
+      data: {
+        linkType: l.link_type,
+        bandwidthLabel: l.bandwidth_label,
+        bandwidth: l.bandwidth,
+        width: l.width,
+        inBps: t?.in_bps ?? 0,
+        outBps: t?.out_bps ?? 0,
+        inPct, outPct, inColor, outColor,
+        extra: l.extra,
+      },
+      zIndex: l.z_order,
+    } satisfies Edge;
+  });
 }
 
 function getScaleColor(pct: number, scales: ScaleBand[]): string {
@@ -152,7 +189,7 @@ export function formatBps(bps: number): string {
   return `${bps.toFixed(0)}`;
 }
 
-export function MapView() {
+function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
   const { map, traffic, loading, error, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling } =
     useMapStore();
@@ -165,11 +202,6 @@ export function MapView() {
 
   const scales = useMemo(() => map?.scales?.default ?? [], [map]);
 
-  const nodesById = useMemo(() => {
-    if (!map) return new Map<string, MapNode>();
-    return new Map(map.nodes.map((n: MapNode) => [n.id, n]));
-  }, [map]);
-
   const initialNodes = useMemo(() => {
     if (!map) return [];
     const groups = map.nodes.filter((n: MapNode) => n.node_type === "group").map(mapNodeToFlow);
@@ -177,22 +209,19 @@ export function MapView() {
     return [...groups, ...others];
   }, [map]);
 
-  const initialEdges = useMemo(() => {
-    if (!map) return [];
-    const enrichedLinks = autoAssignAnchors(map.links, nodesById);
-    return enrichedLinks.map((l: MapLink) => mapLinkToEdge(l, scales, traffic));
-  }, [map, traffic, scales, nodesById]);
-
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
     setNodes(initialNodes);
   }, [initialNodes, setNodes]);
 
+  // Recompute edges whenever nodes move or traffic updates
   useEffect(() => {
-    setEdges(initialEdges);
-  }, [initialEdges, setEdges]);
+    if (!map) return;
+    const newEdges = buildEdges(map.links, nodes, scales, traffic);
+    setEdges(newEdges);
+  }, [map, nodes, scales, traffic, setEdges]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -235,10 +264,6 @@ export function MapView() {
     return (
       <div className="flex items-center justify-center h-[calc(100vh-48px)] bg-noc-bg">
         <div className="noc-card p-6 max-w-xs text-center animate-fade-in border-node-firewall/30">
-          <svg viewBox="0 0 24 24" className="w-6 h-6 mx-auto mb-3 text-node-firewall" fill="none" stroke="currentColor" strokeWidth={1.5}>
-            <circle cx="12" cy="12" r="10" />
-            <path d="M12 8v4M12 16h.01" />
-          </svg>
           <p className="text-xs text-noc-text mb-1">Failed to load map</p>
           <p className="text-2xs text-noc-text-dim">Check your connection and try again</p>
         </div>
@@ -263,7 +288,7 @@ export function MapView() {
         onEdgeClick={handleEdgeClick}
         nodesDraggable={editMode}
         fitView
-        fitViewOptions={{ padding: 0.12 }}
+        fitViewOptions={{ padding: 0.08 }}
         minZoom={0.1}
         maxZoom={3}
       >
@@ -276,7 +301,10 @@ export function MapView() {
             if (type === "switch_l3") return "hsl(270 60% 60%)";
             if (type === "switch_l2") return "hsl(210 80% 55%)";
             if (type === "server") return "hsl(152 60% 44%)";
-            if (type === "cloud" || type === "internet") return "hsl(190 90% 50%)";
+            if (type === "ix") return "hsl(280 60% 55%)";
+            if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
+            if (type === "pni") return "hsl(160 60% 45%)";
+            if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
             return "hsl(220 15% 24%)";
           }}
           maskColor="hsl(220 20% 7% / 0.8)"
@@ -296,5 +324,13 @@ export function MapView() {
         />
       )}
     </div>
+  );
+}
+
+export function MapView() {
+  return (
+    <ReactFlowProvider>
+      <MapViewInner />
+    </ReactFlowProvider>
   );
 }

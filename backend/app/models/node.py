@@ -18,9 +18,13 @@ class NodeType(str, enum.Enum):
     SWITCH_L3 = "switch_l3"
     SERVER = "server"
     FIREWALL = "firewall"
-    CLOUD = "cloud"  # IX / Transit / PNI
-    INTERNET = "internet"  # External connectivity
-    GROUP = "group"  # Site / rack / logical group
+    CLOUD = "cloud"
+    INTERNET = "internet"
+    IX = "ix"  # Internet Exchange
+    TRANSIT = "transit"  # Transit provider
+    PNI = "pni"  # Private Network Interconnect
+    PROVIDER = "provider"  # Transport / connectivity provider
+    GROUP = "group"
     CUSTOM = "custom"
 
 
