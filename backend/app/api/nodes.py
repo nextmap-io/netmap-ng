@@ -35,6 +35,7 @@ class NodeUpdate(BaseModel):
     width: float | None = None
     height: float | None = None
     observium_device_id: int | None = None
+    locked: bool | None = None
     style: dict | None = None
     info_url: str | None = Field(None, max_length=512)
     extra: dict | None = None

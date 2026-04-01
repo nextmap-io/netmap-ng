@@ -9,6 +9,7 @@ import {
   useEdgesState,
   useReactFlow,
   ReactFlowProvider,
+  ConnectionMode,
   type Node,
   type Edge,
   type NodeChange,
@@ -22,6 +23,7 @@ import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { MapEditor } from "../Editor/MapEditor";
+import { PropertyPanel } from "../Editor/PropertyPanel";
 import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
 
 const nodeTypes = {
@@ -183,7 +185,7 @@ export function formatBps(bps: number): string {
 
 function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
-  const { map, traffic, loading, error, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling } =
+  const { map, traffic, loading, error, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid } =
     useMapStore();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
 
@@ -237,9 +239,22 @@ function MapViewInner() {
     (_: React.MouseEvent, edge: Edge) => {
       setSelectedEdgeId(edge.id);
       selectLink(edge.id);
+      if (editMode) selectLinks([edge.id]);
     },
-    [selectLink],
+    [selectLink, editMode, selectLinks],
   );
+
+  const handleNodeClick = useCallback(
+    (_: React.MouseEvent, node: Node) => {
+      if (!editMode) return;
+      selectNodes([node.id]);
+    },
+    [editMode, selectNodes],
+  );
+
+  const handlePaneClick = useCallback(() => {
+    clearSelection();
+  }, [clearSelection]);
 
   if (loading) {
     return (
@@ -268,53 +283,61 @@ function MapViewInner() {
   const selectedLink = selectedEdgeId ? map.links.find((l: MapLink) => l.id === selectedEdgeId) : null;
 
   return (
-    <div className="h-[calc(100vh-48px)] relative bg-noc-bg">
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        onNodesChange={handleNodesChange}
-        onEdgesChange={onEdgesChange}
-        onNodeDragStop={handleNodeDragStop}
-        onEdgeClick={handleEdgeClick}
-        nodesDraggable={editMode}
-        fitView
-        fitViewOptions={{ padding: 0.08 }}
-        minZoom={0.1}
-        maxZoom={3}
-      >
-        <Background gap={24} size={0.5} color="hsl(220 15% 12%)" />
-        <Controls showInteractive={false} />
-        <MiniMap
-          nodeColor={(n) => {
-            const type = String(n.data?.nodeType || "");
-            if (type === "router") return "hsl(36 100% 55%)";
-            if (type === "switch_l3") return "hsl(270 60% 60%)";
-            if (type === "switch_l2") return "hsl(210 80% 55%)";
-            if (type === "server") return "hsl(152 60% 44%)";
-            if (type === "ix") return "hsl(280 60% 55%)";
-            if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
-            if (type === "pni") return "hsl(160 60% 45%)";
-            if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
-            return "hsl(220 15% 24%)";
-          }}
-          maskColor="hsl(220 20% 7% / 0.8)"
-        />
-      </ReactFlow>
+    <div className="h-[calc(100vh-48px)] relative bg-noc-bg flex">
+      <div className={`flex-1 relative${editMode ? " edit-mode" : ""}`}>
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          onNodesChange={handleNodesChange}
+          onEdgesChange={onEdgesChange}
+          onNodeDragStop={handleNodeDragStop}
+          onEdgeClick={handleEdgeClick}
+          onNodeClick={handleNodeClick}
+          onPaneClick={handlePaneClick}
+          nodesDraggable={editMode}
+          snapToGrid={snapToGrid}
+          snapGrid={[24, 24]}
+          connectionMode={ConnectionMode.Loose}
+          fitView
+          fitViewOptions={{ padding: 0.08 }}
+          minZoom={0.1}
+          maxZoom={3}
+        >
+          <Background gap={24} size={0.5} color="hsl(220 15% 12%)" />
+          <Controls showInteractive={false} />
+          <MiniMap
+            nodeColor={(n) => {
+              const type = String(n.data?.nodeType || "");
+              if (type === "router") return "hsl(36 100% 55%)";
+              if (type === "switch_l3") return "hsl(270 60% 60%)";
+              if (type === "switch_l2") return "hsl(210 80% 55%)";
+              if (type === "server") return "hsl(152 60% 44%)";
+              if (type === "ix") return "hsl(280 60% 55%)";
+              if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
+              if (type === "pni") return "hsl(160 60% 45%)";
+              if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
+              return "hsl(220 15% 24%)";
+            }}
+            maskColor="hsl(220 20% 7% / 0.8)"
+          />
+        </ReactFlow>
 
-      <TrafficLegend scales={scales} />
-      <MapEditor />
+        <TrafficLegend scales={scales} />
+        <MapEditor />
 
-      {selectedLink && (
-        <TrafficGraphPanel
-          link={selectedLink}
-          onClose={() => {
-            setSelectedEdgeId(null);
-            selectLink(null);
-          }}
-        />
-      )}
+        {selectedLink && (
+          <TrafficGraphPanel
+            link={selectedLink}
+            onClose={() => {
+              setSelectedEdgeId(null);
+              selectLink(null);
+            }}
+          />
+        )}
+      </div>
+      {editMode && <PropertyPanel />}
     </div>
   );
 }

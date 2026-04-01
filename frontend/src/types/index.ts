@@ -37,6 +37,7 @@ export interface MapNode {
   observium_device_id: number | null;
   icon: string | null;
   style: Record<string, unknown>;
+  locked: boolean;
   info_url: string | null;
   extra: Record<string, unknown>;
 }
@@ -110,4 +111,28 @@ export interface MapSummary {
   name: string;
   description: string;
   updated_at: string;
+}
+
+export type AlignDirection = "left" | "center" | "right" | "top" | "middle" | "bottom";
+
+export interface ObserviumDevice {
+  device_id: number;
+  hostname: string;
+  sysName: string;
+  os: string;
+  hardware: string;
+  location: string;
+  status: number;
+  type: string;
+}
+
+export interface ObserviumPort {
+  port_id: number;
+  ifIndex: number;
+  ifName: string;
+  ifDescr: string;
+  ifAlias: string;
+  ifSpeed: number;
+  ifOperStatus: string;
+  port_label_short: string;
 }
