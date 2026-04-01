@@ -23,6 +23,8 @@ function TrafficEdgeComponent({
   const outColor = String(data?.outColor || "hsl(220 15% 24%)");
   const inBps = Number(data?.inBps) || 0;
   const outBps = Number(data?.outBps) || 0;
+  const inPct = Number(data?.inPct) || 0;
+  const outPct = Number(data?.outPct) || 0;
   const width = Number(data?.width) || 3;
   const bandwidthLabel = String(data?.bandwidthLabel || "");
   const linkType = String(data?.linkType || "internal");
@@ -181,7 +183,7 @@ function TrafficEdgeComponent({
               transform: `${labelTranslate} translate(${outLabelX}px, ${outLabelY}px)`,
             }}>
               <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
-                {formatBps(outBps)}
+                {outBps > 0 ? formatBps(outBps) : outPct > 0 ? `${outPct.toFixed(1)}%` : "0"}
               </div>
             </div>
             <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
@@ -190,7 +192,7 @@ function TrafficEdgeComponent({
               transform: `${labelTranslate} translate(${inLabelX}px, ${inLabelY}px)`,
             }}>
               <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
-                {formatBps(inBps)}
+                {inBps > 0 ? formatBps(inBps) : inPct > 0 ? `${inPct.toFixed(1)}%` : "0"}
               </div>
             </div>
           </>
