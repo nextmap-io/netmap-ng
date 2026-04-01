@@ -166,6 +166,108 @@ async def unshare_map(
     return {"ok": True}
 
 
+@router.post("/{map_id}/duplicate")
+async def duplicate_map(
+    map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    """Duplicate a map with all its nodes and links. Requires editor role."""
+    if not is_editor(user):
+        raise HTTPException(403, "Editor role required to duplicate maps")
+
+    # Load source map with nodes and links
+    result = await db.execute(
+        select(Map)
+        .options(selectinload(Map.nodes), selectinload(Map.links))
+        .where(Map.id == map_id)
+    )
+    source = result.scalar_one_or_none()
+    if not source:
+        raise HTTPException(404, "Map not found")
+
+    import uuid
+
+    # Create new map
+    new_map = Map(
+        name=f"{source.name} (copy)",
+        description=source.description,
+        width=source.width,
+        height=source.height,
+        scales=source.scales,
+        settings=source.settings,
+        owner=user.get("email", ""),
+    )
+    db.add(new_map)
+    await db.flush()  # get new_map.id
+
+    # Map old node IDs to new node IDs
+    node_id_map: dict[str, str] = {}
+    for node in source.nodes:
+        new_node = Node(
+            map_id=new_map.id,
+            name=node.name,
+            label=node.label,
+            node_type=node.node_type,
+            x=node.x,
+            y=node.y,
+            z_order=node.z_order,
+            parent_id=None,  # will fix after all nodes created
+            width=node.width,
+            height=node.height,
+            locked=node.locked,
+            observium_device_id=node.observium_device_id,
+            icon=node.icon,
+            style=node.style,
+            info_url=node.info_url,
+            extra=node.extra,
+        )
+        db.add(new_node)
+        await db.flush()
+        node_id_map[node.id] = new_node.id
+
+    # Fix parent_id references
+    for node in source.nodes:
+        if node.parent_id and node.parent_id in node_id_map:
+            result2 = await db.execute(
+                select(Node).where(Node.id == node_id_map[node.id])
+            )
+            new_node = result2.scalar_one()
+            new_node.parent_id = node_id_map[node.parent_id]
+
+    # Duplicate links with remapped node IDs
+    for link in source.links:
+        new_source_id = node_id_map.get(link.source_id)
+        new_target_id = node_id_map.get(link.target_id)
+        if not new_source_id or not new_target_id:
+            continue
+        new_link = Link(
+            map_id=new_map.id,
+            name=link.name,
+            link_type=link.link_type,
+            source_id=new_source_id,
+            target_id=new_target_id,
+            source_anchor=link.source_anchor,
+            target_anchor=link.target_anchor,
+            bandwidth=link.bandwidth,
+            bandwidth_label=link.bandwidth_label,
+            via_points=link.via_points,
+            via_style=link.via_style,
+            width=link.width,
+            arrow_style=link.arrow_style,
+            duplex=link.duplex,
+            datasource=link.datasource,
+            observium_port_id_a=link.observium_port_id_a,
+            observium_port_id_b=link.observium_port_id_b,
+            info_url_in=link.info_url_in,
+            info_url_out=link.info_url_out,
+            extra=link.extra,
+            z_order=link.z_order,
+        )
+        db.add(new_link)
+
+    await db.commit()
+    return {"id": new_map.id, "name": new_map.name}
+
+
 def _serialize_node(n: Node) -> dict:
     return {
         "id": n.id,

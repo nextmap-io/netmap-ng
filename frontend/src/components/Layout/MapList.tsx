@@ -7,8 +7,12 @@ export function MapList() {
   const [maps, setMaps] = useState<MapSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const refreshMaps = () => {
     api.listMaps().then(setMaps).finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    refreshMaps();
   }, []);
 
   const createMap = async () => {
@@ -16,6 +20,17 @@ export function MapList() {
     if (!name?.trim()) return;
     const result = await api.createMap({ name: name.trim() });
     setMaps((prev) => [{ id: result.id, name: name.trim(), description: "", updated_at: new Date().toISOString() }, ...prev]);
+  };
+
+  const duplicateMap = async (e: React.MouseEvent, mapId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await api.duplicateMap(mapId);
+      refreshMaps();
+    } catch {
+      alert("Failed to duplicate map");
+    }
   };
 
   if (loading) {
@@ -86,9 +101,18 @@ export function MapList() {
               {m.description && (
                 <p className="text-2xs text-noc-text-muted mb-2 line-clamp-2">{m.description}</p>
               )}
-              <p className="text-2xs text-noc-text-dim">
-                {new Date(m.updated_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-              </p>
+              <div className="flex items-center justify-between mt-1">
+                <p className="text-2xs text-noc-text-dim">
+                  {new Date(m.updated_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+                <button
+                  onClick={(e) => duplicateMap(e, m.id)}
+                  className="px-2 py-0.5 text-2xs text-noc-text-muted hover:text-accent hover:bg-accent/10 rounded transition-colors"
+                  title="Duplicate map"
+                >
+                  Duplicate
+                </button>
+              </div>
             </Link>
           ))}
         </div>

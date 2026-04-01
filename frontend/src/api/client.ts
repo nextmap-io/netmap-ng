@@ -49,6 +49,8 @@ export const api = {
     request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(id)}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteMap: (id: string) =>
     request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(id)}`, { method: "DELETE" }),
+  duplicateMap: (mapId: string) =>
+    request<{ id: string; name: string }>(`/api/maps/${encodeURIComponent(mapId)}/duplicate`, { method: "POST" }),
 
   // Nodes
   createNode: (mapId: string, data: Record<string, unknown>) =>
