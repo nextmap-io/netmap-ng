@@ -10,7 +10,6 @@ itsdangerous>=2.2.0
 python-multipart>=0.0.9
 pydantic>=2.7.0
 pydantic-settings>=2.2.0
-anthropic>=0.25.0
 redis>=5.0.0
 websockets>=12.0
 # rrdtool requires librrd-dev system package — installed in Docker only
