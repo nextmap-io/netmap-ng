@@ -153,25 +153,28 @@ export function LinkProperties({
         <div className="h-px bg-noc-border/50 mb-3" />
         <div className="space-y-2">
           <div>
-            <label className={labelClass}>Bandwidth (bps)</label>
-            <input
-              type="number"
+            <label className={labelClass}>Bandwidth</label>
+            <select
               value={link.bandwidth}
-              onChange={(e) =>
-                onUpdate({ bandwidth: parseInt(e.target.value, 10) || 0 })
-              }
+              onChange={(e) => {
+                const bw = Number(e.target.value);
+                const labels: Record<number, string> = {
+                  100e6: "100M", 1e9: "1G", 2.5e9: "2.5G", 10e9: "10G",
+                  25e9: "25G", 40e9: "40G", 100e9: "100G", 400e9: "400G",
+                };
+                onUpdate({ bandwidth: bw, bandwidth_label: labels[bw] || `${bw / 1e9}G` });
+              }}
               className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Label</label>
-            <input
-              type="text"
-              value={link.bandwidth_label}
-              onChange={(e) => onUpdate({ bandwidth_label: e.target.value })}
-              className={inputClass}
-              placeholder="e.g. 10G"
-            />
+            >
+              <option value={100e6}>100 Mbps</option>
+              <option value={1e9}>1 Gbps</option>
+              <option value={2.5e9}>2.5 Gbps</option>
+              <option value={10e9}>10 Gbps</option>
+              <option value={25e9}>25 Gbps</option>
+              <option value={40e9}>40 Gbps</option>
+              <option value={100e9}>100 Gbps</option>
+              <option value={400e9}>400 Gbps</option>
+            </select>
           </div>
           <div>
             <label className={labelClass}>Width</label>

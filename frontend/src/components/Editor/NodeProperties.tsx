@@ -87,37 +87,37 @@ export function NodeProperties({
         </div>
       </section>
 
-      {/* DIMENSIONS (groups and nodes with custom size) */}
-      {(node.node_type === "group" || node.width || node.height) && (
-        <section>
-          <div className={labelClass}>Dimensions</div>
-          <div className="h-px bg-noc-border/50 mb-3" />
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className={labelClass}>Width</label>
-              <input
-                type="number"
-                value={node.width ?? 400}
-                onChange={(e) =>
-                  onUpdate({ width: parseInt(e.target.value, 10) || 0 })
-                }
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className={labelClass}>Height</label>
-              <input
-                type="number"
-                value={node.height ?? 300}
-                onChange={(e) =>
-                  onUpdate({ height: parseInt(e.target.value, 10) || 0 })
-                }
-                className={inputClass}
-              />
+      {/* DIMENSIONS */}
+      <section>
+        <div className={labelClass}>Dimensions</div>
+        <div className="h-px bg-noc-border/50 mb-3" />
+        <div className="grid grid-cols-2 gap-2">
+          <div>
+            <label className={labelClass}>Width</label>
+            <input
+              type="number"
+              value={node.width ?? ""}
+              placeholder="auto"
+              onChange={(e) =>
+                onUpdate({ width: e.target.value ? parseInt(e.target.value, 10) : null })
+              }
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Height</label>
+            <input
+              type="number"
+              value={node.height ?? ""}
+              placeholder="auto"
+              onChange={(e) =>
+                onUpdate({ height: e.target.value ? parseInt(e.target.value, 10) : null })
+              }
+              className={inputClass}
+            />
             </div>
           </div>
-        </section>
-      )}
+      </section>
 
       {/* BEHAVIOR */}
       <section>
