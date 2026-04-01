@@ -110,26 +110,26 @@ function TrafficEdgeComponent({
         style={{ transition: "opacity 0.15s" }}
       />
 
-      {/* Midpoint arrows: separated so they don't overlap */}
-      {/* Out arrow (pointing toward target), offset toward target */}
+      {/* Midpoint arrows: ►◄ touching at the center point */}
+      {/* Out arrow ► (pointing toward target) */}
       <polygon
         points={`
-          ${midX + dx / len * (arrowSize + 3)},${midY + dy / len * (arrowSize + 3)}
-          ${midX + perpX * arrowSize * 0.7 + dx / len * 1},${midY + perpY * arrowSize * 0.7 + dy / len * 1}
-          ${midX - perpX * arrowSize * 0.7 + dx / len * 1},${midY - perpY * arrowSize * 0.7 + dy / len * 1}
+          ${midX + dx / len * arrowSize},${midY + dy / len * arrowSize}
+          ${midX + perpX * arrowSize * 0.7},${midY + perpY * arrowSize * 0.7}
+          ${midX - perpX * arrowSize * 0.7},${midY - perpY * arrowSize * 0.7}
         `}
         fill={strokeOut}
-        opacity={0.8}
+        opacity={0.9}
       />
-      {/* In arrow (pointing toward source), offset toward source */}
+      {/* In arrow ◄ (pointing toward source) */}
       <polygon
         points={`
-          ${midX - dx / len * (arrowSize + 3)},${midY - dy / len * (arrowSize + 3)}
-          ${midX + perpX * arrowSize * 0.7 - dx / len * 1},${midY + perpY * arrowSize * 0.7 - dy / len * 1}
-          ${midX - perpX * arrowSize * 0.7 - dx / len * 1},${midY - perpY * arrowSize * 0.7 - dy / len * 1}
+          ${midX - dx / len * arrowSize},${midY - dy / len * arrowSize}
+          ${midX + perpX * arrowSize * 0.7},${midY + perpY * arrowSize * 0.7}
+          ${midX - perpX * arrowSize * 0.7},${midY - perpY * arrowSize * 0.7}
         `}
         fill={strokeIn}
-        opacity={0.8}
+        opacity={0.9}
       />
 
       <EdgeLabelRenderer>
