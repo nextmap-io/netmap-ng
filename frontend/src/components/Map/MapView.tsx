@@ -398,6 +398,8 @@ function MapViewInner() {
           <Background gap={24} size={0.5} color="hsl(220 15% 12%)" />
           <Controls showInteractive={false} />
           <MiniMap
+            pannable
+            zoomable
             nodeColor={(n) => {
               const type = String(n.data?.nodeType || "");
               if (type === "router") return "hsl(36 100% 55%)";

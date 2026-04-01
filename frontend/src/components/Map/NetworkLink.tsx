@@ -69,12 +69,12 @@ function TrafficEdgeComponent({
   const strokeOut = colorOverride || outColor;
   const strokeIn = colorOverride || inColor;
 
-  // Labels: "out" on source side (25%), "in" on target side (75%)
-  // Well separated from the midpoint arrows
-  const outLabelX = sourceX * 0.75 + targetX * 0.25;
-  const outLabelY = sourceY * 0.75 + targetY * 0.25 - 8;
-  const inLabelX = sourceX * 0.25 + targetX * 0.75;
-  const inLabelY = sourceY * 0.25 + targetY * 0.75 - 8;
+  // Labels: "out" near source (20%), "in" near target (80%)
+  // Well away from the midpoint arrows
+  const outLabelX = sourceX * 0.80 + targetX * 0.20;
+  const outLabelY = sourceY * 0.80 + targetY * 0.20 - 10;
+  const inLabelX = sourceX * 0.20 + targetX * 0.80;
+  const inLabelY = sourceY * 0.20 + targetY * 0.80 - 10;
 
   const typeLabel =
     linkType === "transit" ? "TR" :
