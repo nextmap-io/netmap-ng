@@ -66,12 +66,29 @@ function TrafficEdgeComponent({
   const strokeOut = colorOverride || outColor;
   const strokeIn = colorOverride || inColor;
 
-  // Labels: "out" near source (20%), "in" near target (80%)
-  // Well away from the midpoint arrows
-  const outLabelX = sourceX * 0.80 + targetX * 0.20;
-  const outLabelY = sourceY * 0.80 + targetY * 0.20 - 10;
-  const inLabelX = sourceX * 0.20 + targetX * 0.80;
-  const inLabelY = sourceY * 0.20 + targetY * 0.80 - 10;
+  // Label position override: "above" (default), "below", "left", "right"
+  const labelPos = String(extra?.label_position || "above");
+
+  // Base label positions at 20% (out/source side) and 80% (in/target side)
+  const baseOutX = sourceX * 0.80 + targetX * 0.20;
+  const baseOutY = sourceY * 0.80 + targetY * 0.20;
+  const baseInX = sourceX * 0.20 + targetX * 0.80;
+  const baseInY = sourceY * 0.20 + targetY * 0.80;
+
+  // Offset based on label_position
+  const labelOffset = 12;
+  const offsets: Record<string, [number, number, string]> = {
+    above: [0, -labelOffset, "translate(-50%, -100%)"],
+    below: [0, labelOffset, "translate(-50%, 0%)"],
+    left:  [-labelOffset, 0, "translate(-100%, -50%)"],
+    right: [labelOffset, 0, "translate(0%, -50%)"],
+  };
+  const [offX, offY, labelTranslate] = offsets[labelPos] || offsets.above;
+
+  const outLabelX = baseOutX + offX;
+  const outLabelY = baseOutY + offY;
+  const inLabelX = baseInX + offX;
+  const inLabelY = baseInY + offY;
 
   const typeLabel =
     linkType === "transit" ? "TR" :
@@ -161,7 +178,7 @@ function TrafficEdgeComponent({
             <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
               position: "absolute",
               zIndex: 10,
-              transform: `translate(-50%, -100%) translate(${outLabelX}px, ${outLabelY}px)`,
+              transform: `${labelTranslate} translate(${outLabelX}px, ${outLabelY}px)`,
             }}>
               <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
                 {formatBps(outBps)}
@@ -170,7 +187,7 @@ function TrafficEdgeComponent({
             <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
               position: "absolute",
               zIndex: 10,
-              transform: `translate(-50%, -100%) translate(${inLabelX}px, ${inLabelY}px)`,
+              transform: `${labelTranslate} translate(${inLabelX}px, ${inLabelY}px)`,
             }}>
               <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
                 {formatBps(inBps)}
@@ -181,7 +198,7 @@ function TrafficEdgeComponent({
         {(bandwidthLabel || typeLabel) && (
           <div className="nodrag nopan" style={{
             position: "absolute",
-            transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - 6}px)`,
+            transform: `${labelTranslate} translate(${labelX + offX}px, ${labelY + offY}px)`,
           }}>
             <div className="flex items-center gap-0.5 whitespace-nowrap opacity-40" style={{ fontSize: "8px" }}>
               {typeLabel && <span className="font-semibold tracking-wider">{typeLabel}</span>}

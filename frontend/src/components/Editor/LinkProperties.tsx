@@ -228,6 +228,21 @@ export function LinkProperties({
         <div className="h-px bg-noc-border/50 mb-3" />
         <div className="space-y-2">
           <div>
+            <label className={labelClass}>Label Position</label>
+            <select
+              value={String(link.extra?.label_position || "above")}
+              onChange={(e) =>
+                onUpdate({ extra: { ...link.extra, label_position: e.target.value } })
+              }
+              className={inputClass}
+            >
+              <option value="above">Above</option>
+              <option value="below">Below</option>
+              <option value="left">Left</option>
+              <option value="right">Right</option>
+            </select>
+          </div>
+          <div>
             <label className={labelClass}>Routing</label>
             <select
               value={String(link.extra?.routing || "auto")}
