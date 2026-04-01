@@ -1,6 +1,9 @@
 """
 Read-only access to Observium's MySQL database.
 Provides topology discovery (CDP/LLDP neighbours), device info, port rates.
+
+Compatible with Observium CE where rate columns are in the `ports` table
+directly (no separate `ports-state` table).
 """
 
 from contextlib import asynccontextmanager
@@ -34,9 +37,9 @@ async def get_devices(device_ids: list[int] | None = None) -> list[dict[str, Any
                 SELECT device_id, hostname, sysName, os, hardware,
                        location, status, type, version
                 FROM devices
-                WHERE disabled = 0 AND ignore = 0
+                WHERE disabled = 0 AND `ignore` = 0
             """
-            params = []
+            params: list[int] = []
             if device_ids:
                 placeholders = ",".join(["%s"] * len(device_ids))
                 sql += f" AND device_id IN ({placeholders})"
@@ -51,22 +54,23 @@ async def get_device_ports(device_id: int) -> list[dict[str, Any]]:
         async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 """
-                SELECT p.port_id, p.ifIndex, p.ifName, p.ifDescr, p.ifAlias,
-                       p.ifSpeed, p.ifHighSpeed, p.ifOperStatus, p.ifAdminStatus,
-                       p.ifType, p.port_label, p.port_label_short,
-                       s.ifInOctets_rate, s.ifOutOctets_rate,
-                       s.ifInOctets_perc, s.ifOutOctets_perc
-                FROM ports p
-                LEFT JOIN `ports-state` s ON p.port_id = s.port_id
-                WHERE p.device_id = %s AND p.deleted = 0
-                ORDER BY p.ifIndex
+                SELECT port_id, ifIndex, ifName, ifDescr, ifAlias,
+                       ifSpeed, ifHighSpeed, ifOperStatus, ifAdminStatus,
+                       ifType, port_label, port_label_short,
+                       ifInOctets_rate, ifOutOctets_rate,
+                       ifInOctets_perc, ifOutOctets_perc
+                FROM ports
+                WHERE device_id = %s AND deleted = 0
+                ORDER BY ifIndex
             """,
                 (device_id,),
             )
             return await cur.fetchall()
 
 
-async def get_neighbours(device_ids: list[int] | None = None) -> list[dict[str, Any]]:
+async def get_neighbours(
+    device_ids: list[int] | None = None,
+) -> list[dict[str, Any]]:
     """
     Fetch CDP/LLDP neighbour links. This is the core topology query.
     Returns links where both ends are monitored (remote_port_id > 0).
@@ -83,10 +87,10 @@ async def get_neighbours(device_ids: list[int] | None = None) -> list[dict[str, 
                     p.port_id AS local_port_id,
                     p.ifName AS local_port,
                     p.ifSpeed AS local_port_speed,
-                    s.ifInOctets_rate AS local_in_rate,
-                    s.ifOutOctets_rate AS local_out_rate,
-                    s.ifInOctets_perc AS local_in_perc,
-                    s.ifOutOctets_perc AS local_out_perc,
+                    p.ifInOctets_rate AS local_in_rate,
+                    p.ifOutOctets_rate AS local_out_rate,
+                    p.ifInOctets_perc AS local_in_perc,
+                    p.ifOutOctets_perc AS local_out_perc,
                     l.remote_port_id,
                     rp.ifName AS remote_port,
                     rp.ifSpeed AS remote_port_speed,
@@ -96,12 +100,11 @@ async def get_neighbours(device_ids: list[int] | None = None) -> list[dict[str, 
                 FROM neighbours AS l
                 JOIN ports AS p ON p.port_id = l.port_id
                 JOIN devices AS d ON p.device_id = d.device_id
-                LEFT JOIN `ports-state` AS s ON p.port_id = s.port_id
                 LEFT JOIN ports AS rp ON rp.port_id = l.remote_port_id
                 LEFT JOIN devices AS rd ON rp.device_id = rd.device_id
                 WHERE l.active = 1 AND l.remote_port_id > 0
             """
-            params = []
+            params: list[int] = []
             if device_ids:
                 placeholders = ",".join(["%s"] * len(device_ids))
                 sql += f" AND d.device_id IN ({placeholders})"
@@ -116,13 +119,12 @@ async def get_port_traffic(port_id: int) -> dict[str, Any] | None:
         async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 """
-                SELECT p.port_id, p.ifName, p.ifSpeed,
-                       s.ifInOctets_rate, s.ifOutOctets_rate,
-                       s.ifInOctets_perc, s.ifOutOctets_perc,
-                       s.ifInErrors_rate, s.ifOutErrors_rate
-                FROM ports p
-                JOIN `ports-state` s ON p.port_id = s.port_id
-                WHERE p.port_id = %s
+                SELECT port_id, ifName, ifSpeed,
+                       ifInOctets_rate, ifOutOctets_rate,
+                       ifInOctets_perc, ifOutOctets_perc,
+                       ifInErrors_rate, ifOutErrors_rate
+                FROM ports
+                WHERE port_id = %s
             """,
                 (port_id,),
             )
