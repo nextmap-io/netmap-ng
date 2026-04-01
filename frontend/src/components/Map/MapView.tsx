@@ -100,9 +100,9 @@ function buildEdges(
   traffic: TrafficData,
   mapNodes: MapNode[],
 ): Edge[] {
-  // Build a set of node IDs that force straight links
+  // Nodes that force straight links: either has the toggle OR is a large node (has explicit height > 50)
   const straightNodeIds = new Set(
-    mapNodes.filter((n) => n.style?.straight_links).map((n) => n.id)
+    mapNodes.filter((n) => n.style?.straight_links || (n.height && n.height > 50)).map((n) => n.id)
   );
   // Build absolute position map (accounting for parent offsets)
   const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
@@ -149,23 +149,22 @@ function buildEdges(
       const srcStraight = straightNodeIds.has(l.source_id);
       const tgtStraight = straightNodeIds.has(l.target_id);
 
-      if (srcStraight || tgtStraight) {
-        // Straight links: anchor on each side so the link is perfectly horizontal.
-        // Source exits toward target normally.
+      // When either node has straight_links, align the anchor on the OTHER node
+      // so the link arrives/departs perfectly horizontal.
+      if (tgtStraight) {
         srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
-
-        // Target anchor: arrive at the same Y as the source center.
-        // sp.y and tp.y are absolute centers.
-        // The anchor pct on the target's E/W side = where sp.y falls on the target's height.
         const arrivalSide = (tp.x > sp.x) ? "W" : "E";
-        // sp.y is already the absolute center of source.
-        // tp.y is the absolute center of target.
-        // Target top = tp.y - tp.h/2, target bottom = tp.y + tp.h/2
-        // We want the anchor at Y = sp.y, so pct = (sp.y - (tp.y - tp.h/2)) / tp.h * 100
         const tgtTop = tp.y - tp.h / 2;
-        const pctOnTarget = tp.h > 30 ? ((sp.y - tgtTop) / tp.h) * 100 : 50;
+        const pctOnTarget = ((sp.y - tgtTop) / tp.h) * 100;
         const rpct = Math.min(95, Math.max(5, Math.round(pctOnTarget / 5) * 5));
         tgtHandle = (rpct === 50 ? arrivalSide : `${arrivalSide}:${rpct}`) + "-t";
+      } else if (srcStraight) {
+        tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
+        const departureSide = (sp.x > tp.x) ? "W" : "E";
+        const srcTop = sp.y - sp.h / 2;
+        const pctOnSource = ((tp.y - srcTop) / sp.h) * 100;
+        const rpct = Math.min(95, Math.max(5, Math.round(pctOnSource / 5) * 5));
+        srcHandle = rpct === 50 ? departureSide : `${departureSide}:${rpct}`;
       } else {
         // Normal: anchor exits toward the target, positioned proportionally
         srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);

@@ -96,6 +96,11 @@
   display: none !important;
 }
 
+/* Edge labels must render above edge SVG paths and polygons */
+.react-flow__edgelabel-renderer {
+  z-index: 5 !important;
+}
+
 .react-flow__edge.selected .react-flow__edge-path {
   filter: drop-shadow(0 0 6px hsl(190 90% 50% / 0.5));
 }

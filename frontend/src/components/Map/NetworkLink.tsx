@@ -166,6 +166,7 @@ function TrafficEdgeComponent({
           <>
             <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
               position: "absolute",
+              zIndex: 10,
               transform: `translate(-50%, -100%) translate(${outLabelX}px, ${outLabelY}px)`,
             }}>
               <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
@@ -174,6 +175,7 @@ function TrafficEdgeComponent({
             </div>
             <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
               position: "absolute",
+              zIndex: 10,
               transform: `translate(-50%, -100%) translate(${inLabelX}px, ${inLabelY}px)`,
             }}>
               <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
