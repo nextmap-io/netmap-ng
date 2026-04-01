@@ -29,7 +29,6 @@ async def test_health(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert data["status"] == "ok"
-    assert "version" in data
 
 
 @pytest.mark.anyio

@@ -17,7 +17,7 @@ async def _get_public_map(token: str, db: AsyncSession) -> Map:
     result = await db.execute(
         select(Map)
         .options(selectinload(Map.nodes), selectinload(Map.links))
-        .where(Map.public_token == token, Map.is_public == True)
+        .where(Map.public_token == token, Map.is_public.is_(True))
     )
     m = result.scalar_one_or_none()
     if not m:

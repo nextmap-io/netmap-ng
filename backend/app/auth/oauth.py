@@ -144,7 +144,7 @@ def _extract_roles(data: dict, claim_path: str) -> list[str]:
     obj = data
     for key in claim_path.split("."):
         if isinstance(obj, dict):
-            obj = obj.get(key)
+            obj = obj.get(key)  # type: ignore[assignment]
         else:
             return []
     if isinstance(obj, list):

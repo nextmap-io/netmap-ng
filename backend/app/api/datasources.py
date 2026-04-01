@@ -11,8 +11,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.oauth import get_current_user
-from app.auth.guards import require_editor, require_map_read, require_map_owner
-from app.models import Link, Map, get_db
+from app.auth.guards import require_editor, require_map_read
+from app.models import Link, get_db
 from app.datasources import observium, rrd
 
 logger = logging.getLogger("netmap.datasources")

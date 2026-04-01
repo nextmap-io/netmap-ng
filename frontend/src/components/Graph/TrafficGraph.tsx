@@ -39,7 +39,7 @@ export function TrafficGraphPanel({ link, onClose }: TrafficGraphPanelProps) {
       )
       .then(setHistory)
       .finally(() => setLoading(false));
-  }, [link, timeRange]);
+  }, [link, timeRange, mapId]);
 
   const chartData = history
     ? history.timestamps.map((ts, i) => ({

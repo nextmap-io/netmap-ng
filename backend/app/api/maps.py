@@ -38,7 +38,7 @@ async def list_maps(
 
     result = await db.execute(
         select(Map)
-        .where(or_(Map.owner == user.get("email", ""), Map.is_public == True))
+        .where(or_(Map.owner == user.get("email", ""), Map.is_public.is_(True)))
         .order_by(Map.updated_at.desc())
         .limit(limit)
         .offset(offset)
