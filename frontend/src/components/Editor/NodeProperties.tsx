@@ -146,6 +146,26 @@ export function NodeProperties({
             />
           </button>
         </div>
+        <div className="flex items-center justify-between mt-2">
+          <label className="text-2xs text-noc-text-muted uppercase tracking-wider">
+            Straight Links
+          </label>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!node.style?.straight_links}
+            onClick={() => onUpdate({ style: { ...node.style, straight_links: !node.style?.straight_links } })}
+            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
+              node.style?.straight_links ? "bg-accent" : "bg-noc-border"
+            }`}
+          >
+            <span
+              className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
+                node.style?.straight_links ? "translate-x-4" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        </div>
       </section>
 
       {/* PARENT */}

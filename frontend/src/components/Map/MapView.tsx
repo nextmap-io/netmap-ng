@@ -35,7 +35,7 @@ const edgeTypes = {
   traffic: TrafficEdge,
 };
 
-function mapNodeToFlow(n: MapNode): Node {
+function mapNodeToFlow(n: MapNode, editMode: boolean): Node {
   const isGroup = n.node_type === "group";
   return {
     id: n.id,
@@ -56,7 +56,7 @@ function mapNodeToFlow(n: MapNode): Node {
       ? { width: n.width || 400, height: n.height || 300 }
       : undefined,
     zIndex: isGroup ? -1 : (n.z_order || 0),
-    draggable: !n.locked && !n.style?.locked,
+    draggable: editMode && !n.locked && !n.style?.locked,
   };
 }
 
@@ -98,7 +98,12 @@ function buildEdges(
   flowNodes: Node[],
   scales: ScaleBand[],
   traffic: TrafficData,
+  mapNodes: MapNode[],
 ): Edge[] {
+  // Build a set of node IDs that force straight links
+  const straightNodeIds = new Set(
+    mapNodes.filter((n) => n.style?.straight_links).map((n) => n.id)
+  );
   // Build absolute position map (accounting for parent offsets)
   const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
   const parentPos = new Map<string, { x: number; y: number }>();
@@ -158,6 +163,7 @@ function buildEdges(
         bandwidthLabel: l.bandwidth_label,
         bandwidth: l.bandwidth,
         width: l.width,
+        forceStraight: straightNodeIds.has(l.source_id) || straightNodeIds.has(l.target_id),
         inBps: t?.in_bps ?? 0,
         outBps: t?.out_bps ?? 0,
         inPct, outPct, inColor, outColor,
@@ -234,10 +240,10 @@ function MapViewInner() {
 
   const initialNodes = useMemo(() => {
     if (!map) return [];
-    const groups = map.nodes.filter((n: MapNode) => n.node_type === "group").map(mapNodeToFlow);
-    const others = map.nodes.filter((n: MapNode) => n.node_type !== "group").map(mapNodeToFlow);
+    const groups = map.nodes.filter((n: MapNode) => n.node_type === "group").map((n) => mapNodeToFlow(n, editMode));
+    const others = map.nodes.filter((n: MapNode) => n.node_type !== "group").map((n) => mapNodeToFlow(n, editMode));
     return [...groups, ...others];
-  }, [map]);
+  }, [map, editMode]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -249,7 +255,7 @@ function MapViewInner() {
   // Recompute edges whenever nodes move or traffic updates
   useEffect(() => {
     if (!map) return;
-    const newEdges = buildEdges(map.links, nodes, scales, traffic);
+    const newEdges = buildEdges(map.links, nodes, scales, traffic, map.nodes);
     setEdges(newEdges);
   }, [map, nodes, scales, traffic, setEdges]);
 

@@ -37,10 +37,11 @@ function TrafficEdgeComponent({
     : lineStyle === "auto" && linkType === "transit" ? "6 3"
     : undefined;
 
+  const forceStraight = !!data?.forceStraight;
   const isHorizontal = Math.abs(sourceY - targetY) < 15;
 
   const [edgePath, labelX, labelY] = useMemo(() => {
-    if (routing === "straight" || (routing === "auto" && isHorizontal)) {
+    if (routing === "straight" || forceStraight || (routing === "auto" && isHorizontal)) {
       return getStraightPath({ sourceX, sourceY, targetX, targetY });
     } else if (routing === "bezier") {
       return getBezierPath({ sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition });
@@ -50,7 +51,7 @@ function TrafficEdgeComponent({
       sourcePosition, targetPosition, borderRadius: 6, offset: 15,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceX, sourceY, targetX, targetY, routing, isHorizontal, sourcePosition, targetPosition]);
+  }, [sourceX, sourceY, targetX, targetY, routing, isHorizontal, forceStraight, sourcePosition, targetPosition]);
 
   const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
   const showBpsLabels = dist > 80;
@@ -83,7 +84,7 @@ function TrafficEdgeComponent({
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
   const perpX = -dy / len;
   const perpY = dx / len;
-  const arrowSize = Math.max(width * 1.5, 5);
+  const arrowSize = Math.max(width * 2, 7);
 
   return (
     <>
