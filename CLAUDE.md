@@ -104,9 +104,63 @@ make frontend-dev       # Terminal 2
 ## CI/CD
 
 - **CI** (`.github/workflows/ci.yml`): lint (ruff), typecheck (mypy), test (pytest), frontend (eslint, tsc, vite build), Docker push to GHCR on `main`
-- **Release** (`.github/workflows/release.yml`): manual dispatch or tag push -> Docker multi-arch, GitHub Release with changelog
+- **Release** (`.github/workflows/release.yml`): manual dispatch or tag push → Docker multi-arch, GitHub Release with changelog
+- **Branch protection**: main requires CI green, squash merge only, linear history, no force push
 - **Dependabot**: Python, npm, Docker, GitHub Actions (weekly)
-- Docker images: `ghcr.io/<owner>/netmap-ng-{backend,frontend}`
+- Docker images: `ghcr.io/nextmap-io/netmap-ng-{backend,frontend}`
+
+## Commit & Deploy Procedure
+
+### Development workflow
+```bash
+# 1. Work on a feature branch
+git checkout -b feat/my-feature
+
+# 2. Make changes, test locally
+make ci                           # runs all CI checks locally
+
+# 3. Commit (no co-author tags)
+git add -A && git commit -m "Description of changes"
+
+# 4. Push and create PR
+git push -u origin feat/my-feature
+gh pr create --title "..." --body "..."
+
+# 5. Wait for CI green, then merge (squash)
+gh pr merge <number> --squash --delete-branch
+```
+
+### Deploy to production (your-server)
+```bash
+# ALWAYS backup DB first
+ssh your-server 'sudo cp /opt/netmap-ng/backend/data/netmap.db /opt/netmap-ng/backend/data/netmap.db.backup-$(date +%Y%m%d-%H%M%S)'
+
+# Pull, build, restart
+ssh your-server 'cd /opt/netmap-ng && sudo -u netmap git checkout -- frontend/tsconfig.tsbuildinfo && sudo -u netmap git pull && cd frontend && sudo -u netmap npm run build && sudo systemctl restart netmap-ng'
+```
+
+### Schema migration (new DB columns)
+```bash
+# Stop service, migrate, restart
+ssh your-server 'sudo systemctl stop netmap-ng && sudo sqlite3 /opt/netmap-ng/backend/data/netmap.db "ALTER TABLE ... ;" && sudo systemctl start netmap-ng'
+```
+
+### Creating a release
+```bash
+# Tag and push (triggers release workflow)
+git tag -a v1.2.3 -m "Release description"
+git push origin v1.2.3
+
+# Or use manual workflow dispatch
+gh workflow run release.yml --repo nextmap-io/netmap-ng -f version=1.2.3
+```
+
+### Seed / recreate the map
+```bash
+# ALWAYS backup first, then use seed script on server
+scp /tmp/seed_final.py your-server:/tmp/
+ssh your-server 'python3.12 /tmp/seed_final.py'
+```
 
 ## Code Conventions
 
