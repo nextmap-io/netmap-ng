@@ -43,8 +43,10 @@ def _filter_link(link_dict: dict, settings: dict) -> dict:
         "info_url_out",
     ]:
         link_dict.pop(key, None)
-    # Remove extra (may contain hostname, port_identifier for RRD)
-    link_dict.pop("extra", None)
+    # Filter extra: keep visual settings, remove sensitive data (RRD paths)
+    extra = link_dict.get("extra") or {}
+    safe_keys = {"routing", "line_style", "color_override", "label_position"}
+    link_dict["extra"] = {k: v for k, v in extra.items() if k in safe_keys}
     if not settings.get("show_bandwidth", True):
         link_dict.pop("bandwidth", None)
         link_dict.pop("bandwidth_label", None)
