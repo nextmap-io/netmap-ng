@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 
-type Theme = "light" | "dark" | "system";
+export type Theme = "light" | "dark" | "system" | "scada";
 
 function getSystemTheme(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -9,9 +9,14 @@ function getSystemTheme(): "light" | "dark" {
 }
 
 function applyTheme(theme: Theme) {
-  const resolved = theme === "system" ? getSystemTheme() : theme;
-  document.documentElement.classList.toggle("dark", resolved === "dark");
-  document.documentElement.classList.toggle("light", resolved === "light");
+  const el = document.documentElement;
+  el.classList.remove("dark", "light", "scada");
+  if (theme === "scada") {
+    el.classList.add("scada");
+  } else {
+    const resolved = theme === "system" ? getSystemTheme() : theme;
+    el.classList.add(resolved);
+  }
 }
 
 export function useTheme() {
@@ -25,7 +30,6 @@ export function useTheme() {
     applyTheme(t);
   }, []);
 
-  // Apply on mount and when system preference changes
   useEffect(() => {
     applyTheme(theme);
     const mq = window.matchMedia("(prefers-color-scheme: dark)");

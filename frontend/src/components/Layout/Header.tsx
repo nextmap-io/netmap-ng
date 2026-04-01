@@ -1,15 +1,29 @@
+import { useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { useMapStore } from "@/hooks/useMapStore";
 import { useTheme } from "@/hooks/useTheme";
 
 export function Header() {
   const { map, editMode, setEditMode } = useMapStore();
-  const { theme, cycle } = useTheme();
+  const { theme, cycle, setTheme } = useTheme();
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleLiveDown = useCallback(() => {
+    longPressTimer.current = setTimeout(() => {
+      setTheme(theme === "scada" ? "system" : "scada");
+    }, 3000);
+  }, [theme, setTheme]);
+
+  const handleLiveUp = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
 
   return (
     <header className="sticky top-0 z-50 h-12 border-b border-noc-border bg-noc-bg/80 backdrop-blur-md flex items-center justify-between px-4 shrink-0">
       <Link to="/" className="flex items-center gap-2.5 group">
-        {/* Network topology icon */}
         <svg viewBox="0 0 24 24" className="w-5 h-5 text-accent transition-colors" fill="none" stroke="currentColor" strokeWidth={1.5}>
           <circle cx="12" cy="5" r="2" />
           <circle cx="5" cy="19" r="2" />
@@ -18,7 +32,7 @@ export function Header() {
           <rect x="9" y="11" width="6" height="3" rx="1" />
         </svg>
         <span className="text-xs font-semibold tracking-wider text-accent hidden sm:block">
-          NETMAP
+          {theme === "scada" ? "NETMAP // SCADA" : "NETMAP"}
         </span>
       </Link>
 
@@ -42,13 +56,13 @@ export function Header() {
           </>
         )}
 
-        {/* Theme toggle */}
+        {/* Theme toggle (normal cycle, no scada in rotation) */}
         <button
           onClick={cycle}
           className="p-1.5 rounded text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors"
           title={`Theme: ${theme}`}
         >
-          {theme === "dark" && (
+          {(theme === "dark" || theme === "scada") && (
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
             </svg>
@@ -65,9 +79,18 @@ export function Header() {
           )}
         </button>
 
-        {/* Status indicator */}
-        <div className="flex items-center gap-1.5">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse-subtle" />
+        {/* LIVE indicator - long press 3s for SCADA mode */}
+        <div
+          className="flex items-center gap-1.5 cursor-default select-none"
+          onMouseDown={handleLiveDown}
+          onMouseUp={handleLiveUp}
+          onMouseLeave={handleLiveUp}
+          onTouchStart={handleLiveDown}
+          onTouchEnd={handleLiveUp}
+        >
+          <div className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${
+            theme === "scada" ? "bg-yellow-400" : "bg-green-500"
+          }`} />
           <span className="text-2xs text-noc-text-dim hidden md:block">LIVE</span>
         </div>
       </div>

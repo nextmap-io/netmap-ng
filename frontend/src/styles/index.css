@@ -306,3 +306,205 @@ html.light .react-flow__edge polygon {
 
 /* Accent color toned down for light mode */
 html.light .text-accent { color: hsl(190 70% 32%) !important; }
+
+/* ═══════════════════════════════════════════════════
+   SCADA / Industrial Synoptic Theme (Easter Egg)
+   Long-press LIVE indicator for 3 seconds to activate.
+   Inspired by nuclear plant control room synoptics.
+   ═══════════════════════════════════════════════════ */
+
+html.scada {
+  background: #0a0a0a;
+  color: #00ff88;
+  font-family: "JetBrains Mono", "Courier New", monospace;
+}
+html.scada body {
+  background: #0a0a0a;
+}
+
+/* Scanline overlay effect */
+html.scada::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.08) 2px,
+    rgba(0, 0, 0, 0.08) 4px
+  );
+}
+
+/* Base NOC colors → SCADA overrides */
+html.scada .bg-noc-bg { background-color: #0a0a0a !important; }
+html.scada .bg-noc-card { background-color: #0d1a0d !important; }
+html.scada .bg-noc-surface { background-color: #111 !important; }
+html.scada .border-noc-border { border-color: #1a3a1a !important; }
+html.scada .text-noc-text { color: #00ff88 !important; }
+html.scada .text-noc-text-muted { color: #00aa55 !important; }
+html.scada .text-noc-text-dim { color: #006633 !important; }
+
+/* Accent → amber warning color */
+html.scada .text-accent { color: #ffaa00 !important; }
+
+/* Panels */
+html.scada .noc-glass {
+  background: #0d1a0d !important;
+  border-color: #1a3a1a !important;
+  backdrop-filter: none !important;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.05), inset 0 0 30px rgba(0, 0, 0, 0.5) !important;
+}
+html.scada .noc-card {
+  background: #0d1a0d !important;
+  border-color: #1a3a1a !important;
+  box-shadow: 0 0 4px rgba(0, 255, 136, 0.03) !important;
+}
+html.scada .noc-label {
+  color: #ffaa00 !important;
+  letter-spacing: 0.15em !important;
+}
+
+/* Node cards: dark green tint with phosphor border */
+html.scada .react-flow__node .rounded {
+  background: #0d1a0d !important;
+  border-color: #00aa55 !important;
+  box-shadow: 0 0 6px rgba(0, 255, 136, 0.08) !important;
+}
+html.scada .react-flow__node .bg-noc-card {
+  background: #0d1a0d !important;
+}
+html.scada .react-flow__node .text-noc-text {
+  color: #00ff88 !important;
+  text-shadow: 0 0 4px rgba(0, 255, 136, 0.3);
+}
+
+/* Selected node: amber glow */
+html.scada .react-flow__node.selected .rounded {
+  box-shadow: 0 0 12px rgba(255, 170, 0, 0.4) !important;
+  border-color: #ffaa00 !important;
+}
+
+/* Group nodes: technical grid pattern */
+html.scada .react-flow__node[data-type="group"] > div {
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 19px,
+    #1a3a1a 19px,
+    #1a3a1a 20px
+  ),
+  repeating-linear-gradient(
+    90deg,
+    transparent,
+    transparent 19px,
+    #1a3a1a 19px,
+    #1a3a1a 20px
+  ) !important;
+  background-color: #080808 !important;
+  border: 1px solid #1a3a1a !important;
+}
+html.scada .react-flow__node[data-type="group"] .text-noc-text-dim,
+html.scada .react-flow__node[data-type="group"] .noc-label {
+  color: #006633 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.2em !important;
+}
+
+/* Type badges: monochrome phosphor */
+html.scada .react-flow__node span[class*="bg-node-"] {
+  background: #002a11 !important;
+  color: #00ff88 !important;
+  border: 1px solid #00aa55;
+}
+
+/* Links: phosphor green for low, amber for medium, red for high */
+html.scada .react-flow__edge path {
+  filter: saturate(1.2) !important;
+  opacity: 0.9 !important;
+}
+html.scada .react-flow__edge polygon {
+  filter: brightness(1.2) !important;
+}
+
+/* Link labels */
+html.scada .bg-noc-bg\/80,
+html.scada .bg-noc-bg\/90 {
+  background: #0a0a0a !important;
+  border: 1px solid #1a3a1a !important;
+  color: #00ff88 !important;
+}
+
+/* ReactFlow canvas */
+html.scada .react-flow__background {
+  background-color: #0a0a0a !important;
+}
+html.scada .react-flow__minimap {
+  background-color: #0d1a0d !important;
+  border: 1px solid #1a3a1a !important;
+}
+html.scada .react-flow__controls button {
+  background: #0d1a0d !important;
+  color: #00ff88 !important;
+  border-color: #1a3a1a !important;
+}
+html.scada .react-flow__controls button:hover {
+  background: #1a3a1a !important;
+}
+html.scada .react-flow__controls button svg {
+  fill: #00aa55 !important;
+}
+
+/* Header */
+html.scada .sticky {
+  background: #0a0a0a !important;
+  border-bottom-color: #1a3a1a !important;
+}
+
+/* Scrollbar */
+html.scada ::-webkit-scrollbar-track { background: #0a0a0a; }
+html.scada ::-webkit-scrollbar-thumb { background: #1a3a1a; }
+html.scada ::-webkit-scrollbar-thumb:hover { background: #00aa55; }
+
+/* Selection */
+html.scada ::selection {
+  background: rgba(0, 255, 136, 0.2);
+  color: #00ff88;
+}
+
+/* Inputs in SCADA mode */
+html.scada input, html.scada select, html.scada textarea {
+  background: #080808 !important;
+  color: #00ff88 !important;
+  border-color: #1a3a1a !important;
+  caret-color: #00ff88;
+}
+html.scada input::placeholder, html.scada textarea::placeholder {
+  color: #006633 !important;
+}
+html.scada input:focus, html.scada select:focus, html.scada textarea:focus {
+  border-color: #00aa55 !important;
+  box-shadow: 0 0 4px rgba(0, 255, 136, 0.2) !important;
+}
+
+/* Buttons */
+html.scada button {
+  border-color: #1a3a1a !important;
+}
+html.scada button:hover {
+  border-color: #00aa55 !important;
+}
+
+/* Traffic legend */
+html.scada .react-flow__node .text-2xs {
+  text-shadow: 0 0 3px rgba(0, 255, 136, 0.2);
+}
+
+/* Recharts tooltip */
+html.scada .recharts-default-tooltip {
+  background: #0d1a0d !important;
+  border-color: #1a3a1a !important;
+  color: #00ff88 !important;
+}
