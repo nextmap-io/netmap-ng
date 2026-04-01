@@ -60,11 +60,12 @@ function TrafficEdgeComponent({
   const strokeOut = colorOverride || outColor;
   const strokeIn = colorOverride || inColor;
 
-  // Label positions: out near source (25%), in near target (75%)
-  const outLabelX = sourceX * 0.75 + targetX * 0.25;
-  const outLabelY = sourceY * 0.75 + targetY * 0.25 - 8;
-  const inLabelX = sourceX * 0.25 + targetX * 0.75;
-  const inLabelY = sourceY * 0.25 + targetY * 0.75 - 8;
+  // Label positions: out near source (20%), in near target (80%)
+  // Before the midpoint arrows, closer to the nodes
+  const outLabelX = sourceX * 0.78 + targetX * 0.22;
+  const outLabelY = sourceY * 0.78 + targetY * 0.22 - 8;
+  const inLabelX = sourceX * 0.22 + targetX * 0.78;
+  const inLabelY = sourceY * 0.22 + targetY * 0.78 - 8;
 
   const typeLabel =
     linkType === "transit" ? "TR" :
@@ -82,7 +83,7 @@ function TrafficEdgeComponent({
   const len = Math.sqrt(dx * dx + dy * dy) || 1;
   const perpX = -dy / len;
   const perpY = dx / len;
-  const arrowSize = Math.max(width * 1.2, 4);
+  const arrowSize = Math.max(width * 1.5, 5);
 
   return (
     <>
@@ -109,26 +110,26 @@ function TrafficEdgeComponent({
         style={{ transition: "opacity 0.15s" }}
       />
 
-      {/* Midpoint: two small triangular arrowheads pointing in each direction */}
-      {/* Out arrow (pointing toward target) */}
+      {/* Midpoint arrows: separated so they don't overlap */}
+      {/* Out arrow (pointing toward target), offset toward target */}
       <polygon
         points={`
-          ${midX + dx / len * arrowSize},${midY + dy / len * arrowSize}
-          ${midX + perpX * arrowSize * 0.7 - dx / len * arrowSize * 0.3},${midY + perpY * arrowSize * 0.7 - dy / len * arrowSize * 0.3}
-          ${midX - perpX * arrowSize * 0.7 - dx / len * arrowSize * 0.3},${midY - perpY * arrowSize * 0.7 - dy / len * arrowSize * 0.3}
+          ${midX + dx / len * (arrowSize + 3)},${midY + dy / len * (arrowSize + 3)}
+          ${midX + perpX * arrowSize * 0.7 + dx / len * 1},${midY + perpY * arrowSize * 0.7 + dy / len * 1}
+          ${midX - perpX * arrowSize * 0.7 + dx / len * 1},${midY - perpY * arrowSize * 0.7 + dy / len * 1}
         `}
         fill={strokeOut}
-        opacity={0.7}
+        opacity={0.8}
       />
-      {/* In arrow (pointing toward source) */}
+      {/* In arrow (pointing toward source), offset toward source */}
       <polygon
         points={`
-          ${midX - dx / len * arrowSize},${midY - dy / len * arrowSize}
-          ${midX + perpX * arrowSize * 0.7 + dx / len * arrowSize * 0.3},${midY + perpY * arrowSize * 0.7 + dy / len * arrowSize * 0.3}
-          ${midX - perpX * arrowSize * 0.7 + dx / len * arrowSize * 0.3},${midY - perpY * arrowSize * 0.7 + dy / len * arrowSize * 0.3}
+          ${midX - dx / len * (arrowSize + 3)},${midY - dy / len * (arrowSize + 3)}
+          ${midX + perpX * arrowSize * 0.7 - dx / len * 1},${midY + perpY * arrowSize * 0.7 - dy / len * 1}
+          ${midX - perpX * arrowSize * 0.7 - dx / len * 1},${midY - perpY * arrowSize * 0.7 - dy / len * 1}
         `}
         fill={strokeIn}
-        opacity={0.7}
+        opacity={0.8}
       />
 
       <EdgeLabelRenderer>
