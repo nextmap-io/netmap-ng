@@ -119,7 +119,7 @@ function mapLinkToEdge(l: MapLink, scales: ScaleBand[], traffic: TrafficData): E
     target: l.target_id,
     type: "traffic",
     sourceHandle: l.source_anchor || undefined,
-    targetHandle: l.target_anchor || undefined,
+    targetHandle: l.target_anchor ? `${l.target_anchor}-t` : undefined,
     data: {
       linkType: l.link_type,
       bandwidthLabel: l.bandwidth_label,

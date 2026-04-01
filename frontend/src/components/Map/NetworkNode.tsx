@@ -30,26 +30,39 @@ const NODE_BADGE_BG: Record<NodeType, string> = {
   group: "bg-noc-muted/20 text-noc-text-muted", custom: "bg-noc-muted/20 text-noc-text-muted",
 };
 
-const hStyle = "!bg-noc-muted/50 !border-0 !w-[3px] !h-[3px] !min-w-0 !min-h-0";
+const hStyle = "!bg-transparent !border-0 !w-[3px] !h-[3px] !min-w-0 !min-h-0";
 
-/** Generate handles at every 5% increment on all 4 sides */
+/**
+ * Every handle must exist as BOTH source and target.
+ * ReactFlow only renders an edge if sourceHandle matches a type="source"
+ * handle and targetHandle matches a type="target" handle.
+ * Since links can go in any direction, we duplicate every handle.
+ */
 function AllHandles() {
   const handles = useMemo(() => {
-    const h: Array<{ pos: Position; id: string; style: React.CSSProperties; type: "source" | "target" }> = [];
-    // Primary handles at 50%
-    h.push({ pos: Position.Top, id: "N", style: {}, type: "target" });
-    h.push({ pos: Position.Bottom, id: "S", style: {}, type: "source" });
-    h.push({ pos: Position.Left, id: "W", style: {}, type: "target" });
-    h.push({ pos: Position.Right, id: "E", style: {}, type: "source" });
-    // Distribution handles every 5%
-    for (let pct = 5; pct <= 95; pct += 5) {
-      if (pct === 50) continue;
-      h.push({ pos: Position.Top, id: `N:${pct}`, style: { left: `${pct}%` }, type: "target" });
-      h.push({ pos: Position.Bottom, id: `S:${pct}`, style: { left: `${pct}%` }, type: "source" });
-      h.push({ pos: Position.Left, id: `W:${pct}`, style: { top: `${pct}%` }, type: "target" });
-      h.push({ pos: Position.Right, id: `E:${pct}`, style: { top: `${pct}%` }, type: "source" });
+    const positions = [
+      { pos: Position.Top, prefix: "N", styleProp: "left" as const },
+      { pos: Position.Bottom, prefix: "S", styleProp: "left" as const },
+      { pos: Position.Left, prefix: "W", styleProp: "top" as const },
+      { pos: Position.Right, prefix: "E", styleProp: "top" as const },
+    ];
+
+    const result: Array<{ pos: Position; id: string; style: React.CSSProperties; type: "source" | "target" }> = [];
+
+    for (const { pos, prefix, styleProp } of positions) {
+      // Center handle (50%)
+      result.push({ pos, id: prefix, style: {}, type: "source" });
+      result.push({ pos, id: `${prefix}-t`, style: {}, type: "target" });
+
+      // Distribution handles at every 5%
+      for (let pct = 5; pct <= 95; pct += 5) {
+        if (pct === 50) continue;
+        const s = { [styleProp]: `${pct}%` };
+        result.push({ pos, id: `${prefix}:${pct}`, style: s, type: "source" });
+        result.push({ pos, id: `${prefix}:${pct}-t`, style: s, type: "target" });
+      }
     }
-    return h;
+    return result;
   }, []);
 
   return (
