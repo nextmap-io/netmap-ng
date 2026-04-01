@@ -37,15 +37,9 @@ function TrafficEdgeComponent({
     : lineStyle === "auto" && linkType === "transit" ? "6 3"
     : undefined;
 
-  // forceOrthogonal: links arrive at 90° angles into the connected device
-  const forceOrthogonal = !!data?.forceOrthogonal;
   const isHorizontal = Math.abs(sourceY - targetY) < 15;
 
   const [edgePath, labelX, labelY] = useMemo(() => {
-    if (forceOrthogonal) {
-      // Anchors are pre-aligned by buildEdges, so straight path is truly straight
-      return getStraightPath({ sourceX, sourceY, targetX, targetY });
-    }
     if (routing === "step") {
       return getSmoothStepPath({
         sourceX, sourceY, targetX, targetY,
@@ -62,7 +56,7 @@ function TrafficEdgeComponent({
       sourcePosition, targetPosition, borderRadius: 6, offset: 15,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceX, sourceY, targetX, targetY, routing, isHorizontal, forceOrthogonal, sourcePosition, targetPosition]);
+  }, [sourceX, sourceY, targetX, targetY, routing, isHorizontal, sourcePosition, targetPosition]);
 
   const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
   const showBpsLabels = dist > 80;

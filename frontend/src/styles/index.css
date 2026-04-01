@@ -98,7 +98,11 @@
 
 /* Edge labels must render above edge SVG paths and polygons */
 .react-flow__edgelabel-renderer {
-  z-index: 5 !important;
+  z-index: 1000 !important;
+  pointer-events: none;
+}
+.react-flow__edgelabel-renderer > * {
+  pointer-events: auto;
 }
 
 .react-flow__edge.selected .react-flow__edge-path {
