@@ -57,6 +57,9 @@ class Node(Base):
     width: Mapped[float | None] = mapped_column(Float, nullable=True)
     height: Mapped[float | None] = mapped_column(Float, nullable=True)
 
+    # Locked: prevent drag in editor
+    locked: Mapped[bool] = mapped_column(Integer, default=False)
+
     # Observium binding
     observium_device_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 

@@ -54,7 +54,7 @@ function mapNodeToFlow(n: MapNode): Node {
       ? { width: n.width || 400, height: n.height || 300 }
       : undefined,
     zIndex: isGroup ? -1 : (n.z_order || 0),
-    draggable: true,
+    draggable: !n.style?.locked,
   };
 }
 

@@ -1,6 +1,6 @@
 import { memo } from "react";
 import {
-  getStraightPath,
+  getSmoothStepPath,
   type EdgeProps,
   EdgeLabelRenderer,
 } from "@xyflow/react";
@@ -12,6 +12,8 @@ function TrafficEdgeComponent({
   sourceY,
   targetX,
   targetY,
+  sourcePosition,
+  targetPosition,
   data,
   selected,
 }: EdgeProps) {
@@ -23,8 +25,11 @@ function TrafficEdgeComponent({
   const bandwidthLabel = String(data?.bandwidthLabel || "");
   const linkType = String(data?.linkType || "internal");
 
-  const [edgePath, labelX, labelY] = getStraightPath({
+  const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX, sourceY, targetX, targetY,
+    sourcePosition, targetPosition,
+    borderRadius: 8,
+    offset: 20,
   });
 
   const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
