@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
 import type { NodeType } from "@/types";
@@ -31,9 +30,6 @@ const BADGE_COLORS: Record<string, string> = {
 
 export function EditorToolbox() {
   const { map, editMode, loadMap } = useMapStore();
-  const [aiPrompt, setAiPrompt] = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
 
   if (!editMode || !map) return null;
 
@@ -50,24 +46,6 @@ export function EditorToolbox() {
       await loadMap(map.id);
     } catch (e) {
       console.error("Failed to create node:", e);
-    }
-  };
-
-  const handleAiGenerate = async () => {
-    if (!aiPrompt.trim()) return;
-    setAiLoading(true);
-    setAiError(null);
-    try {
-      await api.generateMap({
-        device_ids: [],
-        instructions: aiPrompt,
-        map_id: map.id,
-      });
-      await loadMap(map.id);
-    } catch {
-      setAiError("Generation failed. Check API key and try again.");
-    } finally {
-      setAiLoading(false);
     }
   };
 
@@ -105,42 +83,8 @@ export function EditorToolbox() {
           </div>
         </section>
 
-        {/* Separator */}
-        <div className="h-px bg-noc-border/50" />
 
-        {/* AI Layout */}
-        <section>
-          <div className="noc-label mb-2 flex items-center gap-1.5">
-            <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M12 2a4 4 0 014 4c0 1.95-1.4 3.58-3.25 3.93L12 22l-.75-12.07A4.001 4.001 0 0112 2z" />
-            </svg>
-            AI Layout
-          </div>
-          <textarea
-            value={aiPrompt}
-            onChange={(e) => setAiPrompt(e.target.value)}
-            maxLength={2000}
-            placeholder="Describe your topology or import from Observium..."
-            className="w-full bg-noc-bg text-2xs text-noc-text rounded border border-noc-border p-2 resize-none h-16 placeholder:text-noc-text-dim focus-visible:ring-1 focus-visible:ring-accent/50 focus:outline-none"
-          />
-          {aiError && (
-            <p className="text-2xs text-node-firewall mt-1 mb-1">{aiError}</p>
-          )}
-          <button
-            onClick={handleAiGenerate}
-            disabled={aiLoading || !aiPrompt.trim()}
-            className="w-full mt-1.5 px-3 py-1.5 bg-accent/10 text-accent border border-accent/20 rounded text-2xs font-medium tracking-wider uppercase hover:bg-accent/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {aiLoading ? (
-              <span className="flex items-center justify-center gap-2">
-                <div className="w-3 h-3 border border-accent/40 border-t-accent rounded-full animate-spin-slow" />
-                Generating
-              </span>
-            ) : (
-              "Generate with Claude"
-            )}
-          </button>
-        </section>
+
       </div>
     </div>
   );

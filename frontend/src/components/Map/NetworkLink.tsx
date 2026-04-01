@@ -26,8 +26,6 @@ function TrafficEdgeComponent({
   const bandwidthLabel = String(data?.bandwidthLabel || "");
   const linkType = String(data?.linkType || "internal");
 
-  // Use straight path when source and target are roughly aligned horizontally
-  // (within 15px Y difference) - this gives clean horizontal server links
   const isHorizontal = Math.abs(sourceY - targetY) < 15;
 
   const [edgePath, labelX, labelY] = isHorizontal
@@ -42,18 +40,12 @@ function TrafficEdgeComponent({
   const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
   const showBpsLabels = dist > 80;
 
-  // Perpendicular offset for labels (always above the link)
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const perpX = -dy / len;
-  const perpY = dx / len;
-  const labelOff = 12;
-
-  const outLabelX = sourceX * 0.72 + targetX * 0.28 + perpX * labelOff;
-  const outLabelY = sourceY * 0.72 + targetY * 0.28 + perpY * labelOff;
-  const inLabelX = sourceX * 0.28 + targetX * 0.72 + perpX * labelOff;
-  const inLabelY = sourceY * 0.28 + targetY * 0.72 + perpY * labelOff;
+  // Simple label positioning: always above the line at fixed offset
+  const LABEL_ABOVE = 14;
+  const outLabelX = sourceX * 0.72 + targetX * 0.28;
+  const outLabelY = sourceY * 0.72 + targetY * 0.28 - LABEL_ABOVE;
+  const inLabelX = sourceX * 0.28 + targetX * 0.72;
+  const inLabelY = sourceY * 0.28 + targetY * 0.72 - LABEL_ABOVE;
 
   const typeLabel =
     linkType === "transit" ? "TR" :
@@ -107,7 +99,7 @@ function TrafficEdgeComponent({
         {(bandwidthLabel || typeLabel) && (
           <div className="nodrag nopan" style={{
             position: "absolute",
-            transform: `translate(-50%, -100%) translate(${labelX + perpX * labelOff}px, ${labelY + perpY * labelOff - 2}px)`,
+            transform: `translate(-50%, -100%) translate(${labelX}px, ${labelY - LABEL_ABOVE}px)`,
           }}>
             <div className="flex items-center gap-0.5 text-2xs text-noc-text-dim whitespace-nowrap opacity-50">
               {typeLabel && <span className="font-semibold tracking-wider">{typeLabel}</span>}

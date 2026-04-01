@@ -177,11 +177,11 @@ function getScaleColor(pct: number, scales: ScaleBand[]): string {
 }
 
 export function formatBps(bps: number): string {
-  if (bps >= 1e12) return `${(bps / 1e12).toFixed(1)}T`;
-  if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)}G`;
-  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)}M`;
-  if (bps >= 1e3) return `${(bps / 1e3).toFixed(1)}K`;
-  return `${bps.toFixed(0)}`;
+  if (bps >= 1e12) return `${(bps / 1e12).toFixed(1)}Tbps`;
+  if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)}Gbps`;
+  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)}Mbps`;
+  if (bps >= 1e3) return `${(bps / 1e3).toFixed(1)}Kbps`;
+  return `${bps.toFixed(0)}bps`;
 }
 
 function isInputFocused(): boolean {
@@ -307,6 +307,16 @@ function MapViewInner() {
     [editMode, map, createLink],
   );
 
+  const handleSelectionChange = useCallback(
+    ({ nodes: selNodes }: { nodes: Node[]; edges: Edge[] }) => {
+      if (!editMode) return;
+      if (selNodes.length > 0) {
+        selectNodes(selNodes.map((n) => n.id));
+      }
+    },
+    [editMode, selectNodes],
+  );
+
   const handlePaneClick = useCallback(() => {
     clearSelection();
   }, [clearSelection]);
@@ -352,7 +362,11 @@ function MapViewInner() {
           onNodeClick={handleNodeClick}
           onPaneClick={handlePaneClick}
           onConnect={handleConnect}
+          onSelectionChange={handleSelectionChange}
           nodesDraggable={editMode}
+          selectionOnDrag={editMode}
+          // selectionMode partial
+          multiSelectionKeyCode={editMode ? "Shift" : null}
           snapToGrid={snapToGrid}
           snapGrid={[24, 24]}
           connectionMode={ConnectionMode.Loose}
