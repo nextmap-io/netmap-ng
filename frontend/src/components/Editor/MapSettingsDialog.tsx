@@ -18,6 +18,12 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [bands, setBands] = useState<ScaleBand[]>([]);
   const [scaleMode, setScaleMode] = useState<"steps" | "gradient">("steps");
+  const [isPublic, setIsPublic] = useState(false);
+  const [publicToken, setPublicToken] = useState<string | null>(null);
+  const [showBps, setShowBps] = useState(false);
+  const [showBandwidth, setShowBandwidth] = useState(true);
+  const [showPercentage, setShowPercentage] = useState(true);
+  const [showGraph, setShowGraph] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // Sync local state when dialog opens
@@ -29,6 +35,13 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
       setHeight(map.height);
       setRefreshInterval(map.settings.refresh_interval);
       setScaleMode(map.settings.scale_mode === "gradient" ? "gradient" : "steps");
+      setIsPublic(map.is_public ?? false);
+      setPublicToken(map.public_token ?? null);
+      const ps = map.public_settings ?? { show_bps: false, show_bandwidth: true, show_percentage: true, show_graph: false };
+      setShowBps(ps.show_bps ?? false);
+      setShowBandwidth(ps.show_bandwidth ?? true);
+      setShowPercentage(ps.show_percentage ?? true);
+      setShowGraph(ps.show_graph ?? false);
       setBands(map.scales.default?.map((b) => ({ ...b })) ?? []);
     }
   }, [open, map]);
@@ -69,6 +82,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
           refresh_interval: refreshInterval,
           scale_mode: scaleMode,
         },
+        public_settings: { show_bps: showBps, show_bandwidth: showBandwidth, show_percentage: showPercentage, show_graph: showGraph },
         scales: {
           ...map.scales,
           default: bands,
@@ -173,6 +187,78 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
               <option value="steps">Steps (fixed color per band)</option>
               <option value="gradient">Gradient (smooth interpolation)</option>
             </select>
+          </div>
+
+          {/* Public Sharing */}
+          <div className="space-y-2">
+            <label className="noc-label mb-1 block">Public Sharing</label>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-noc-text">Public Map</span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={isPublic}
+                onClick={async () => {
+                  if (!isPublic) {
+                    const result = await api.shareMap(map.id);
+                    setPublicToken(result.public_token);
+                    setIsPublic(true);
+                  } else {
+                    await api.unshareMap(map.id);
+                    setPublicToken(null);
+                    setIsPublic(false);
+                  }
+                }}
+                className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
+                  isPublic ? "bg-accent" : "bg-noc-border"
+                }`}
+              >
+                <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
+                  isPublic ? "translate-x-4" : "translate-x-0.5"
+                }`} />
+              </button>
+            </div>
+            {isPublic && publicToken && (
+              <div className="space-y-2">
+                <div>
+                  <label className="noc-label mb-1 block">Share Link</label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="text"
+                      readOnly
+                      value={`${window.location.origin}/public/${publicToken}`}
+                      className={inputClass + " text-2xs"}
+                      onClick={(e) => (e.target as HTMLInputElement).select()}
+                    />
+                    <button
+                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/public/${publicToken}`)}
+                      className="px-2 py-1 text-2xs bg-accent/10 text-accent border border-accent/20 rounded hover:bg-accent/20 transition-colors shrink-0"
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+                <label className="noc-label mb-1 block">Public Data Visibility</label>
+                <div className="space-y-1.5">
+                  <label className="flex items-center gap-2 text-xs text-noc-text">
+                    <input type="checkbox" checked={showPercentage} onChange={(e) => setShowPercentage(e.target.checked)} className="accent-accent" />
+                    Show utilization %
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-noc-text">
+                    <input type="checkbox" checked={showBandwidth} onChange={(e) => setShowBandwidth(e.target.checked)} className="accent-accent" />
+                    Show link capacity (10G, 40G...)
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-noc-text">
+                    <input type="checkbox" checked={showBps} onChange={(e) => setShowBps(e.target.checked)} className="accent-accent" />
+                    Show traffic in bps
+                  </label>
+                  <label className="flex items-center gap-2 text-xs text-noc-text">
+                    <input type="checkbox" checked={showGraph} onChange={(e) => setShowGraph(e.target.checked)} className="accent-accent" />
+                    Allow traffic history graphs
+                  </label>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Color Scale Editor */}

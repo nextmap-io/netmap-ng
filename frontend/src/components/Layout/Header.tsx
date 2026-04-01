@@ -79,6 +79,17 @@ export function Header() {
           )}
         </button>
 
+        {/* User info (when authenticated) */}
+        <div className="hidden md:flex items-center gap-1.5">
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-noc-text-dim" fill="none" stroke="currentColor" strokeWidth={2}>
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          <a href="/auth/logout" className="text-2xs text-noc-text-dim hover:text-noc-text transition-colors">
+            Logout
+          </a>
+        </div>
+
         {/* LIVE indicator - long press 3s for SCADA mode */}
         <div
           className="flex items-center gap-1.5 cursor-default select-none"

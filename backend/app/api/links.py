@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.models import Link, get_db
 from app.models.link import LinkType
 from app.auth.oauth import get_current_user
+from app.auth.guards import require_map_owner
 
 router = APIRouter(prefix="/api/maps/{map_id}/links", tags=["links"])
 
@@ -57,6 +58,7 @@ async def create_link(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    await require_map_owner(map_id, user, db)
     link = Link(map_id=map_id, **data.model_dump())
     db.add(link)
     await db.commit()
@@ -72,6 +74,7 @@ async def update_link(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    await require_map_owner(map_id, user, db)
     result = await db.execute(
         select(Link).where(Link.id == link_id, Link.map_id == map_id)
     )
@@ -91,6 +94,7 @@ async def delete_link(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    await require_map_owner(map_id, user, db)
     result = await db.execute(
         select(Link).where(Link.id == link_id, Link.map_id == map_id)
     )

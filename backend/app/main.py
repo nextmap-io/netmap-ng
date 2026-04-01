@@ -13,6 +13,7 @@ from app.api.nodes import router as nodes_router
 from app.api.links import router as links_router
 from app.api.datasources import router as datasources_router
 from app.api.ai import router as ai_router
+from app.api.public import router as public_router
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s"
@@ -64,6 +65,7 @@ app.include_router(nodes_router)
 app.include_router(links_router)
 app.include_router(datasources_router)
 app.include_router(ai_router)
+app.include_router(public_router)
 
 
 @app.get("/health")

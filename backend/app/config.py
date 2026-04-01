@@ -23,6 +23,13 @@ class Settings(BaseSettings):
     oauth_userinfo_url: str = ""
     oauth_scopes: str = "openid profile email"
 
+    # OIDC roles (optional, compatible O365 + Keycloak)
+    oauth_editor_role: str = ""  # role required to edit maps
+    oauth_admin_role: str = ""  # role for full admin access
+    oauth_roles_claim: str = (
+        "roles"  # claim path in token (O365: "roles", Keycloak: "realm_access.roles")
+    )
+
     # CORS
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
 

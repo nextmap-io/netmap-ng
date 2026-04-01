@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.oauth import get_current_user
+from app.auth.guards import require_map_read
 from app.models import Link, get_db
 from app.datasources import observium, rrd
 
@@ -62,6 +63,7 @@ async def get_live_traffic(
     Fetch current traffic for all links in a map.
     Returns {link_id: {in_bps, out_bps, in_pct, out_pct}}.
     """
+    await require_map_read(map_id, user, db)
     result = await db.execute(select(Link).where(Link.map_id == map_id))
     links = result.scalars().all()
 

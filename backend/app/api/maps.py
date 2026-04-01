@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.models import Map, Node, Link, get_db
 from app.auth.oauth import get_current_user
+from app.auth.guards import require_map_owner, require_map_read, is_editor
 
 router = APIRouter(prefix="/api/maps", tags=["maps"])
 
@@ -33,8 +34,14 @@ async def list_maps(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    from sqlalchemy import or_
+
     result = await db.execute(
-        select(Map).order_by(Map.updated_at.desc()).limit(limit).offset(offset)
+        select(Map)
+        .where(or_(Map.owner == user.get("email", ""), Map.is_public == True))
+        .order_by(Map.updated_at.desc())
+        .limit(limit)
+        .offset(offset)
     )
     maps = result.scalars().all()
     return [
@@ -43,6 +50,8 @@ async def list_maps(
             "name": m.name,
             "description": m.description,
             "updated_at": m.updated_at,
+            "is_public": m.is_public,
+            "owner": m.owner,
         }
         for m in maps
     ]
@@ -52,6 +61,8 @@ async def list_maps(
 async def create_map(
     data: MapCreate, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
 ):
+    if not is_editor(user):
+        raise HTTPException(403, "Editor role required to create maps")
     m = Map(
         name=data.name,
         description=data.description,
@@ -69,6 +80,8 @@ async def create_map(
 async def get_map(
     map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
 ):
+    # Authorization check
+    await require_map_read(map_id, user, db)
     result = await db.execute(
         select(Map)
         .options(selectinload(Map.nodes), selectinload(Map.links))
@@ -85,6 +98,10 @@ async def get_map(
         "height": m.height,
         "scales": m.scales,
         "settings": m.settings,
+        "is_public": m.is_public,
+        "public_token": m.public_token,
+        "public_settings": m.public_settings,
+        "owner": m.owner,
         "nodes": [_serialize_node(n) for n in m.nodes],
         "links": [_serialize_link(lnk) for lnk in m.links],
     }
@@ -97,6 +114,8 @@ async def update_map(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    # Authorization check
+    await require_map_owner(map_id, user, db)
     result = await db.execute(select(Map).where(Map.id == map_id))
     m = result.scalar_one_or_none()
     if not m:
@@ -111,11 +130,38 @@ async def update_map(
 async def delete_map(
     map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
 ):
+    # Authorization check
+    await require_map_owner(map_id, user, db)
     result = await db.execute(select(Map).where(Map.id == map_id))
     m = result.scalar_one_or_none()
     if not m:
         raise HTTPException(404, "Map not found")
     await db.delete(m)
+    await db.commit()
+    return {"ok": True}
+
+
+@router.post("/{map_id}/share")
+async def share_map(
+    map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    m = await require_map_owner(map_id, user, db)
+    import uuid
+
+    m.is_public = True
+    if not m.public_token:
+        m.public_token = str(uuid.uuid4())
+    await db.commit()
+    return {"public_token": m.public_token, "share_url": f"/public/{m.public_token}"}
+
+
+@router.delete("/{map_id}/share")
+async def unshare_map(
+    map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
+):
+    m = await require_map_owner(map_id, user, db)
+    m.is_public = False
+    m.public_token = None
     await db.commit()
     return {"ok": True}
 

@@ -50,6 +50,22 @@ class Map(Base):
     )
 
     owner: Mapped[str] = mapped_column(String(255), default="")
+
+    # Public access
+    is_public: Mapped[bool] = mapped_column(Integer, default=False)
+    public_token: Mapped[str | None] = mapped_column(
+        String(36), nullable=True, unique=True
+    )
+    public_settings: Mapped[dict] = mapped_column(
+        JSON,
+        default=lambda: {
+            "show_bps": False,
+            "show_bandwidth": True,
+            "show_percentage": True,
+            "show_graph": False,
+        },
+    )
+
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), onupdate=func.now()

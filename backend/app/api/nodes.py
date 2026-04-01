@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 from app.models import Node, get_db
 from app.models.node import NodeType
 from app.auth.oauth import get_current_user
+from app.auth.guards import require_map_owner
 
 router = APIRouter(prefix="/api/maps/{map_id}/nodes", tags=["nodes"])
 
@@ -58,6 +59,7 @@ async def create_node(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    await require_map_owner(map_id, user, db)
     node = Node(map_id=map_id, **data.model_dump())
     db.add(node)
     await db.commit()
@@ -73,6 +75,7 @@ async def update_node(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    await require_map_owner(map_id, user, db)
     result = await db.execute(
         select(Node).where(Node.id == node_id, Node.map_id == map_id)
     )
@@ -92,6 +95,7 @@ async def delete_node(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
+    await require_map_owner(map_id, user, db)
     result = await db.execute(
         select(Node).where(Node.id == node_id, Node.map_id == map_id)
     )
@@ -111,6 +115,7 @@ async def batch_move_nodes(
     user=Depends(get_current_user),
 ):
     """Move multiple nodes at once (for drag-and-drop editor)."""
+    await require_map_owner(map_id, user, db)
     for move in data.moves:
         result = await db.execute(
             select(Node).where(Node.id == move.id, Node.map_id == map_id)

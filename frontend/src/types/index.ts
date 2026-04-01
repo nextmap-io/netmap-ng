@@ -74,6 +74,15 @@ export interface NetmapData {
   height: number;
   scales: Record<string, ScaleBand[]>;
   settings: MapSettings;
+  is_public?: boolean;
+  public_token?: string | null;
+  public_settings?: {
+    show_bps: boolean;
+    show_bandwidth: boolean;
+    show_percentage: boolean;
+    show_graph: boolean;
+  };
+  owner?: string;
   nodes: MapNode[];
   links: MapLink[];
 }

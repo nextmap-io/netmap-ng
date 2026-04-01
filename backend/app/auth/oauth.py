@@ -40,13 +40,32 @@ async def get_current_user(request: Request):
     """Extract user from session. Requires explicit AUTH_DISABLED=true to skip."""
     settings = get_settings()
     if settings.auth_disabled and not settings.oauth_client_id:
-        return {"sub": "local", "name": "Local User", "email": "local@localhost"}
+        return {
+            "sub": "local",
+            "name": "Local User",
+            "email": "local@localhost",
+            "roles": [],
+        }
     if not settings.oauth_client_id:
         raise HTTPException(status_code=401, detail="Authentication not configured")
     user = request.session.get("user")
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     return user
+
+
+async def get_optional_user(request: Request):
+    """Like get_current_user but returns None instead of 401."""
+    settings = get_settings()
+    if settings.auth_disabled and not settings.oauth_client_id:
+        return {
+            "sub": "local",
+            "name": "Local User",
+            "email": "local@localhost",
+            "roles": [],
+        }
+    user = request.session.get("user")
+    return user  # None if not logged in
 
 
 @router.get("/login")
@@ -64,11 +83,21 @@ async def callback(request: Request):
     userinfo = token.get("userinfo")
     if not userinfo:
         userinfo = await oauth.provider.userinfo(token=token)
-    # Store only essential fields in session
+
+    # Extract roles from ID token or userinfo
+    id_token_claims = (
+        token.get("id_token", {}) if isinstance(token.get("id_token"), dict) else {}
+    )
+    settings = get_settings()
+    roles = _extract_roles(userinfo, settings.oauth_roles_claim)
+    if not roles:
+        roles = _extract_roles(id_token_claims, settings.oauth_roles_claim)
+
     request.session["user"] = {
         "sub": userinfo.get("sub", ""),
         "name": userinfo.get("name", ""),
         "email": userinfo.get("email", ""),
+        "roles": roles,
     }
     return RedirectResponse(url="/")
 
@@ -81,4 +110,33 @@ async def logout(request: Request):
 
 @router.get("/me")
 async def me(user=Depends(get_current_user)):
-    return user
+    settings = get_settings()
+    return {
+        **user,
+        "is_editor": _has_role(user, settings.oauth_editor_role),
+        "is_admin": _has_role(user, settings.oauth_admin_role),
+    }
+
+
+def _extract_roles(data: dict, claim_path: str) -> list[str]:
+    """Extract roles from token claims using dot-notation path.
+    Supports: 'roles', 'realm_access.roles', 'resource_access.client.roles'
+    """
+    obj = data
+    for key in claim_path.split("."):
+        if isinstance(obj, dict):
+            obj = obj.get(key)
+        else:
+            return []
+    if isinstance(obj, list):
+        return [str(r) for r in obj]
+    if isinstance(obj, str):
+        return [obj]
+    return []
+
+
+def _has_role(user: dict, role: str) -> bool:
+    """Check if user has a specific role. Empty role = everyone has it."""
+    if not role:
+        return True
+    return role in user.get("roles", [])

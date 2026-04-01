@@ -12,6 +12,9 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     window.location.href = "/auth/login";
     throw new Error("Unauthorized");
   }
+  if (res.status === 403) {
+    throw new Error("Forbidden: insufficient permissions");
+  }
   if (!res.ok) {
     throw new Error(`API error: ${res.status}`);
   }
@@ -24,6 +27,16 @@ function qs(params: Record<string, string | undefined>): string {
     if (v !== undefined) p.set(k, v);
   }
   return p.toString();
+}
+
+async function publicRequest<T>(path: string): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { "Content-Type": "application/json" },
+  });
+  if (!res.ok) {
+    throw new Error(`API error: ${res.status}`);
+  }
+  return res.json();
 }
 
 export const api = {
@@ -73,4 +86,16 @@ export const api = {
 
   // Auth
   getUser: () => request<{ sub: string; name: string; email: string }>("/auth/me"),
+
+  // Public (no auth)
+  getPublicMap: (token: string) =>
+    publicRequest<NetmapData>(`/api/public/maps/${encodeURIComponent(token)}`),
+  getPublicTraffic: (token: string) =>
+    publicRequest<TrafficData>(`/api/public/maps/${encodeURIComponent(token)}/traffic`),
+
+  // Map sharing
+  shareMap: (mapId: string) =>
+    request<{ public_token: string; share_url: string }>(`/api/maps/${encodeURIComponent(mapId)}/share`, { method: "POST" }),
+  unshareMap: (mapId: string) =>
+    request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(mapId)}/share`, { method: "DELETE" }),
 };
