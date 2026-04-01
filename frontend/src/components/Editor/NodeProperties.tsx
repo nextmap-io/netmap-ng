@@ -130,15 +130,18 @@ export function NodeProperties({
           <button
             type="button"
             role="switch"
-            aria-checked={node.locked}
-            onClick={() => onUpdate({ locked: !node.locked })}
+            aria-checked={node.locked || !!node.style?.locked}
+            onClick={() => {
+              const isLocked = node.locked || !!node.style?.locked;
+              onUpdate({ locked: !isLocked, style: { ...node.style, locked: undefined } });
+            }}
             className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
-              node.locked ? "bg-accent" : "bg-noc-border"
+              (node.locked || node.style?.locked) ? "bg-accent" : "bg-noc-border"
             }`}
           >
             <span
               className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
-                node.locked ? "translate-x-4" : "translate-x-0.5"
+                (node.locked || node.style?.locked) ? "translate-x-4" : "translate-x-0.5"
               }`}
             />
           </button>
