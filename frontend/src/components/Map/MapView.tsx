@@ -56,6 +56,56 @@ function mapNodeToFlow(n: MapNode): Node {
   };
 }
 
+// Available handles on each side for distributing multiple links
+const SIDE_HANDLES: Record<string, string[]> = {
+  N: ["N:25", "N", "N:75"],
+  S: ["S:25", "S", "S:75"],
+  E: ["E:25", "E", "E:75"],
+  W: ["W:25", "W", "W:75"],
+};
+
+/**
+ * Auto-assign anchors to links so multiple links to the same node
+ * are distributed across different handles instead of overlapping.
+ */
+function autoAssignAnchors(
+  links: MapLink[],
+  nodesById: Map<string, MapNode>,
+): MapLink[] {
+  // Count links per node per side, and track which handle index to use next
+  const nodeHandleCounters: Map<string, Record<string, number>> = new Map();
+
+  function getNextHandle(nodeId: string, side: string): string {
+    if (!nodeHandleCounters.has(nodeId)) {
+      nodeHandleCounters.set(nodeId, {});
+    }
+    const counters = nodeHandleCounters.get(nodeId)!;
+    const idx = counters[side] ?? 0;
+    counters[side] = idx + 1;
+    const handles = SIDE_HANDLES[side] || [side];
+    return handles[idx % handles.length];
+  }
+
+  function bestSide(fromId: string, toId: string): string {
+    const from = nodesById.get(fromId);
+    const to = nodesById.get(toId);
+    if (!from || !to) return "S";
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    // Pick side based on dominant direction
+    if (Math.abs(dx) > Math.abs(dy)) {
+      return dx > 0 ? "E" : "W";
+    }
+    return dy > 0 ? "S" : "N";
+  }
+
+  return links.map((l) => {
+    const srcAnchor = l.source_anchor || getNextHandle(l.source_id, bestSide(l.source_id, l.target_id));
+    const tgtAnchor = l.target_anchor || getNextHandle(l.target_id, bestSide(l.target_id, l.source_id));
+    return { ...l, source_anchor: srcAnchor, target_anchor: tgtAnchor };
+  });
+}
+
 function mapLinkToEdge(l: MapLink, scales: ScaleBand[], traffic: TrafficData): Edge {
   const t = traffic[l.id];
   const inPct = t?.in_pct ?? 0;
@@ -115,6 +165,11 @@ export function MapView() {
 
   const scales = useMemo(() => map?.scales?.default ?? [], [map]);
 
+  const nodesById = useMemo(() => {
+    if (!map) return new Map<string, MapNode>();
+    return new Map(map.nodes.map((n: MapNode) => [n.id, n]));
+  }, [map]);
+
   const initialNodes = useMemo(() => {
     if (!map) return [];
     const groups = map.nodes.filter((n: MapNode) => n.node_type === "group").map(mapNodeToFlow);
@@ -124,8 +179,9 @@ export function MapView() {
 
   const initialEdges = useMemo(() => {
     if (!map) return [];
-    return map.links.map((l: MapLink) => mapLinkToEdge(l, scales, traffic));
-  }, [map, traffic, scales]);
+    const enrichedLinks = autoAssignAnchors(map.links, nodesById);
+    return enrichedLinks.map((l: MapLink) => mapLinkToEdge(l, scales, traffic));
+  }, [map, traffic, scales, nodesById]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -207,6 +263,7 @@ export function MapView() {
         onEdgeClick={handleEdgeClick}
         nodesDraggable={editMode}
         fitView
+        fitViewOptions={{ padding: 0.12 }}
         minZoom={0.1}
         maxZoom={3}
       >
