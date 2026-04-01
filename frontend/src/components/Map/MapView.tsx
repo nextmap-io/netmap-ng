@@ -98,12 +98,7 @@ function buildEdges(
   flowNodes: Node[],
   scales: ScaleBand[],
   traffic: TrafficData,
-  mapNodes: MapNode[],
 ): Edge[] {
-  // Nodes that force straight links: either has the toggle OR is a large node (has explicit height > 50)
-  const straightNodeIds = new Set(
-    mapNodes.filter((n) => n.style?.straight_links || (n.height && n.height > 50)).map((n) => n.id)
-  );
   // Build absolute position map (accounting for parent offsets)
   const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
   const parentPos = new Map<string, { x: number; y: number }>();
@@ -146,30 +141,8 @@ function buildEdges(
       srcHandle = l.source_anchor;
       tgtHandle = `${l.target_anchor}-t`;
     } else if (sp && tp) {
-      const srcStraight = straightNodeIds.has(l.source_id);
-      const tgtStraight = straightNodeIds.has(l.target_id);
-
-      // When either node has straight_links, align the anchor on the OTHER node
-      // so the link arrives/departs perfectly horizontal.
-      if (tgtStraight) {
-        srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
-        const arrivalSide = (tp.x > sp.x) ? "W" : "E";
-        const tgtTop = tp.y - tp.h / 2;
-        const pctOnTarget = ((sp.y - tgtTop) / tp.h) * 100;
-        const rpct = Math.min(95, Math.max(5, Math.round(pctOnTarget / 5) * 5));
-        tgtHandle = (rpct === 50 ? arrivalSide : `${arrivalSide}:${rpct}`) + "-t";
-      } else if (srcStraight) {
-        tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
-        const departureSide = (sp.x > tp.x) ? "W" : "E";
-        const srcTop = sp.y - sp.h / 2;
-        const pctOnSource = ((tp.y - srcTop) / sp.h) * 100;
-        const rpct = Math.min(95, Math.max(5, Math.round(pctOnSource / 5) * 5));
-        srcHandle = rpct === 50 ? departureSide : `${departureSide}:${rpct}`;
-      } else {
-        // Normal: anchor exits toward the target, positioned proportionally
-        srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
-        tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
-      }
+      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
+      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
     }
 
     return {
@@ -275,7 +248,7 @@ function MapViewInner() {
   // Recompute edges whenever nodes move or traffic updates
   useEffect(() => {
     if (!map) return;
-    const newEdges = buildEdges(map.links, nodes, scales, traffic, map.nodes);
+    const newEdges = buildEdges(map.links, nodes, scales, traffic);
     setEdges(newEdges);
   }, [map, nodes, scales, traffic, setEdges]);
 
