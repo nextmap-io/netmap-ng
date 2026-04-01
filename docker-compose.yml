@@ -1,26 +1,41 @@
+# Development setup with local builds and live reload
+# Usage:
+#   1. Copy .env.example to .env and configure
+#   2. docker compose up -d
+#
+# Backend: source mounted for live reload (uvicorn --reload)
+# Frontend: source mounted with Vite dev server (HMR)
+
 services:
+  # FastAPI backend with live reload
   backend:
     build: ./backend
     ports:
       - "8000:8000"
     env_file: .env
     volumes:
+      # Mount source code for live reload during development
       - ./backend/app:/app/app
+      # Persistent storage for SQLite database
       - app-data:/app/data
       # Mount Observium RRD directory (read-only)
+      # Uncomment and adjust the path to your Observium RRD directory:
       # - /opt/observium/rrd:/rrd:ro
     depends_on:
       - redis
 
+  # React frontend with Vite dev server (HMR)
   frontend:
     build: ./frontend
     ports:
       - "5173:5173"
     volumes:
+      # Mount source code for hot module replacement
       - ./frontend/src:/app/src
     environment:
       - VITE_API_URL=http://localhost:8000
 
+  # Redis for session storage and caching
   redis:
     image: redis:7-alpine
     ports:

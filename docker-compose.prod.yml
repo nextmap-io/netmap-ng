@@ -1,0 +1,29 @@
+# Production deployment using pre-built images from GHCR
+# Usage:
+#   1. Copy .env.example to .env and configure
+#   2. docker compose -f docker-compose.prod.yml up -d
+#
+# The frontend serves static files via nginx on port 80 internally.
+# Put a reverse proxy (nginx/caddy/traefik) in front for HTTPS.
+
+services:
+  backend:
+    image: ghcr.io/nextmap-io/netmap-ng-backend:latest
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file: .env
+    volumes:
+      - app-data:/app/data
+      # Mount Observium RRD directory (read-only)
+      # Uncomment and adjust the path to your Observium RRD directory:
+      # - /opt/observium/rrd:/rrd:ro
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/nextmap-io/netmap-ng-frontend:latest
+    ports:
+      - "127.0.0.1:3000:80"
+    restart: unless-stopped
+
+volumes:
+  app-data:
