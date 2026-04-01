@@ -1,0 +1,142 @@
+name: Supply Chain Check
+
+# Verify dependencies are not too recent (>7 days old) to mitigate
+# supply chain attacks via compromised fresh packages.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "frontend/package-lock.json"
+      - "backend/requirements.txt"
+
+jobs:
+  check-npm-package-age:
+    name: Check npm package age
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Check for packages published less than 7 days ago
+        run: |
+          echo "Checking npm package publication dates..."
+          MIN_AGE_DAYS=7
+          FAILED=0
+
+          # Extract all packages from package-lock.json
+          node -e "
+            const lock = require('./package-lock.json');
+            const deps = lock.packages || {};
+            const names = Object.keys(deps)
+              .filter(k => k.startsWith('node_modules/'))
+              .map(k => k.replace('node_modules/', ''))
+              .filter(k => !k.includes('node_modules/'));
+            // Only check direct dependencies and their first-level deps
+            const directDeps = Object.keys({
+              ...(lock.packages?.['']?.dependencies || {}),
+              ...(lock.packages?.['']?.devDependencies || {})
+            });
+            directDeps.forEach(d => console.log(d));
+          " | while read -r pkg; do
+            if [ -z "$pkg" ]; then continue; fi
+
+            # Get the installed version from package-lock.json
+            VERSION=$(node -e "
+              const lock = require('./package-lock.json');
+              const entry = lock.packages?.['node_modules/$pkg'];
+              if (entry) console.log(entry.version || '');
+            " 2>/dev/null)
+
+            if [ -z "$VERSION" ]; then continue; fi
+
+            # Query npm registry for publish date
+            PUBLISH_DATE=$(npm view "$pkg@$VERSION" time --json 2>/dev/null | node -e "
+              let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{
+                try {
+                  const t=JSON.parse(d);
+                  console.log(t['$VERSION'] || '');
+                } catch(e) { console.log(''); }
+              });
+            " 2>/dev/null)
+
+            if [ -z "$PUBLISH_DATE" ]; then continue; fi
+
+            # Calculate age in days
+            PUBLISH_TS=$(date -d "$PUBLISH_DATE" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "${PUBLISH_DATE%%.*}" +%s 2>/dev/null || echo 0)
+            NOW_TS=$(date +%s)
+            AGE_DAYS=$(( (NOW_TS - PUBLISH_TS) / 86400 ))
+
+            if [ "$AGE_DAYS" -lt "$MIN_AGE_DAYS" ] && [ "$AGE_DAYS" -ge 0 ]; then
+              echo "::error::SUPPLY CHAIN WARNING: $pkg@$VERSION was published only $AGE_DAYS days ago (minimum: $MIN_AGE_DAYS)"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "::error::One or more packages were published less than $MIN_AGE_DAYS days ago."
+            echo "This could indicate a supply chain attack. Please wait or investigate."
+            exit 1
+          fi
+
+          echo "✓ All direct dependencies are older than $MIN_AGE_DAYS days"
+
+  check-pip-package-age:
+    name: Check pip package age
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Check for packages published less than 7 days ago
+        run: |
+          echo "Checking pip package publication dates..."
+          MIN_AGE_DAYS=7
+          FAILED=0
+
+          while IFS= read -r line; do
+            # Skip comments and empty lines
+            [[ "$line" =~ ^#.*$ ]] && continue
+            [[ -z "$line" ]] && continue
+
+            # Extract package name (before >=, ==, etc.)
+            PKG=$(echo "$line" | sed 's/[><=!].*//' | sed 's/\[.*\]//' | tr -d '[:space:]')
+            [ -z "$PKG" ] && continue
+
+            # Get latest version info from PyPI
+            UPLOAD_DATE=$(curl -s "https://pypi.org/pypi/$PKG/json" 2>/dev/null | python3 -c "
+          import json, sys
+          try:
+              data = json.load(sys.stdin)
+              version = data['info']['version']
+              files = data['releases'].get(version, [])
+              if files:
+                  print(files[0]['upload_time'][:10])
+          except:
+              pass
+          " 2>/dev/null)
+
+            if [ -z "$UPLOAD_DATE" ]; then continue; fi
+
+            UPLOAD_TS=$(date -d "$UPLOAD_DATE" +%s 2>/dev/null || echo 0)
+            NOW_TS=$(date +%s)
+            AGE_DAYS=$(( (NOW_TS - UPLOAD_TS) / 86400 ))
+
+            if [ "$AGE_DAYS" -lt "$MIN_AGE_DAYS" ] && [ "$AGE_DAYS" -ge 0 ]; then
+              echo "::error::SUPPLY CHAIN WARNING: $PKG latest version was published only $AGE_DAYS days ago (minimum: $MIN_AGE_DAYS)"
+              FAILED=1
+            fi
+          done < backend/requirements.txt
+
+          if [ "$FAILED" = "1" ]; then
+            echo ""
+            echo "::error::One or more packages were published less than $MIN_AGE_DAYS days ago."
+            exit 1
+          fi
+
+          echo "✓ All pip dependencies are older than $MIN_AGE_DAYS days"
