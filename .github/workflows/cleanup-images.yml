@@ -1,0 +1,27 @@
+name: Cleanup old container images
+
+# Runs weekly and on-demand to remove old untagged container images
+on:
+  schedule:
+    - cron: "0 3 * * 0" # Every Sunday at 3am UTC
+  workflow_dispatch:
+
+permissions:
+  packages: write
+
+jobs:
+  cleanup:
+    name: Delete old images
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        package: [netmap-ng-backend, netmap-ng-frontend]
+    steps:
+      - name: Delete old untagged images
+        uses: actions/delete-package-versions@v5
+        with:
+          package-name: ${{ matrix.package }}
+          package-type: container
+          min-versions-to-keep: 5
+          delete-only-untagged-versions: true
+          token: ${{ secrets.GITHUB_TOKEN }}
