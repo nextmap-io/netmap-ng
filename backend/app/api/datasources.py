@@ -134,8 +134,11 @@ async def get_traffic_history(
     if not link_found:
         raise HTTPException(403, "This data source is not part of the specified map")
 
-    # Check if map allows graph access (for non-owners)
-    if m.owner != user.get("email"):
+    # Admins and editors always have graph access
+    # Only restrict for viewers who are not the owner
+    from app.auth.guards import is_admin, is_editor
+
+    if not is_admin(user) and not is_editor(user) and m.owner != user.get("email"):
         ps = m.public_settings or {}
         if not ps.get("show_graph", False):
             raise HTTPException(403, "Traffic history is not available for this map")
