@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { api } from "@/api/client";
+import { useMapStore } from "@/hooks/useMapStore";
 import { formatBps } from "../Map/MapView";
 import type { MapLink, TrafficHistory } from "@/types";
 
@@ -18,12 +19,13 @@ interface TrafficGraphPanelProps {
 }
 
 export function TrafficGraphPanel({ link, onClose }: TrafficGraphPanelProps) {
+  const mapId = useMapStore((s) => s.map?.id);
   const [history, setHistory] = useState<TrafficHistory | null>(null);
   const [timeRange, setTimeRange] = useState("-24h");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!link.extra?.hostname || !link.extra?.port_identifier) {
+    if (!link.extra?.hostname || !link.extra?.port_identifier || !mapId) {
       setLoading(false);
       return;
     }
@@ -32,6 +34,7 @@ export function TrafficGraphPanel({ link, onClose }: TrafficGraphPanelProps) {
       .getTrafficHistory(
         link.extra.hostname as string,
         link.extra.port_identifier as string,
+        mapId,
         timeRange,
       )
       .then(setHistory)

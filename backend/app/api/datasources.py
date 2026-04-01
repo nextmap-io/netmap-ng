@@ -1,31 +1,37 @@
 """
 API endpoints for fetching live traffic data and Observium topology.
+Observium endpoints require editor role (not exposed to viewers).
+Traffic endpoints require map read access.
 """
 
 import logging
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.oauth import get_current_user
-from app.auth.guards import require_map_read
-from app.models import Link, get_db
+from app.auth.guards import require_editor, require_map_read, require_map_owner
+from app.models import Link, Map, get_db
 from app.datasources import observium, rrd
 
 logger = logging.getLogger("netmap.datasources")
 router = APIRouter(prefix="/api/datasources", tags=["datasources"])
 
 
+# ── Observium endpoints (editor-only, not exposed to viewers) ──
+
+
 @router.get("/observium/devices")
-async def list_observium_devices(user=Depends(get_current_user)):
-    """List all devices from Observium."""
+async def list_observium_devices(user=Depends(require_editor)):
+    """List all devices from Observium. Requires editor role."""
     devices = await observium.get_devices()
     return devices
 
 
 @router.get("/observium/devices/{device_id}/ports")
-async def list_device_ports(device_id: int, user=Depends(get_current_user)):
-    """List ports with current rates for a device."""
+async def list_device_ports(device_id: int, user=Depends(require_editor)):
+    """List ports with current rates for a device. Requires editor role."""
     ports = await observium.get_device_ports(device_id)
     return ports
 
@@ -33,9 +39,9 @@ async def list_device_ports(device_id: int, user=Depends(get_current_user)):
 @router.get("/observium/neighbours")
 async def list_neighbours(
     device_ids: str | None = Query(None, description="Comma-separated device IDs"),
-    user=Depends(get_current_user),
+    user=Depends(require_editor),
 ):
-    """Fetch CDP/LLDP topology links from Observium."""
+    """Fetch CDP/LLDP topology links from Observium. Requires editor role."""
     ids = None
     if device_ids:
         try:
@@ -47,10 +53,13 @@ async def list_neighbours(
 
 
 @router.get("/observium/port/{port_id}/traffic")
-async def get_port_traffic(port_id: int, user=Depends(get_current_user)):
-    """Get current traffic for a specific port."""
+async def get_port_traffic(port_id: int, user=Depends(require_editor)):
+    """Get current traffic for a specific port. Requires editor role."""
     traffic = await observium.get_port_traffic(port_id)
     return traffic or {"error": "Port not found"}
+
+
+# ── Traffic endpoints (map-scoped, read access required) ──
 
 
 @router.get("/traffic/live")
@@ -61,7 +70,7 @@ async def get_live_traffic(
 ):
     """
     Fetch current traffic for all links in a map.
-    Returns {link_id: {in_bps, out_bps, in_pct, out_pct}}.
+    Requires read access to the map.
     """
     await require_map_read(map_id, user, db)
     result = await db.execute(select(Link).where(Link.map_id == map_id))
@@ -76,7 +85,6 @@ async def get_live_traffic(
                 out_rate = port_data.get("ifOutOctets_rate", 0) or 0
                 in_bps = float(in_rate) * 8
                 out_bps = float(out_rate) * 8
-                # Calculate percentage from link bandwidth for better precision
                 bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
                 in_pct = min(100.0, (in_bps / bw) * 100)
                 out_pct = min(100.0, (out_bps / bw) * 100)
@@ -101,11 +109,36 @@ async def get_live_traffic(
 async def get_traffic_history(
     hostname: str,
     port_identifier: str,
+    map_id: str = Query(..., description="Map ID for authorization"),
     start: str = "-24h",
     end: str = "now",
     resolution: int = Query(300, ge=60, le=86400),
+    db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Fetch historical traffic from RRD file for graphing."""
+    """Fetch historical traffic from RRD file. Requires map read access."""
+    # Verify user has access to this map
+    m = await require_map_read(map_id, user, db)
+
+    # Verify the hostname/port actually belongs to a link in this map
+    result = await db.execute(select(Link).where(Link.map_id == map_id))
+    links = result.scalars().all()
+    link_found = False
+    for link in links:
+        extra = link.extra or {}
+        if extra.get("hostname") == hostname and str(
+            extra.get("port_identifier")
+        ) == str(port_identifier):
+            link_found = True
+            break
+    if not link_found:
+        raise HTTPException(403, "This data source is not part of the specified map")
+
+    # Check if map allows graph access (for non-owners)
+    if m.owner != user.get("email"):
+        ps = m.public_settings or {}
+        if not ps.get("show_graph", False):
+            raise HTTPException(403, "Traffic history is not available for this map")
+
     data = rrd.fetch_history(hostname, port_identifier, start, end, resolution)
     return data

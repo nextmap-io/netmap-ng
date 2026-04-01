@@ -1,7 +1,7 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -12,7 +12,6 @@ from app.api.maps import router as maps_router
 from app.api.nodes import router as nodes_router
 from app.api.links import router as links_router
 from app.api.datasources import router as datasources_router
-from app.api.ai import router as ai_router
 from app.api.public import router as public_router
 
 logging.basicConfig(
@@ -32,6 +31,9 @@ app = FastAPI(
     description="Modern network weathermap with Observium integration",
     version="0.1.0",
     lifespan=lifespan,
+    # Disable docs in production (can be re-enabled with env var)
+    docs_url="/docs" if get_settings().auth_disabled else None,
+    redoc_url=None,
 )
 
 settings = get_settings()
@@ -55,6 +57,40 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
+
+# Security headers middleware
+@app.middleware("http")
+async def security_headers(request: Request, call_next):
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-XSS-Protection"] = "1; mode=block"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    if is_https:
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+    return response
+
+
+# Audit logging middleware
+@app.middleware("http")
+async def audit_log(request: Request, call_next):
+    response = await call_next(request)
+    # Log write operations
+    if request.method in ("POST", "PUT", "DELETE"):
+        user = request.session.get("user", {}) if hasattr(request, "session") else {}
+        email = user.get("email", "anonymous")
+        logger.info(
+            "AUDIT %s %s %s -> %s",
+            email,
+            request.method,
+            request.url.path,
+            response.status_code,
+        )
+    return response
+
+
 # OAuth setup
 setup_oauth(settings)
 
@@ -64,10 +100,10 @@ app.include_router(maps_router)
 app.include_router(nodes_router)
 app.include_router(links_router)
 app.include_router(datasources_router)
-app.include_router(ai_router)
 app.include_router(public_router)
+# AI router removed for security (no uncontrolled third-party API access)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok"}
