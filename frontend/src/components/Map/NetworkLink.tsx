@@ -40,8 +40,8 @@ function TrafficEdgeComponent({
   const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
   const showBpsLabels = dist > 80;
 
-  // Simple label positioning: always above the line at fixed offset
-  const LABEL_ABOVE = 14;
+  // Labels always above the line
+  const LABEL_ABOVE = 20;
   const outLabelX = sourceX * 0.72 + targetX * 0.28;
   const outLabelY = sourceY * 0.72 + targetY * 0.28 - LABEL_ABOVE;
   const inLabelX = sourceX * 0.28 + targetX * 0.72;

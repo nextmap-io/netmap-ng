@@ -282,9 +282,19 @@ function MapViewInner() {
   );
 
   const handleNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
+    (event: React.MouseEvent, node: Node) => {
       if (!editMode) return;
-      selectNodes([node.id]);
+      const { selectedNodeIds } = useMapStore.getState();
+      if (event.shiftKey || event.metaKey) {
+        // Toggle: add or remove from selection
+        if (selectedNodeIds.includes(node.id)) {
+          selectNodes(selectedNodeIds.filter((id) => id !== node.id));
+        } else {
+          selectNodes([...selectedNodeIds, node.id]);
+        }
+      } else {
+        selectNodes([node.id]);
+      }
     },
     [editMode, selectNodes],
   );
@@ -364,7 +374,7 @@ function MapViewInner() {
           onConnect={handleConnect}
           onSelectionChange={handleSelectionChange}
           nodesDraggable={editMode}
-          selectionOnDrag={editMode}
+          selectionOnDrag={false}
           // selectionMode partial
           multiSelectionKeyCode={editMode ? "Shift" : null}
           snapToGrid={snapToGrid}
