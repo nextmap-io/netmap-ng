@@ -145,6 +145,31 @@ export function LinkProperties({
             </div>
           </div>
         </div>
+        <div className="grid grid-cols-2 gap-2 mt-2">
+          <div>
+            <label className={labelClass}>Source Anchor</label>
+            <input
+              type="text"
+              value={link.source_anchor ?? ""}
+              placeholder="auto"
+              onChange={(e) => onUpdate({ source_anchor: e.target.value || null })}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Target Anchor</label>
+            <input
+              type="text"
+              value={link.target_anchor ?? ""}
+              placeholder="auto"
+              onChange={(e) => onUpdate({ target_anchor: e.target.value || null })}
+              className={inputClass}
+            />
+          </div>
+        </div>
+        <p className="text-2xs text-noc-text-dim mt-1">
+          Format: E:90, W:10, N:50, S:25 (side:percent)
+        </p>
       </section>
 
       {/* CAPACITY */}
