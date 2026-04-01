@@ -42,8 +42,11 @@ function TrafficEdgeComponent({
   const isHorizontal = Math.abs(sourceY - targetY) < 15;
 
   const [edgePath, labelX, labelY] = useMemo(() => {
-    if (forceOrthogonal || routing === "step") {
-      // Force right-angle routing (links arrive perpendicular to the device face)
+    if (forceOrthogonal) {
+      // Anchors are pre-aligned by buildEdges, so straight path is truly straight
+      return getStraightPath({ sourceX, sourceY, targetX, targetY });
+    }
+    if (routing === "step") {
       return getSmoothStepPath({
         sourceX, sourceY, targetX, targetY,
         sourcePosition, targetPosition, borderRadius: 6, offset: 15,

@@ -146,9 +146,28 @@ function buildEdges(
       srcHandle = l.source_anchor;
       tgtHandle = `${l.target_anchor}-t`;
     } else if (sp && tp) {
-      // Auto-compute: anchor exits toward the target, positioned proportionally
-      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
-      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
+      const srcStraight = straightNodeIds.has(l.source_id);
+      const tgtStraight = straightNodeIds.has(l.target_id);
+
+      if (srcStraight || tgtStraight) {
+        // Straight links: the anchor on the opposite device must align
+        // at the same Y as the source node's center, so the link arrives
+        // perfectly horizontal into the target.
+        srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
+
+        // Force target anchor Y to match source node center Y
+        const dx = tp.x - sp.x;
+        const side = dx > 0 ? "W" : "E"; // arriving side on target
+        // Compute what percentage on the target's side matches the source Y
+        const srcCenterY = sp.y;
+        const tgtPct = tp.h > 30 ? ((srcCenterY - tp.y + tp.h / 2) / tp.h) * 100 : 50;
+        const rpct = Math.min(95, Math.max(5, Math.round(tgtPct / 5) * 5));
+        tgtHandle = (rpct === 50 ? side : `${side}:${rpct}`) + "-t";
+      } else {
+        // Normal: anchor exits toward the target, positioned proportionally
+        srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
+        tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
+      }
     }
 
     return {
