@@ -295,7 +295,31 @@ html.light ::selection {
   color: hsl(220 30% 8%);
 }
 
-/* Edges: full opacity, more saturated in light */
+/* Edges: darken and desaturate for light backgrounds */
 html.light .react-flow__edge path {
-  opacity: 0.9 !important;
+  opacity: 0.85 !important;
+  filter: saturate(0.7) brightness(0.75);
+}
+html.light .react-flow__edge polygon {
+  filter: saturate(0.7) brightness(0.75);
+}
+
+/* Node type badges: tone down bright colors on light bg */
+html.light .bg-node-router\/20 { background-color: hsl(36 70% 50% / 0.15) !important; }
+html.light .bg-node-switch-l3\/20 { background-color: hsl(270 40% 50% / 0.15) !important; }
+html.light .bg-node-switch-l2\/20 { background-color: hsl(210 60% 45% / 0.15) !important; }
+html.light .bg-node-server\/20 { background-color: hsl(152 45% 38% / 0.15) !important; }
+html.light .bg-node-firewall\/20 { background-color: hsl(0 55% 45% / 0.15) !important; }
+html.light .bg-node-cloud\/20 { background-color: hsl(190 60% 38% / 0.15) !important; }
+
+/* Traffic legend colors in light mode */
+html.light .react-flow__node .border-node-router\/40 { border-color: hsl(36 60% 45% / 0.5) !important; }
+html.light .react-flow__node .border-node-switch-l3\/40 { border-color: hsl(270 35% 45% / 0.5) !important; }
+html.light .react-flow__node .border-node-switch-l2\/40 { border-color: hsl(210 50% 40% / 0.5) !important; }
+html.light .react-flow__node .border-node-server\/40 { border-color: hsl(152 40% 35% / 0.5) !important; }
+
+/* Accent color toned down */
+html.light .text-accent { color: hsl(190 70% 35%) !important; }
+html.light .bg-accent\/10 { background-color: hsl(190 70% 35% / 0.1) !important; }
+html.light .border-accent\/20 { border-color: hsl(190 70% 35% / 0.2) !important; }
 }
