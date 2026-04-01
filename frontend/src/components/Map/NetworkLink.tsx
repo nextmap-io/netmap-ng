@@ -110,30 +110,38 @@ function TrafficEdgeComponent({
         style={{ transition: "opacity 0.15s" }}
       />
 
-      {/* Midpoint arrows: ► ◄ with small gap between tips */}
+      {/* Midpoint: two triangles ►◄ pointing inward, tips 2px apart */}
       {(() => {
-        const gap = 3;
-        const nx = dx / len;
-        const ny = dy / len;
+        // Unit vectors along and perpendicular to the link
+        const ux = dx / len; // along: source → target
+        const uy = dy / len;
+        const px = perpX; // perpendicular
+        const py = perpY;
+        const s = arrowSize; // triangle size
+        const g = 1.5; // half-gap between tips
+
+        // ► Out arrow: tip points toward target, base on source side
+        // Tip at mid + g along direction, base at mid + g + s along direction
+        const outTipX = midX + ux * g;
+        const outTipY = midY + uy * g;
+        const outBaseX = midX - ux * (s - g);
+        const outBaseY = midY - uy * (s - g);
+
+        // ◄ In arrow: tip points toward source, base on target side
+        const inTipX = midX - ux * g;
+        const inTipY = midY - uy * g;
+        const inBaseX = midX + ux * (s - g);
+        const inBaseY = midY + uy * (s - g);
+
         return (
           <>
-            {/* Out arrow ► (shifted toward target by gap) */}
             <polygon
-              points={`
-                ${midX + nx * (arrowSize * 2 + gap)},${midY + ny * (arrowSize * 2 + gap)}
-                ${midX + perpX * arrowSize * 0.7 + nx * (arrowSize + gap)},${midY + perpY * arrowSize * 0.7 + ny * (arrowSize + gap)}
-                ${midX - perpX * arrowSize * 0.7 + nx * (arrowSize + gap)},${midY - perpY * arrowSize * 0.7 + ny * (arrowSize + gap)}
-              `}
+              points={`${outTipX},${outTipY} ${outBaseX + px * s * 0.5},${outBaseY + py * s * 0.5} ${outBaseX - px * s * 0.5},${outBaseY - py * s * 0.5}`}
               fill={strokeOut}
               opacity={0.9}
             />
-            {/* In arrow ◄ (shifted toward source by gap) */}
             <polygon
-              points={`
-                ${midX - nx * (arrowSize * 2 + gap)},${midY - ny * (arrowSize * 2 + gap)}
-                ${midX + perpX * arrowSize * 0.7 - nx * (arrowSize + gap)},${midY + perpY * arrowSize * 0.7 - ny * (arrowSize + gap)}
-                ${midX - perpX * arrowSize * 0.7 - nx * (arrowSize + gap)},${midY - perpY * arrowSize * 0.7 - ny * (arrowSize + gap)}
-              `}
+              points={`${inTipX},${inTipY} ${inBaseX + px * s * 0.5},${inBaseY + py * s * 0.5} ${inBaseX - px * s * 0.5},${inBaseY - py * s * 0.5}`}
               fill={strokeIn}
               opacity={0.9}
             />
