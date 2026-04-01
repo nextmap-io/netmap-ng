@@ -44,29 +44,57 @@ const handleBase = "!bg-noc-muted !border-0 opacity-0 hover:opacity-100 transiti
 function NetworkNodeComponent({ data, selected }: NodeProps) {
   const nodeType = (data.nodeType as NodeType) || "custom";
   const label = (data.label as string) || "";
+  const nodeWidth = Number(data.width) || 0;
+  const nodeHeight = Number(data.height) || 0;
+  const isLarge = nodeWidth > 0 && nodeHeight > 0;
 
   return (
     <div
       className={clsx(
-        "rounded bg-noc-card border px-2.5 py-1.5 min-w-[72px] transition-all duration-150",
+        "rounded bg-noc-card border transition-all duration-150 flex items-center justify-center",
         NODE_BORDER[nodeType],
         selected && "ring-1 ring-accent/50 border-accent/40",
+        isLarge ? "flex-col gap-1 p-2" : "px-2.5 py-1.5 min-w-[72px]",
       )}
+      style={isLarge ? { width: nodeWidth, height: nodeHeight } : undefined}
     >
       {/* Primary handles */}
       <Handle type="target" position={Position.Top} id="N" className={`!w-1.5 !h-1.5 ${handleBase}`} />
       <Handle type="target" position={Position.Left} id="W" className={`!w-1.5 !h-1.5 ${handleBase}`} />
       <Handle type="source" position={Position.Bottom} id="S" className={`!w-1.5 !h-1.5 ${handleBase}`} />
       <Handle type="source" position={Position.Right} id="E" className={`!w-1.5 !h-1.5 ${handleBase}`} />
-      {/* Distribution handles */}
-      <Handle type="target" position={Position.Top} id="N:25" style={{ left: "25%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Top} id="N:75" style={{ left: "75%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Bottom} id="S:25" style={{ left: "25%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Bottom} id="S:75" style={{ left: "75%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:25" style={{ top: "25%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="target" position={Position.Left} id="W:75" style={{ top: "75%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:25" style={{ top: "25%" }} className={`!w-1 !h-1 ${handleBase}`} />
-      <Handle type="source" position={Position.Right} id="E:75" style={{ top: "75%" }} className={`!w-1 !h-1 ${handleBase}`} />
+
+      {/* Distribution handles: 5 per side for large nodes, 3 for normal */}
+      {/* Top */}
+      <Handle type="target" position={Position.Top} id="N:20" style={{ left: "20%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Top} id="N:40" style={{ left: "40%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Top} id="N:60" style={{ left: "60%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Top} id="N:80" style={{ left: "80%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      {/* Bottom */}
+      <Handle type="source" position={Position.Bottom} id="S:20" style={{ left: "20%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Bottom} id="S:40" style={{ left: "40%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Bottom} id="S:60" style={{ left: "60%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Bottom} id="S:80" style={{ left: "80%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      {/* Left */}
+      <Handle type="target" position={Position.Left} id="W:10" style={{ top: "10%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Left} id="W:20" style={{ top: "20%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Left} id="W:30" style={{ top: "30%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Left} id="W:40" style={{ top: "40%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Left} id="W:50" style={{ top: "50%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Left} id="W:60" style={{ top: "60%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Left} id="W:70" style={{ top: "70%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Left} id="W:80" style={{ top: "80%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="target" position={Position.Left} id="W:90" style={{ top: "90%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      {/* Right */}
+      <Handle type="source" position={Position.Right} id="E:10" style={{ top: "10%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Right} id="E:20" style={{ top: "20%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Right} id="E:30" style={{ top: "30%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Right} id="E:40" style={{ top: "40%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Right} id="E:50" style={{ top: "50%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Right} id="E:60" style={{ top: "60%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Right} id="E:70" style={{ top: "70%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Right} id="E:80" style={{ top: "80%" }} className={`!w-1 !h-1 ${handleBase}`} />
+      <Handle type="source" position={Position.Right} id="E:90" style={{ top: "90%" }} className={`!w-1 !h-1 ${handleBase}`} />
 
       <div className="flex items-center gap-1.5">
         <span
