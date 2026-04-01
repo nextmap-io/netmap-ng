@@ -51,6 +51,7 @@ function mapNodeToFlow(n: MapNode, editMode: boolean): Node {
       infoUrl: n.info_url,
       width: n.width,
       height: n.height,
+      bgColor: n.style?.bg_color,
     },
     style: isGroup
       ? { width: n.width || 400, height: n.height || 300 }

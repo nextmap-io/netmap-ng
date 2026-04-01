@@ -146,6 +146,29 @@ export function NodeProperties({
             />
           </button>
         </div>
+        {node.node_type === "group" && (
+          <div className="flex items-center justify-between mt-2">
+            <label className="text-2xs text-noc-text-muted uppercase tracking-wider">
+              Background Color
+            </label>
+            <div className="flex items-center gap-1.5">
+              <input
+                type="color"
+                value={String(node.style?.bg_color || "#1a1f2e")}
+                onChange={(e) => onUpdate({ style: { ...node.style, bg_color: e.target.value } })}
+                className="w-6 h-5 rounded border border-noc-border bg-noc-bg cursor-pointer"
+              />
+              {node.style?.bg_color && (
+                <button
+                  onClick={() => onUpdate({ style: { ...node.style, bg_color: undefined } })}
+                  className="text-2xs text-noc-text-dim hover:text-noc-text"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
+        )}
         <div className="flex items-center justify-between mt-2">
           <label className="text-2xs text-noc-text-muted uppercase tracking-wider">
             Orthogonal Links

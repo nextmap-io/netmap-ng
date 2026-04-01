@@ -27,8 +27,12 @@ async def _get_public_map(token: str, db: AsyncSession) -> Map:
 
 def _filter_node(node_dict: dict) -> dict:
     """Remove sensitive fields from node for public view."""
-    for key in ["observium_device_id", "extra", "style", "info_url"]:
+    for key in ["observium_device_id", "extra", "info_url"]:
         node_dict.pop(key, None)
+    # Filter style: keep visual settings only
+    style = node_dict.get("style") or {}
+    safe_style_keys = {"bg_color", "locked"}
+    node_dict["style"] = {k: v for k, v in style.items() if k in safe_style_keys}
     return node_dict
 
 

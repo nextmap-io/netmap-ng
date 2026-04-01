@@ -61,6 +61,7 @@ function mapNodeToFlow(n: MapNode): Node {
       nodeType: n.node_type,
       width: n.width,
       height: n.height,
+      bgColor: n.style?.bg_color,
     },
     style: isGroup ? { width: n.width || 400, height: n.height || 300 } : undefined,
     zIndex: isGroup ? -1 : 0,
