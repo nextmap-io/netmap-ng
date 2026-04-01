@@ -17,6 +17,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const [height, setHeight] = useState(1080);
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [bands, setBands] = useState<ScaleBand[]>([]);
+  const [scaleMode, setScaleMode] = useState<"steps" | "gradient">("steps");
   const [saving, setSaving] = useState(false);
 
   // Sync local state when dialog opens
@@ -27,6 +28,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
       setWidth(map.width);
       setHeight(map.height);
       setRefreshInterval(map.settings.refresh_interval);
+      setScaleMode(map.settings.scale_mode === "gradient" ? "gradient" : "steps");
       setBands(map.scales.default?.map((b) => ({ ...b })) ?? []);
     }
   }, [open, map]);
@@ -65,6 +67,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
         settings: {
           ...map.settings,
           refresh_interval: refreshInterval,
+          scale_mode: scaleMode,
         },
         scales: {
           ...map.scales,
@@ -158,6 +161,19 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
 
           {/* Separator */}
           <div className="h-px bg-noc-border/50 my-2" />
+
+          {/* Scale Mode */}
+          <div>
+            <label className="noc-label mb-1 block">Scale Mode</label>
+            <select
+              value={scaleMode}
+              onChange={(e) => setScaleMode(e.target.value as "steps" | "gradient")}
+              className={inputClass}
+            >
+              <option value="steps">Steps (fixed color per band)</option>
+              <option value="gradient">Gradient (smooth interpolation)</option>
+            </select>
+          </div>
 
           {/* Color Scale Editor */}
           <div>

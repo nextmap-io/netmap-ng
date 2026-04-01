@@ -98,6 +98,7 @@ function buildEdges(
   flowNodes: Node[],
   scales: ScaleBand[],
   traffic: TrafficData,
+  useGradientScale = false,
 ): Edge[] {
   // Build absolute position map (accounting for parent offsets)
   const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
@@ -127,8 +128,8 @@ function buildEdges(
     const t = traffic[l.id];
     const inPct = t?.in_pct ?? 0;
     const outPct = t?.out_pct ?? 0;
-    const inColor = getScaleColor(inPct, scales);
-    const outColor = getScaleColor(outPct, scales);
+    const inColor = getScaleColor(inPct, scales, useGradientScale);
+    const outColor = getScaleColor(outPct, scales, useGradientScale);
 
     const sp = nodePos.get(l.source_id);
     const tp = nodePos.get(l.target_id);
@@ -167,9 +168,66 @@ function buildEdges(
   });
 }
 
-function getScaleColor(pct: number, scales: ScaleBand[]): string {
-  for (const band of scales) {
-    if (pct >= band.min && pct <= band.max) return band.color;
+/**
+ * Parse a CSS color string to [r, g, b].
+ * Supports hex (#rrggbb, #rgb) and basic named colors.
+ */
+function parseColor(color: string): [number, number, number] {
+  if (color.startsWith("#")) {
+    let hex = color.slice(1);
+    if (hex.length === 3) hex = hex[0]+hex[0]+hex[1]+hex[1]+hex[2]+hex[2];
+    return [parseInt(hex.slice(0,2),16), parseInt(hex.slice(2,4),16), parseInt(hex.slice(4,6),16)];
+  }
+  return [128, 128, 128]; // fallback gray
+}
+
+function rgbToHex(r: number, g: number, b: number): string {
+  return "#" + [r,g,b].map(v => Math.round(Math.min(255, Math.max(0, v))).toString(16).padStart(2,"0")).join("");
+}
+
+function lerpColor(c1: string, c2: string, t: number): string {
+  const [r1,g1,b1] = parseColor(c1);
+  const [r2,g2,b2] = parseColor(c2);
+  return rgbToHex(r1+(r2-r1)*t, g1+(g2-g1)*t, b1+(b2-b1)*t);
+}
+
+function getScaleColor(pct: number, scales: ScaleBand[], gradient = false): string {
+  if (!gradient) {
+    // Steps mode: return the fixed color for the matching band
+    for (const band of scales) {
+      if (pct >= band.min && pct <= band.max) return band.color;
+    }
+    return "hsl(220 15% 24%)";
+  }
+
+  // Gradient mode: interpolate between band colors based on pct
+  const sorted = [...scales].sort((a, b) => a.min - b.min);
+  if (sorted.length === 0) return "hsl(220 15% 24%)";
+
+  // Clamp pct
+  if (pct <= sorted[0].min) return sorted[0].color;
+  if (pct >= sorted[sorted.length - 1].max) return sorted[sorted.length - 1].color;
+
+  // Find which two bands we're between and interpolate
+  for (let i = 0; i < sorted.length; i++) {
+    const band = sorted[i];
+    if (pct >= band.min && pct <= band.max) {
+      // Within this band: if there's a next band, interpolate from this to next
+      const next = sorted[i + 1];
+      if (next && band.max === next.min) {
+        // Interpolate within the band range
+        const t = band.max > band.min ? (pct - band.min) / (band.max - band.min) : 0;
+        return lerpColor(band.color, next.color, t);
+      }
+      // Single band or last band: interpolate within band itself
+      if (i > 0) {
+        const prev = sorted[i - 1];
+        const fullRange = band.max - prev.min;
+        const t = fullRange > 0 ? (pct - prev.min) / fullRange : 0;
+        return lerpColor(prev.color, band.color, t);
+      }
+      return band.color;
+    }
   }
   return "hsl(220 15% 24%)";
 }
@@ -246,11 +304,12 @@ function MapViewInner() {
   }, [initialNodes, setNodes]);
 
   // Recompute edges whenever nodes move or traffic updates
+  const useGradientScale = map?.settings?.scale_mode === "gradient";
   useEffect(() => {
     if (!map) return;
-    const newEdges = buildEdges(map.links, nodes, scales, traffic);
+    const newEdges = buildEdges(map.links, nodes, scales, traffic, useGradientScale);
     setEdges(newEdges);
-  }, [map, nodes, scales, traffic, setEdges]);
+  }, [map, nodes, scales, traffic, setEdges, useGradientScale]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {

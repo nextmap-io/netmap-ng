@@ -89,6 +89,7 @@ export interface MapSettings {
   kilo: number;
   refresh_interval: number;
   default_link_width: number;
+  scale_mode?: "steps" | "gradient";
 }
 
 export interface TrafficData {
