@@ -71,14 +71,14 @@ function TrafficEdgeComponent({
   // Label position override: "above" (default), "below", "left", "right"
   const labelPos = String(extra?.label_position || "above");
 
-  // Base label positions at 35% (out) and 65% (in) - closer to the midpoint arrows
-  const baseOutX = sourceX * 0.65 + targetX * 0.35;
-  const baseOutY = sourceY * 0.65 + targetY * 0.35;
-  const baseInX = sourceX * 0.35 + targetX * 0.65;
-  const baseInY = sourceY * 0.35 + targetY * 0.65;
+  // Base label positions at 25% (out) and 75% (in) - spread away from midpoint arrows
+  const baseOutX = sourceX * 0.75 + targetX * 0.25;
+  const baseOutY = sourceY * 0.75 + targetY * 0.25;
+  const baseInX = sourceX * 0.25 + targetX * 0.75;
+  const baseInY = sourceY * 0.25 + targetY * 0.75;
 
   // Offset based on label_position
-  const labelOffset = 12;
+  const labelOffset = 8;
   const offsets: Record<string, [number, number, string]> = {
     above: [0, -labelOffset, "translate(-50%, -100%)"],
     below: [0, labelOffset, "translate(-50%, 0%)"],
