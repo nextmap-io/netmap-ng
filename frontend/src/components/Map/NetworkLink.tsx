@@ -98,16 +98,18 @@ function TrafficEdgeComponent({
     linkType === "peering_pni" ? "PNI" :
     linkType === "customer" ? "CX" : "";
 
-  // Midpoint for the split indicator
-  const midX = (sourceX + targetX) / 2;
-  const midY = (sourceY + targetY) / 2;
+  // Midpoint: use labelX/labelY from path computation (follows the actual path)
+  const midX = labelX;
+  const midY = labelY;
 
-  // Arrow direction at midpoint (perpendicular ticks)
-  const dx = targetX - sourceX;
-  const dy = targetY - sourceY;
-  const len = Math.sqrt(dx * dx + dy * dy) || 1;
-  const perpX = -dy / len;
-  const perpY = dx / len;
+  // Arrow direction: for step paths, determine if the mid-segment is horizontal or vertical
+  // by checking if the label point is closer to sourceY or between source/target Y
+  const isVerticalSegment = Math.abs(midX - sourceX) < 5 || Math.abs(midX - targetX) < 5;
+  const dx = isVerticalSegment ? 0 : (targetX > sourceX ? 1 : -1);
+  const dy = isVerticalSegment ? (targetY > sourceY ? 1 : -1) : 0;
+  const len = 1;
+  const perpX = -dy;
+  const perpY = dx;
   const arrowSize = Math.max(width * 2.5, 8);
 
   return (
