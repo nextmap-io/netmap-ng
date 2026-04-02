@@ -19,8 +19,8 @@ function TrafficEdgeComponent({
   data,
   selected,
 }: EdgeProps) {
-  const inColor = String(data?.inColor || "hsl(220 15% 24%)");
-  const outColor = String(data?.outColor || "hsl(220 15% 24%)");
+  const inColor = String(data?.inColor || "hsl(220 10% 46%)");
+  const outColor = String(data?.outColor || "hsl(220 10% 46%)");
   const inBps = Number(data?.inBps) || 0;
   const outBps = Number(data?.outBps) || 0;
   const inPct = Number(data?.inPct) || 0;

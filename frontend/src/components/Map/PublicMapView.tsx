@@ -28,7 +28,7 @@ function getScaleColor(pct: number, scales: ScaleBand[]): string {
   for (const band of scales) {
     if (pct >= band.min && pct <= band.max) return band.color;
   }
-  return "hsl(220 15% 24%)";
+  return "hsl(220 10% 46%)";
 }
 
 function computeAnchor(
@@ -282,7 +282,7 @@ function PublicMapInner() {
               if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
               if (type === "pni") return "hsl(160 60% 45%)";
               if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
-              return "hsl(220 15% 24%)";
+              return "hsl(220 10% 46%)";
             }}
             maskColor={
               theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)

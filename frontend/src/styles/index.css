@@ -310,16 +310,12 @@ html.light ::selection {
   color: hsl(30 8% 12%);
 }
 
-/* ── Edges: boost contrast on light canvas ── */
+/* ── Edges: no filter needed, scale colors work on light bg ── */
 html.light .react-flow__edge path {
-  opacity: 0.92 !important;
-  filter: saturate(0.85) brightness(0.7);
-}
-html.light .react-flow__edge polygon {
-  filter: saturate(0.85) brightness(0.7);
+  opacity: 0.95 !important;
 }
 html.light .react-flow__edge.selected path {
-  filter: saturate(1) brightness(0.6) !important;
+  filter: saturate(1.2) !important;
 }
 
 /* ── Accent: deeper teal for readability ── */
