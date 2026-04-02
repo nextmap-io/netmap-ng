@@ -9,7 +9,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
   if (res.status === 401) {
-    window.location.href = "/auth/login";
+    window.location.href = "/welcome";
     throw new Error("Unauthorized");
   }
   if (res.status === 403) {
@@ -94,6 +94,12 @@ export const api = {
     publicRequest<NetmapData>(`/api/public/maps/${encodeURIComponent(token)}`),
   getPublicTraffic: (token: string) =>
     publicRequest<TrafficData>(`/api/public/maps/${encodeURIComponent(token)}/traffic`),
+
+  // Public index
+  getPublicConfig: () =>
+    publicRequest<{ public_index: boolean }>("/api/public/config"),
+  listPublicMaps: () =>
+    publicRequest<Array<{ id: string; name: string; description: string; public_token: string }>>("/api/public/maps"),
 
   // Map sharing
   shareMap: (mapId: string) =>

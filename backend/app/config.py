@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # Explicitly opt-in to disable auth (never in production)
     auth_disabled: bool = False
 
+    # Public landing page: list public maps without auth
+    public_index: bool = False
+
     # OAuth2
     oauth_client_id: str = ""
     oauth_client_secret: str = ""

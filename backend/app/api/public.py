@@ -9,7 +9,37 @@ from app.models import Map, Link, get_db
 from app.api.maps import _serialize_node, _serialize_link
 from app.datasources import observium
 
+from app.config import get_settings
+
 router = APIRouter(prefix="/api/public", tags=["public"])
+
+
+@router.get("/config")
+async def public_config():
+    """Public configuration (no auth). Tells the frontend if public index is enabled."""
+    settings = get_settings()
+    return {"public_index": settings.public_index}
+
+
+@router.get("/maps")
+async def list_public_maps(db: AsyncSession = Depends(get_db)):
+    """List all public maps (no auth required). Only if PUBLIC_INDEX is enabled."""
+    settings = get_settings()
+    if not settings.public_index:
+        raise HTTPException(403, "Public index is disabled")
+    result = await db.execute(
+        select(Map).where(Map.visibility == "public").order_by(Map.updated_at.desc())
+    )
+    maps = result.scalars().all()
+    return [
+        {
+            "id": m.id,
+            "name": m.name,
+            "description": m.description,
+            "public_token": m.public_token,
+        }
+        for m in maps
+    ]
 
 
 async def _get_public_map(token: str, db: AsyncSession) -> Map:

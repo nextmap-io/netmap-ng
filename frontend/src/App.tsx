@@ -3,11 +3,13 @@ import { MapView } from "./components/Map/MapView";
 import { MapList } from "./components/Layout/MapList";
 import { Header } from "./components/Layout/Header";
 import { PublicMapView } from "./components/Map/PublicMapView";
+import { PublicIndex } from "./components/Layout/PublicIndex";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/public/:token" element={<PublicMapView />} />
+      <Route path="/welcome" element={<PublicIndex />} />
       <Route
         path="*"
         element={
