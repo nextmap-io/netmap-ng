@@ -242,7 +242,7 @@ function PublicMapInner() {
         </button>
       </div>
 
-      <div className="h-[calc(100vh-40px)] relative">
+      <div className="h-[calc(100vh-40px)] relative" style={{ touchAction: "none" }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -252,6 +252,10 @@ function PublicMapInner() {
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
+          panOnDrag
+          zoomOnPinch
+          zoomOnScroll
+          preventScrolling
           fitView
           fitViewOptions={{ padding: 0.08 }}
           minZoom={0.1}

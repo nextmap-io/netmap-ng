@@ -424,12 +424,16 @@ function MapViewInner() {
 
   return (
     <div className="h-[calc(100vh-48px)] relative bg-noc-bg flex">
-      <div className={`flex-1 relative${editMode ? " edit-mode" : ""}`}>
+      <div className={`flex-1 relative${editMode ? " edit-mode" : ""}`} style={{ touchAction: "none" }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
+          panOnDrag
+          zoomOnPinch
+          zoomOnScroll
+          preventScrolling
           onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeDragStop={handleNodeDragStop}
