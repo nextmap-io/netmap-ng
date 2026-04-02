@@ -231,7 +231,7 @@ html.light .react-flow__node .bg-noc-card {
 }
 
 /* ── Group / datacenter blocks: subtle warm tint ── */
-html.light .react-flow__node[data-type="group"] > div {
+html.light .react-flow__node-group > div {
   background: hsl(38 10% 91%) !important;
   border-color: hsl(36 8% 76%) !important;
   border-style: solid !important;
@@ -436,7 +436,7 @@ html.scada .react-flow__node.selected .rounded {
 }
 
 /* Group nodes: technical grid pattern */
-html.scada .react-flow__node[data-type="group"] > div {
+html.scada .react-flow__node-group > div {
   background: repeating-linear-gradient(
     0deg,
     transparent,
@@ -454,8 +454,8 @@ html.scada .react-flow__node[data-type="group"] > div {
   background-color: #080808 !important;
   border: 1px solid #1a3a1a !important;
 }
-html.scada .react-flow__node[data-type="group"] .text-noc-text-dim,
-html.scada .react-flow__node[data-type="group"] .noc-label {
+html.scada .react-flow__node-group .text-noc-text-dim,
+html.scada .react-flow__node-group .noc-label {
   color: #006633 !important;
   text-transform: uppercase !important;
   letter-spacing: 0.2em !important;

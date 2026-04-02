@@ -178,7 +178,7 @@ function PublicMapInner() {
     return [...groups, ...others];
   }, [map]);
 
-  const [nodes, setNodes] = useNodesState(initialNodes);
+  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges] = useEdgesState<Edge>([]);
 
   useEffect(() => { setNodes(initialNodes); }, [initialNodes, setNodes]);
@@ -241,6 +241,7 @@ function PublicMapInner() {
         <ReactFlow
           nodes={nodes}
           edges={edges}
+          onNodesChange={onNodesChange}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           nodesDraggable={false}
