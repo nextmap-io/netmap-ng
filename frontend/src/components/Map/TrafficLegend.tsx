@@ -16,7 +16,7 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
     return (
       <button
         onClick={() => setCollapsed(false)}
-        className="absolute top-14 sm:top-3 right-3 noc-glass rounded z-10 p-1.5 animate-fade-in hover:bg-noc-surface/50 transition-colors"
+        className="absolute top-3 right-3 noc-glass rounded z-10 p-1.5 animate-fade-in hover:bg-noc-surface/50 transition-colors"
         title="Show legend"
       >
         <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-noc-text-muted" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -27,7 +27,7 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
   }
 
   return (
-    <div className="absolute top-14 sm:top-3 right-3 noc-glass rounded z-10 p-3 animate-fade-in">
+    <div className="absolute top-3 right-3 noc-glass rounded z-10 p-3 animate-fade-in">
       <div className="flex items-center justify-between mb-2.5">
         <div className="noc-label">Traffic Load</div>
         <button
