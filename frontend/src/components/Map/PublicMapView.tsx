@@ -227,7 +227,23 @@ function PublicMapInner() {
         >
           <Background gap={24} size={0.5} color="hsl(220 15% 12%)" />
           <Controls showInteractive={false} />
-          <MiniMap pannable zoomable maskColor="hsl(220 20% 7% / 0.8)" />
+          <MiniMap
+            pannable
+            zoomable
+            nodeColor={(n) => {
+              const type = String(n.data?.nodeType || "");
+              if (type === "router") return "hsl(36 100% 55%)";
+              if (type === "switch_l3") return "hsl(270 60% 60%)";
+              if (type === "switch_l2") return "hsl(210 80% 55%)";
+              if (type === "server") return "hsl(152 60% 44%)";
+              if (type === "ix") return "hsl(280 60% 55%)";
+              if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
+              if (type === "pni") return "hsl(160 60% 45%)";
+              if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
+              return "hsl(220 15% 24%)";
+            }}
+            maskColor="hsl(220 20% 7% / 0.8)"
+          />
         </ReactFlow>
         <TrafficLegend scales={scales} />
       </div>
