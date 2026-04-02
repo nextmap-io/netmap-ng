@@ -485,8 +485,8 @@ function MapViewInner() {
                   : "hsl(220 20% 7% / 0.8)"
             }
           />
-          <TrafficLegend scales={scales} />
         </ReactFlow>
+        <TrafficLegend scales={scales} />
 
         <EditorToolbox />
         <EditorToolbar />
