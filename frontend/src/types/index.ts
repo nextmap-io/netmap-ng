@@ -74,7 +74,7 @@ export interface NetmapData {
   height: number;
   scales: Record<string, ScaleBand[]>;
   settings: MapSettings;
-  is_public?: boolean;
+  visibility?: "private" | "internal" | "public";
   public_token?: string | null;
   public_settings?: {
     show_bps: boolean;

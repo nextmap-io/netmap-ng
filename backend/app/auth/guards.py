@@ -53,7 +53,11 @@ async def require_map_read(
     user=Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Map:
-    """Dependency: user can read the map (owner, admin, or map is public)."""
+    """Dependency: user can read the map based on visibility.
+    - private: owner or admin only
+    - internal: any authenticated user
+    - public: any authenticated user (unauthenticated uses /api/public/)
+    """
     result = await db.execute(select(Map).where(Map.id == map_id))
     m = result.scalar_one_or_none()
     if not m:
@@ -61,7 +65,7 @@ async def require_map_read(
     # Admins and owners can always read
     if is_admin(user) or m.owner == user.get("email"):
         return m
-    # Public maps can be read by any authenticated user
-    if m.is_public:
+    # Internal and public maps readable by any authenticated user
+    if m.visibility in ("internal", "public"):
         return m
     raise HTTPException(403, "Not authorized to access this map")

@@ -38,7 +38,12 @@ async def list_maps(
 
     result = await db.execute(
         select(Map)
-        .where(or_(Map.owner == user.get("email", ""), Map.is_public.is_(True)))
+        .where(
+            or_(
+                Map.owner == user.get("email", ""),
+                Map.visibility.in_(["internal", "public"]),
+            )
+        )
         .order_by(Map.updated_at.desc())
         .limit(limit)
         .offset(offset)
@@ -50,7 +55,7 @@ async def list_maps(
             "name": m.name,
             "description": m.description,
             "updated_at": m.updated_at,
-            "is_public": m.is_public,
+            "visibility": m.visibility,
             "owner": m.owner,
         }
         for m in maps
@@ -98,7 +103,7 @@ async def get_map(
         "height": m.height,
         "scales": m.scales,
         "settings": m.settings,
-        "is_public": m.is_public,
+        "visibility": m.visibility,
         "public_token": m.public_token,
         "public_settings": m.public_settings,
         "owner": m.owner,
@@ -148,7 +153,7 @@ async def share_map(
     m = await require_map_owner(map_id, user, db)
     import uuid
 
-    m.is_public = True
+    m.visibility = "public"
     if not m.public_token:
         m.public_token = str(uuid.uuid4())
     await db.commit()
@@ -160,7 +165,7 @@ async def unshare_map(
     map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
 ):
     m = await require_map_owner(map_id, user, db)
-    m.is_public = False
+    m.visibility = "private"
     m.public_token = None
     await db.commit()
     return {"ok": True}

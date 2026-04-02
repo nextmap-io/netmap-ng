@@ -51,8 +51,8 @@ class Map(Base):
 
     owner: Mapped[str] = mapped_column(String(255), default="")
 
-    # Public access
-    is_public: Mapped[bool] = mapped_column(Integer, default=False)
+    # Visibility: "private" (owner only), "internal" (any authenticated), "public" (anyone with token)
+    visibility: Mapped[str] = mapped_column(String(20), default="internal")
     public_token: Mapped[str | None] = mapped_column(
         String(36), nullable=True, unique=True
     )

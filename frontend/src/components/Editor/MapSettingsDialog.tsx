@@ -18,7 +18,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const [refreshInterval, setRefreshInterval] = useState(30);
   const [bands, setBands] = useState<ScaleBand[]>([]);
   const [scaleMode, setScaleMode] = useState<"steps" | "gradient">("steps");
-  const [isPublic, setIsPublic] = useState(false);
+  const [visibility, setVisibility] = useState<"private" | "internal" | "public">("internal");
   const [publicToken, setPublicToken] = useState<string | null>(null);
   const [showBps, setShowBps] = useState(false);
   const [showBandwidth, setShowBandwidth] = useState(true);
@@ -35,7 +35,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
       setHeight(map.height);
       setRefreshInterval(map.settings.refresh_interval);
       setScaleMode(map.settings.scale_mode === "gradient" ? "gradient" : "steps");
-      setIsPublic(map.is_public ?? false);
+      setVisibility(map.visibility ?? "internal");
       setPublicToken(map.public_token ?? null);
       const ps = map.public_settings ?? { show_bps: false, show_bandwidth: true, show_percentage: true, show_graph: false };
       setShowBps(ps.show_bps ?? false);
@@ -189,36 +189,29 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
             </select>
           </div>
 
-          {/* Public Sharing */}
+          {/* Visibility & Sharing */}
           <div className="space-y-2">
-            <label className="noc-label mb-1 block">Public Sharing</label>
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-noc-text">Public Map</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={isPublic}
-                onClick={async () => {
-                  if (!isPublic) {
-                    const result = await api.shareMap(map.id);
-                    setPublicToken(result.public_token);
-                    setIsPublic(true);
-                  } else {
-                    await api.unshareMap(map.id);
-                    setPublicToken(null);
-                    setIsPublic(false);
-                  }
-                }}
-                className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
-                  isPublic ? "bg-accent" : "bg-noc-border"
-                }`}
-              >
-                <span className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
-                  isPublic ? "translate-x-4" : "translate-x-0.5"
-                }`} />
-              </button>
-            </div>
-            {isPublic && publicToken && (
+            <label className="noc-label mb-1 block">Visibility</label>
+            <select
+              value={visibility}
+              onChange={async (e) => {
+                const v = e.target.value as "private" | "internal" | "public";
+                setVisibility(v);
+                if (v === "public" && !publicToken) {
+                  const result = await api.shareMap(map.id);
+                  setPublicToken(result.public_token);
+                } else if (v !== "public" && publicToken) {
+                  await api.unshareMap(map.id);
+                  setPublicToken(null);
+                }
+              }}
+              className={inputClass}
+            >
+              <option value="private">Private (owner only)</option>
+              <option value="internal">Internal (any authenticated user)</option>
+              <option value="public">Public (anyone with share link)</option>
+            </select>
+            {visibility === "public" && publicToken && (
               <div className="space-y-2">
                 <div>
                   <label className="noc-label mb-1 block">Share Link</label>
