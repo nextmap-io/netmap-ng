@@ -82,6 +82,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
           refresh_interval: refreshInterval,
           scale_mode: scaleMode,
         },
+        visibility,
         public_settings: { show_bps: showBps, show_bandwidth: showBandwidth, show_percentage: showPercentage, show_graph: showGraph },
         scales: {
           ...map.scales,

@@ -25,6 +25,8 @@ class MapUpdate(BaseModel):
     height: int | None = Field(None, ge=100, le=10000)
     scales: dict | None = None
     settings: dict | None = None
+    visibility: str | None = None
+    public_settings: dict | None = None
 
 
 @router.get("")
