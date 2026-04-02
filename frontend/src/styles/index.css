@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap");
+@import url("https://fonts.bunny.net/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -182,130 +182,178 @@
   box-shadow: 0 0 0 2px hsl(190 90% 50% / 0.4);
 }
 
-/* ─── Light theme overrides ─── */
+/* ─── Light theme overrides ───
+   Clean engineering schematic aesthetic.
+   Warm off-whites, paper-like canvas, crisp shadows.
+   ─────────────────────────────────────────────────── */
 
 html.light {
-  background: hsl(220 15% 96%);
-  color: hsl(220 30% 8%);
+  background: hsl(38 12% 95%);
+  color: hsl(30 8% 18%);
 }
 
 html.light body {
-  background: hsl(220 15% 96%);
+  background: hsl(38 12% 95%);
 }
 
-/* Override noc utility classes for light mode */
-html.light .bg-noc-bg { background-color: hsl(220 15% 96%) !important; }
-html.light .bg-noc-card { background-color: hsl(0 0% 100%) !important; }
-html.light .bg-noc-surface { background-color: hsl(220 12% 93%) !important; }
-html.light .border-noc-border { border-color: hsl(220 15% 80%) !important; }
-html.light .text-noc-text { color: hsl(220 30% 8%) !important; }
-html.light .text-noc-text-muted { color: hsl(220 12% 35%) !important; }
-html.light .text-noc-text-dim { color: hsl(220 8% 48%) !important; }
+/* ── Base NOC color overrides ── */
+html.light .bg-noc-bg { background-color: hsl(38 12% 95%) !important; }
+html.light .bg-noc-card { background-color: #ffffff !important; }
+html.light .bg-noc-surface { background-color: hsl(36 10% 92%) !important; }
+html.light .border-noc-border { border-color: hsl(36 8% 80%) !important; }
+html.light .text-noc-text { color: hsl(30 8% 18%) !important; }
+html.light .text-noc-text-muted { color: hsl(30 6% 40%) !important; }
+html.light .text-noc-text-dim { color: hsl(30 4% 52%) !important; }
 
-/* Panels and glass */
+/* ── Panels & cards ── */
 html.light .noc-glass {
-  background: hsl(0 0% 100% / 0.95) !important;
+  background: hsl(0 0% 100% / 0.92) !important;
   backdrop-filter: blur(16px) !important;
-  border-color: hsl(220 15% 80%) !important;
-  box-shadow: 0 2px 8px hsl(220 20% 50% / 0.12) !important;
+  border-color: hsl(36 8% 80%) !important;
+  box-shadow: 0 1px 3px hsl(30 10% 50% / 0.08), 0 4px 12px hsl(30 10% 50% / 0.06) !important;
 }
 html.light .noc-card {
-  background: hsl(0 0% 100%) !important;
-  border-color: hsl(220 15% 80%) !important;
-  box-shadow: 0 1px 4px hsl(220 20% 50% / 0.1) !important;
+  background: #ffffff !important;
+  border-color: hsl(36 8% 80%) !important;
+  box-shadow: 0 1px 3px hsl(30 10% 50% / 0.08) !important;
 }
 html.light .noc-label {
-  color: hsl(220 12% 35%) !important;
+  color: hsl(30 6% 40%) !important;
 }
 
-/* Node cards: white with visible border and shadow */
+/* ── Node cards: white with warm shadow ── */
 html.light .react-flow__node .rounded {
-  box-shadow: 0 1px 4px hsl(220 20% 40% / 0.12);
-  border-color: hsl(220 15% 72%) !important;
+  box-shadow: 0 1px 2px hsl(30 10% 40% / 0.08), 0 2px 6px hsl(30 10% 40% / 0.06);
+  border-color: hsl(36 8% 78%) !important;
 }
 html.light .react-flow__node .bg-noc-card {
-  background-color: hsl(0 0% 100%) !important;
+  background-color: #ffffff !important;
 }
 
-/* Group nodes: tinted background distinct from canvas */
+/* ── Group / datacenter blocks: subtle warm tint ── */
 html.light .react-flow__node[data-type="group"] > div {
-  background: hsl(220 20% 90%) !important;
-  border-color: hsl(220 15% 72%) !important;
+  background: hsl(38 10% 91%) !important;
+  border-color: hsl(36 8% 76%) !important;
   border-style: solid !important;
-  border-width: 2px !important;
+  border-width: 1.5px !important;
+  box-shadow: inset 0 1px 4px hsl(30 10% 50% / 0.04) !important;
 }
 
-/* Link labels: crisp white bg */
+/* ── Link labels: paper-white with crisp border ── */
 html.light .bg-noc-bg\/80,
 html.light .bg-noc-bg\/90 {
-  background-color: hsl(0 0% 100% / 0.95) !important;
-  border-color: hsl(220 15% 72%) !important;
-  box-shadow: 0 1px 3px hsl(220 20% 40% / 0.1) !important;
+  background-color: hsl(0 0% 100% / 0.96) !important;
+  border-color: hsl(36 8% 76%) !important;
+  box-shadow: 0 1px 2px hsl(30 10% 40% / 0.08) !important;
 }
 
-/* ReactFlow canvas */
+/* ── ReactFlow canvas ── */
 html.light .react-flow__background {
-  background-color: hsl(220 15% 96%) !important;
+  background-color: hsl(38 12% 95%) !important;
 }
 html.light .react-flow__minimap {
-  background-color: hsl(0 0% 100%) !important;
-  border-color: hsl(220 15% 80%) !important;
-  box-shadow: 0 2px 8px hsl(220 20% 50% / 0.12) !important;
+  background-color: hsl(38 8% 93%) !important;
+  border-color: hsl(36 8% 78%) !important;
+  box-shadow: 0 1px 4px hsl(30 10% 40% / 0.1) !important;
 }
 html.light .react-flow__controls {
-  border-color: hsl(220 15% 80%) !important;
-  box-shadow: 0 2px 8px hsl(220 20% 50% / 0.12) !important;
+  border-color: hsl(36 8% 78%) !important;
+  box-shadow: 0 1px 4px hsl(30 10% 40% / 0.1) !important;
 }
 html.light .react-flow__controls button {
-  background-color: hsl(0 0% 100%) !important;
-  color: hsl(220 30% 8%) !important;
-  border-color: hsl(220 15% 80%) !important;
+  background-color: #ffffff !important;
+  color: hsl(30 8% 18%) !important;
+  border-color: hsl(36 8% 80%) !important;
 }
 html.light .react-flow__controls button:hover {
-  background-color: hsl(220 12% 93%) !important;
+  background-color: hsl(36 10% 94%) !important;
 }
 html.light .react-flow__controls button svg {
-  fill: hsl(220 12% 35%) !important;
+  fill: hsl(30 6% 38%) !important;
+}
+html.light .react-flow__controls button:hover svg {
+  fill: hsl(30 8% 18%) !important;
 }
 
-/* Header light */
+/* ── Header: solid white bar ── */
 html.light .sticky {
-  background: hsl(0 0% 100% / 0.9) !important;
-  border-bottom-color: hsl(220 15% 80%) !important;
+  background: hsl(0 0% 100% / 0.95) !important;
+  border-bottom-color: hsl(36 8% 80%) !important;
+  box-shadow: 0 1px 2px hsl(30 10% 50% / 0.06) !important;
 }
 
-/* Recharts tooltip light */
+/* Public map header bar */
+html.light .border-b {
+  border-bottom-color: hsl(36 8% 80%) !important;
+}
+
+/* ── Recharts tooltip ── */
 html.light .recharts-default-tooltip {
-  background: hsl(0 0% 100%) !important;
-  border-color: hsl(220 15% 80%) !important;
-  box-shadow: 0 4px 16px hsl(220 20% 50% / 0.15) !important;
+  background: #ffffff !important;
+  border-color: hsl(36 8% 78%) !important;
+  box-shadow: 0 2px 10px hsl(30 10% 40% / 0.12) !important;
 }
 html.light .recharts-tooltip-label {
-  color: hsl(220 12% 35%) !important;
+  color: hsl(30 6% 40%) !important;
 }
 
-/* Scrollbar light */
-html.light ::-webkit-scrollbar-track { background: hsl(220 12% 93%); }
-html.light ::-webkit-scrollbar-thumb { background: hsl(220 10% 70%); }
-html.light ::-webkit-scrollbar-thumb:hover { background: hsl(220 10% 58%); }
+/* ── Scrollbar ── */
+html.light ::-webkit-scrollbar-track { background: hsl(36 8% 93%); }
+html.light ::-webkit-scrollbar-thumb { background: hsl(36 6% 74%); }
+html.light ::-webkit-scrollbar-thumb:hover { background: hsl(36 6% 60%); }
 
-/* Selection */
+/* ── Selection ── */
 html.light ::selection {
-  background: hsl(190 80% 40% / 0.2);
-  color: hsl(220 30% 8%);
+  background: hsl(185 60% 40% / 0.18);
+  color: hsl(30 8% 12%);
 }
 
-/* Edges: darken and desaturate for light backgrounds */
+/* ── Edges: boost contrast on light canvas ── */
 html.light .react-flow__edge path {
-  opacity: 0.85 !important;
-  filter: saturate(0.7) brightness(0.75);
+  opacity: 0.92 !important;
+  filter: saturate(0.85) brightness(0.7);
 }
 html.light .react-flow__edge polygon {
-  filter: saturate(0.7) brightness(0.75);
+  filter: saturate(0.85) brightness(0.7);
+}
+html.light .react-flow__edge.selected path {
+  filter: saturate(1) brightness(0.6) !important;
 }
 
-/* Accent color toned down for light mode */
-html.light .text-accent { color: hsl(190 70% 32%) !important; }
+/* ── Accent: deeper teal for readability ── */
+html.light .text-accent { color: hsl(185 65% 30%) !important; }
+
+/* ── Inputs & selects ── */
+html.light input, html.light select, html.light textarea {
+  background: #ffffff !important;
+  color: hsl(30 8% 18%) !important;
+  border-color: hsl(36 8% 78%) !important;
+}
+html.light input::placeholder, html.light textarea::placeholder {
+  color: hsl(30 4% 60%) !important;
+}
+html.light input:focus, html.light select:focus, html.light textarea:focus {
+  border-color: hsl(185 50% 45%) !important;
+  box-shadow: 0 0 0 2px hsl(185 60% 45% / 0.15) !important;
+}
+
+/* ── Buttons ── */
+html.light button {
+  border-color: hsl(36 8% 80%) !important;
+}
+html.light button:hover {
+  border-color: hsl(36 6% 68%) !important;
+}
+
+/* ── ReactFlow background dots: warm gray ── */
+html.light .react-flow__background pattern circle {
+  fill: hsl(30 6% 78%) !important;
+}
+
+/* ── Selected node highlight ── */
+html.light .react-flow__node.selected .rounded {
+  box-shadow: 0 0 0 2px hsl(185 60% 45% / 0.35) !important;
+}
 
 /* ═══════════════════════════════════════════════════
    SCADA / Industrial Synoptic Theme (Easter Egg)

@@ -24,6 +24,7 @@ import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { EditorToolbox } from "../Editor/EditorToolbox";
 import { EditorToolbar } from "../Editor/EditorToolbar";
 import { PropertyPanel } from "../Editor/PropertyPanel";
+import { useTheme } from "@/hooks/useTheme";
 import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
 
 const nodeTypes = {
@@ -253,6 +254,7 @@ function MapViewInner() {
   const { map, traffic, loading, error, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, createLink } =
     useMapStore();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const { theme } = useTheme();
 
   useEffect(() => {
     if (mapId) loadMap(mapId);
@@ -448,7 +450,13 @@ function MapViewInner() {
           minZoom={0.1}
           maxZoom={3}
         >
-          <Background gap={24} size={0.5} color="hsl(220 15% 12%)" />
+          <Background gap={24} size={0.5} color={
+            theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
+              ? "hsl(30 6% 78%)"
+              : theme === "scada"
+                ? "#1a3a1a"
+                : "hsl(220 15% 12%)"
+          } />
           <Controls showInteractive={false} />
           <MiniMap
             pannable
@@ -465,7 +473,13 @@ function MapViewInner() {
               if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
               return "hsl(220 15% 24%)";
             }}
-            maskColor="hsl(220 20% 7% / 0.8)"
+            maskColor={
+              theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
+                ? "hsl(38 12% 95% / 0.75)"
+                : theme === "scada"
+                  ? "rgba(10, 10, 10, 0.8)"
+                  : "hsl(220 20% 7% / 0.8)"
+            }
           />
         </ReactFlow>
 

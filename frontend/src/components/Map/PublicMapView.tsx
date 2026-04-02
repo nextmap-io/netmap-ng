@@ -66,9 +66,7 @@ function mapNodeToFlow(n: MapNode): Node {
     },
     style: isGroup
       ? { width: n.width || 400, height: n.height || 300 }
-      : n.width && n.height
-        ? { width: n.width, height: n.height }
-        : undefined,
+      : { width: n.width || 120, height: n.height || 28 },
     zIndex: isGroup ? -1 : 0,
     draggable: false,
   };
@@ -253,7 +251,13 @@ function PublicMapInner() {
           minZoom={0.1}
           maxZoom={3}
         >
-          <Background gap={24} size={0.5} color="hsl(220 15% 12%)" />
+          <Background gap={24} size={0.5} color={
+            theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
+              ? "hsl(30 6% 78%)"
+              : theme === "scada"
+                ? "#1a3a1a"
+                : "hsl(220 15% 12%)"
+          } />
           <Controls showInteractive={false} />
           <MiniMap
             pannable
@@ -270,7 +274,13 @@ function PublicMapInner() {
               if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
               return "hsl(220 15% 24%)";
             }}
-            maskColor="hsl(220 20% 7% / 0.8)"
+            maskColor={
+              theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
+                ? "hsl(38 12% 95% / 0.75)"
+                : theme === "scada"
+                  ? "rgba(10, 10, 10, 0.8)"
+                  : "hsl(220 20% 7% / 0.8)"
+            }
           />
         </ReactFlow>
         <TrafficLegend scales={scales} />
