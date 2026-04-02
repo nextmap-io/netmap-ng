@@ -314,6 +314,9 @@ html.light ::selection {
 html.light .react-flow__edge path {
   opacity: 0.95 !important;
 }
+html.light .react-flow__edge polygon {
+  stroke: transparent !important;
+}
 html.light .react-flow__edge.selected path {
   filter: saturate(1.2) !important;
 }
