@@ -28,7 +28,9 @@ async def list_public_maps(db: AsyncSession = Depends(get_db)):
     if not settings.public_index:
         raise HTTPException(403, "Public index is disabled")
     result = await db.execute(
-        select(Map).where(Map.visibility == "public").order_by(Map.updated_at.desc())
+        select(Map)
+        .where(Map.visibility == "public", Map.public_token.isnot(None))
+        .order_by(Map.updated_at.desc())
     )
     maps = result.scalars().all()
     return [
