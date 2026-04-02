@@ -71,11 +71,11 @@ function TrafficEdgeComponent({
   // Label position override: "above" (default), "below", "left", "right"
   const labelPos = String(extra?.label_position || "above");
 
-  // Base label positions at 20% (out/source side) and 80% (in/target side)
-  const baseOutX = sourceX * 0.80 + targetX * 0.20;
-  const baseOutY = sourceY * 0.80 + targetY * 0.20;
-  const baseInX = sourceX * 0.20 + targetX * 0.80;
-  const baseInY = sourceY * 0.20 + targetY * 0.80;
+  // Base label positions at 35% (out) and 65% (in) - closer to the midpoint arrows
+  const baseOutX = sourceX * 0.65 + targetX * 0.35;
+  const baseOutY = sourceY * 0.65 + targetY * 0.35;
+  const baseInX = sourceX * 0.35 + targetX * 0.65;
+  const baseInY = sourceY * 0.35 + targetY * 0.65;
 
   // Offset based on label_position
   const labelOffset = 12;
@@ -102,11 +102,12 @@ function TrafficEdgeComponent({
   const midX = labelX;
   const midY = labelY;
 
-  // Arrow direction: for step paths, determine if the mid-segment is horizontal or vertical
-  // by checking if the label point is closer to sourceY or between source/target Y
-  const isVerticalSegment = Math.abs(midX - sourceX) < 5 || Math.abs(midX - targetX) < 5;
-  const dx = isVerticalSegment ? 0 : (targetX > sourceX ? 1 : -1);
-  const dy = isVerticalSegment ? (targetY > sourceY ? 1 : -1) : 0;
+  // Arrow direction: always use source→target direction (works for straight, step, bezier)
+  const rawDx = targetX - sourceX;
+  const rawDy = targetY - sourceY;
+  const rawLen = Math.sqrt(rawDx * rawDx + rawDy * rawDy) || 1;
+  const dx = rawDx / rawLen;
+  const dy = rawDy / rawLen;
   const len = 1;
   const perpX = -dy;
   const perpY = dx;
