@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import type { MapSummary } from "@/types";
@@ -6,6 +6,9 @@ import type { MapSummary } from "@/types";
 export function MapList() {
   const [maps, setMaps] = useState<MapSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const refreshMaps = () => {
     api.listMaps().then(setMaps).finally(() => setLoading(false));
@@ -13,7 +16,20 @@ export function MapList() {
 
   useEffect(() => {
     refreshMaps();
+    api.getUser().then((u) => setUserEmail(u.email)).catch(() => {});
   }, []);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(null);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [menuOpen]);
 
   const createMap = async () => {
     const name = prompt("Map name:");
@@ -22,15 +38,32 @@ export function MapList() {
     setMaps((prev) => [{ id: result.id, name: name.trim(), description: "", updated_at: new Date().toISOString() }, ...prev]);
   };
 
-  const duplicateMap = async (e: React.MouseEvent, mapId: string) => {
-    e.preventDefault();
-    e.stopPropagation();
+  const duplicateMap = useCallback(async (mapId: string) => {
+    setMenuOpen(null);
+    if (!confirm("Duplicate this map?")) return;
     try {
       await api.duplicateMap(mapId);
       refreshMaps();
     } catch {
       alert("Failed to duplicate map");
     }
+  }, []);
+
+  const deleteMap = useCallback(async (mapId: string, mapName: string) => {
+    setMenuOpen(null);
+    if (!confirm(`Delete "${mapName}"? This cannot be undone.`)) return;
+    try {
+      await api.deleteMap(mapId);
+      setMaps((prev) => prev.filter((m) => m.id !== mapId));
+    } catch {
+      alert("Failed to delete map (you may not be the owner)");
+    }
+  }, []);
+
+  const toggleMenu = (e: React.MouseEvent, mapId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuOpen(menuOpen === mapId ? null : mapId);
   };
 
   if (loading) {
@@ -87,32 +120,68 @@ export function MapList() {
               className={`group noc-card p-4 hover:border-accent/30 transition-all duration-200 animate-fade-in opacity-0 stagger-${Math.min(i + 1, 6)}`}
             >
               <div className="flex items-start justify-between mb-3">
-                <div className="w-7 h-7 rounded bg-accent/10 flex items-center justify-center shrink-0">
-                  <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth={2}>
-                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                  </svg>
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded bg-accent/10 flex items-center justify-center shrink-0">
+                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth={2}>
+                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    </svg>
+                  </div>
+                  {m.visibility && m.visibility !== "private" && (
+                    <span className="text-2xs text-noc-text-dim opacity-60 uppercase tracking-wider">
+                      {m.visibility === "public" ? "pub" : "int"}
+                    </span>
+                  )}
                 </div>
-                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-noc-text-dim group-hover:text-accent transition-colors" fill="none" stroke="currentColor" strokeWidth={2}>
-                  <path d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
+
+                {/* Actions menu */}
+                <div className="relative" ref={menuOpen === m.id ? menuRef : undefined}>
+                  <button
+                    onClick={(e) => toggleMenu(e, m.id)}
+                    className="p-1 rounded text-noc-text-dim hover:text-noc-text hover:bg-noc-surface transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    title="Actions"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
+                      <circle cx="12" cy="5" r="1.5" />
+                      <circle cx="12" cy="12" r="1.5" />
+                      <circle cx="12" cy="19" r="1.5" />
+                    </svg>
+                  </button>
+
+                  {menuOpen === m.id && (
+                    <div className="absolute right-0 top-7 z-50 noc-card border border-noc-border rounded py-1 min-w-[140px] shadow-lg">
+                      <button
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); duplicateMap(m.id); }}
+                        className="w-full text-left px-3 py-1.5 text-2xs text-noc-text hover:bg-noc-surface transition-colors flex items-center gap-2"
+                      >
+                        <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
+                          <rect x="9" y="9" width="13" height="13" rx="2" />
+                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                        </svg>
+                        Duplicate
+                      </button>
+                      {userEmail && m.owner === userEmail && (
+                        <button
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteMap(m.id, m.name); }}
+                          className="w-full text-left px-3 py-1.5 text-2xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
+                        >
+                          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
+                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                          Delete
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               <h2 className="text-xs font-medium text-noc-text mb-1 truncate">{m.name}</h2>
               {m.description && (
                 <p className="text-2xs text-noc-text-muted mb-2 line-clamp-2">{m.description}</p>
               )}
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-2xs text-noc-text-dim">
-                  {new Date(m.updated_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-                </p>
-                <button
-                  onClick={(e) => duplicateMap(e, m.id)}
-                  className="px-2 py-0.5 text-2xs text-noc-text-muted hover:text-accent hover:bg-accent/10 rounded transition-colors"
-                  title="Duplicate map"
-                >
-                  Duplicate
-                </button>
-              </div>
+              <p className="text-2xs text-noc-text-dim mt-1">
+                {new Date(m.updated_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+              </p>
             </Link>
           ))}
         </div>

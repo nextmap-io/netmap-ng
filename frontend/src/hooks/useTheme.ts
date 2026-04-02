@@ -41,7 +41,7 @@ export function useTheme() {
   }, [theme]);
 
   const cycle = useCallback(() => {
-    const order: Theme[] = ["system", "dark", "light"];
+    const order: Theme[] = ["system", "dark", "light", "scada"];
     const next = order[(order.indexOf(theme) + 1) % order.length];
     setTheme(next);
   }, [theme, setTheme]);

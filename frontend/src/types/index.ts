@@ -121,6 +121,8 @@ export interface MapSummary {
   name: string;
   description: string;
   updated_at: string;
+  owner?: string;
+  visibility?: string;
 }
 
 export type AlignDirection = "left" | "center" | "right" | "top" | "middle" | "bottom";

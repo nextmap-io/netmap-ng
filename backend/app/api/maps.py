@@ -177,9 +177,12 @@ async def unshare_map(
 async def duplicate_map(
     map_id: str, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)
 ):
-    """Duplicate a map with all its nodes and links. Requires editor role."""
+    """Duplicate a map with all its nodes and links. Requires editor role + read access."""
     if not is_editor(user):
         raise HTTPException(403, "Editor role required to duplicate maps")
+
+    # Check read access to source map
+    await require_map_read(map_id, user, db)
 
     # Load source map with nodes and links
     result = await db.execute(
