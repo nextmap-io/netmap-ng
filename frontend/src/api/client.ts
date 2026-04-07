@@ -2,6 +2,15 @@ import type { MapSummary, NetmapData, TrafficData, TrafficHistory } from "@/type
 
 const BASE = import.meta.env.VITE_API_URL || "";
 
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     credentials: "include",
@@ -10,13 +19,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   });
   if (res.status === 401) {
     window.location.href = "/welcome";
-    throw new Error("Unauthorized");
+    throw new ApiError(401, "Unauthorized");
   }
   if (res.status === 403) {
-    throw new Error("Forbidden: insufficient permissions");
+    throw new ApiError(403, "Forbidden: insufficient permissions");
+  }
+  if (res.status === 404) {
+    throw new ApiError(404, "Not found");
   }
   if (!res.ok) {
-    throw new Error(`API error: ${res.status}`);
+    throw new ApiError(res.status, `API error: ${res.status}`);
   }
   return res.json();
 }
@@ -33,8 +45,11 @@ async function publicRequest<T>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
   });
+  if (res.status === 404) {
+    throw new ApiError(404, "Not found");
+  }
   if (!res.ok) {
-    throw new Error(`API error: ${res.status}`);
+    throw new ApiError(res.status, `API error: ${res.status}`);
   }
   return res.json();
 }

@@ -25,6 +25,7 @@ import { EditorToolbox } from "../Editor/EditorToolbox";
 import { EditorToolbar } from "../Editor/EditorToolbar";
 import { PropertyPanel } from "../Editor/PropertyPanel";
 import { useTheme } from "@/hooks/useTheme";
+import { NotFound } from "../Layout/NotFound";
 import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
 
 const nodeTypes = {
@@ -251,7 +252,7 @@ function isInputFocused(): boolean {
 
 function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
-  const { map, traffic, loading, error, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, createLink } =
+  const { map, traffic, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, createLink } =
     useMapStore();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const { theme } = useTheme();
@@ -404,6 +405,17 @@ function MapViewInner() {
           <span className="text-2xs text-noc-text-dim tracking-wider uppercase">Loading map</span>
         </div>
       </div>
+    );
+  }
+
+  if (errorStatus === 404) {
+    return (
+      <NotFound
+        title="404"
+        message="This map doesn't exist or has been deleted."
+        backHref="/"
+        backLabel="Back to maps"
+      />
     );
   }
 

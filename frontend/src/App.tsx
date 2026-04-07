@@ -4,6 +4,7 @@ import { MapList } from "./components/Layout/MapList";
 import { Header } from "./components/Layout/Header";
 import { PublicMapView } from "./components/Map/PublicMapView";
 import { PublicIndex } from "./components/Layout/PublicIndex";
+import { NotFound } from "./components/Layout/NotFound";
 
 export default function App() {
   return (
@@ -19,6 +20,7 @@ export default function App() {
               <Routes>
                 <Route path="/" element={<MapList />} />
                 <Route path="/map/:mapId" element={<MapView />} />
+                <Route path="*" element={<NotFound />} />
               </Routes>
             </main>
           </div>

@@ -13,12 +13,13 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 import { useTheme } from "@/hooks/useTheme";
 import { NetworkNode } from "./NetworkNode";
 import { GroupNode } from "./GroupNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
+import { NotFound } from "../Layout/NotFound";
 import type { NetmapData, MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
 
 const nodeTypes = { network: NetworkNode, group: GroupNode };
@@ -146,11 +147,14 @@ function PublicMapInner() {
   const [traffic, setTraffic] = useState<TrafficData>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const { theme, cycle } = useTheme();
 
   useEffect(() => {
     if (!token) return;
     setLoading(true);
+    setError(null);
+    setErrorStatus(null);
     let interval: ReturnType<typeof setInterval> | undefined;
     api.getPublicMap(token)
       .then((data) => {
@@ -162,8 +166,11 @@ function PublicMapInner() {
         fetchTraffic();
         interval = setInterval(fetchTraffic, Math.max((data.settings?.refresh_interval ?? 300) * 1000, 30000));
       })
-      .catch((e) => {
-        setError(e.message);
+      .catch((e: unknown) => {
+        const message = e instanceof Error ? e.message : "Failed to load map";
+        const status = e instanceof ApiError ? e.status : null;
+        setError(message);
+        setErrorStatus(status);
         setLoading(false);
       });
     return () => { if (interval) clearInterval(interval); };
@@ -196,6 +203,18 @@ function PublicMapInner() {
     );
   }
 
+  if (errorStatus === 404 || (!loading && !map)) {
+    return (
+      <NotFound
+        title="404"
+        message="This public map doesn't exist or has been revoked."
+        backHref="/welcome"
+        backLabel="Browse public maps"
+        fullScreen
+      />
+    );
+  }
+
   if (error || !map) {
     return (
       <div className="flex items-center justify-center h-screen bg-noc-bg">
@@ -214,6 +233,7 @@ function PublicMapInner() {
           <span className="text-xs font-semibold tracking-wider text-accent">NETMAP</span>
           <span className="text-2xs text-noc-text-muted">{map.name}</span>
         </div>
+        <div className="flex items-center gap-2">
         <button
           onClick={cycle}
           className="p-1.5 rounded text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors"
@@ -240,6 +260,14 @@ function PublicMapInner() {
             </svg>
           )}
         </button>
+        <a
+          href="/auth/login"
+          className="px-2.5 py-1 rounded text-2xs font-medium tracking-wider uppercase bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors"
+          title="Sign in"
+        >
+          Login
+        </a>
+        </div>
       </div>
 
       <div className="h-[calc(100vh-40px)] relative" style={{ touchAction: "none" }}>

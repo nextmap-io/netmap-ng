@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import type { NetmapData, TrafficData, MapNode, MapLink, AlignDirection } from "@/types";
-import { api } from "@/api/client";
+import { api, ApiError } from "@/api/client";
 
 interface MapStore {
   // Data
@@ -8,6 +8,7 @@ interface MapStore {
   traffic: TrafficData;
   loading: boolean;
   error: string | null;
+  errorStatus: number | null;
 
   // Editor state
   editMode: boolean;
@@ -66,6 +67,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
   traffic: {},
   loading: false,
   error: null,
+  errorStatus: null,
   editMode: false,
   selectedNodeIds: [],
   selectedLinkIds: [],
@@ -77,7 +79,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
   _pollTimer: null,
 
   loadMap: async (id: string) => {
-    set({ loading: true, error: null });
+    set({ loading: true, error: null, errorStatus: null });
     try {
       const data = await api.getMap(id);
       set({ map: data, loading: false });
@@ -85,7 +87,8 @@ export const useMapStore = create<MapStore>((set, get) => ({
       get().startTrafficPolling();
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : "Failed to load map";
-      set({ error: message, loading: false });
+      const status = e instanceof ApiError ? e.status : null;
+      set({ error: message, errorStatus: status, loading: false });
     }
   },
 
