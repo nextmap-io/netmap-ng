@@ -288,14 +288,6 @@ export function LinkProperties({
           <div>
             <label className={labelClass}>Color Override</label>
             <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={String(link.extra?.color_override || "#3b82f6")}
-                onChange={(e) =>
-                  onUpdate({ extra: { ...link.extra, color_override: e.target.value } })
-                }
-                className="w-8 h-6 rounded border border-noc-border bg-noc-bg cursor-pointer"
-              />
               <label className="flex items-center gap-1.5 text-2xs text-noc-text-muted">
                 <input
                   type="checkbox"
@@ -312,6 +304,16 @@ export function LinkProperties({
                 />
                 Override
               </label>
+              {!!link.extra?.color_override && (
+                <input
+                  type="color"
+                  value={String(link.extra.color_override)}
+                  onChange={(e) =>
+                    onUpdate({ extra: { ...link.extra, color_override: e.target.value } })
+                  }
+                  className="w-8 h-6 rounded border border-noc-border bg-noc-bg cursor-pointer"
+                />
+              )}
             </div>
           </div>
         </div>

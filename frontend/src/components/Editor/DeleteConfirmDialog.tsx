@@ -1,3 +1,5 @@
+import { useEffect, useCallback } from "react";
+
 interface DeleteConfirmDialogProps {
   open: boolean;
   title: string;
@@ -13,11 +15,25 @@ export function DeleteConfirmDialog({
   onConfirm,
   onCancel,
 }: DeleteConfirmDialogProps) {
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+      if (e.key === "Enter") onConfirm();
+    },
+    [onCancel, onConfirm],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, handleKeyDown]);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="noc-card rounded-lg shadow-lg w-80 animate-fade-in">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
+      <div className="noc-card rounded-lg shadow-lg w-80 animate-fade-in" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="px-4 pt-4 pb-2">
           <h3 className="text-xs font-semibold text-noc-text">{title}</h3>
@@ -38,6 +54,7 @@ export function DeleteConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
+            autoFocus
             className="px-3 py-1.5 text-2xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors"
           >
             Delete
