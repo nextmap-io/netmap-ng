@@ -11,6 +11,7 @@ export type NodeType =
   | "pni"
   | "provider"
   | "group"
+  | "label"
   | "custom";
 
 export type LinkType =

@@ -28,9 +28,9 @@ export function EditorToolbar() {
   const canDistribute = selectedNodeIds.length >= 3;
 
   const btnBase =
-    "p-1.5 rounded text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors";
+    "p-1.5 rounded border border-transparent text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors";
   const btnDisabled = "opacity-30 cursor-not-allowed";
-  const btnActive = "bg-accent/15 text-accent border border-accent/20";
+  const btnActive = "!bg-accent/15 !text-accent !border-accent/20";
 
   function btn(
     enabled: boolean,

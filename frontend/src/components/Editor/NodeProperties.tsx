@@ -16,6 +16,7 @@ const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "cloud", label: "Cloud" },
   { value: "internet", label: "External" },
   { value: "group", label: "Group / Site" },
+  { value: "label", label: "Text Label" },
   { value: "custom", label: "Custom" },
 ];
 
@@ -190,6 +191,80 @@ export function NodeProperties({
           </button>
         </div>
       </section>
+
+      {/* TEXT FORMATTING (label nodes only) */}
+      {node.node_type === "label" && (
+        <section>
+          <div className={labelClass}>Text Format</div>
+          <div className="h-px bg-noc-border/50 mb-3" />
+          <div className="space-y-2">
+            <div>
+              <label className="text-2xs text-noc-text-muted uppercase tracking-wider mb-1 block">Font Size</label>
+              <select
+                value={String(node.style?.font_size || "12")}
+                onChange={(e) => onUpdate({ style: { ...node.style, font_size: e.target.value } })}
+                className={inputClass}
+              >
+                <option value="9">9px — Small</option>
+                <option value="11">11px — Default</option>
+                <option value="14">14px — Medium</option>
+                <option value="18">18px — Large</option>
+                <option value="24">24px — Title</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onUpdate({ style: { ...node.style, bold: !node.style?.bold } })}
+                className={`px-2 py-1 rounded text-2xs font-bold border transition-colors ${
+                  node.style?.bold
+                    ? "bg-accent/15 text-accent border-accent/20"
+                    : "text-noc-text-muted border-noc-border hover:text-noc-text"
+                }`}
+              >
+                B
+              </button>
+              <button
+                onClick={() => onUpdate({ style: { ...node.style, italic: !node.style?.italic } })}
+                className={`px-2 py-1 rounded text-2xs italic border transition-colors ${
+                  node.style?.italic
+                    ? "bg-accent/15 text-accent border-accent/20"
+                    : "text-noc-text-muted border-noc-border hover:text-noc-text"
+                }`}
+              >
+                I
+              </button>
+              <select
+                value={String(node.style?.align || "left")}
+                onChange={(e) => onUpdate({ style: { ...node.style, align: e.target.value } })}
+                className={`${inputClass} w-auto flex-1`}
+              >
+                <option value="left">Left</option>
+                <option value="center">Center</option>
+                <option value="right">Right</option>
+              </select>
+            </div>
+            <div>
+              <label className="text-2xs text-noc-text-muted uppercase tracking-wider mb-1 block">Color</label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={String(node.style?.color || "#888888")}
+                  onChange={(e) => onUpdate({ style: { ...node.style, color: e.target.value } })}
+                  className="w-8 h-6 rounded border border-noc-border bg-noc-bg cursor-pointer"
+                />
+                {!!node.style?.color && (
+                  <button
+                    onClick={() => onUpdate({ style: { ...node.style, color: undefined } })}
+                    className="text-2xs text-noc-text-dim hover:text-noc-text"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* PARENT */}
       <section>

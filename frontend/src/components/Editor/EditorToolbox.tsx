@@ -16,6 +16,7 @@ const NODE_TYPES: { value: NodeType; label: string; badge: string }[] = [
   { value: "cloud", label: "Cloud", badge: "CLD" },
   { value: "internet", label: "External", badge: "NET" },
   { value: "group", label: "Group / Site", badge: "GRP" },
+  { value: "label", label: "Text Label", badge: "TXT" },
 ];
 
 const BADGE_COLORS: Record<string, string> = {
@@ -27,6 +28,7 @@ const BADGE_COLORS: Record<string, string> = {
   cloud: "text-node-cloud",
   internet: "text-node-internet",
   group: "text-noc-text-muted",
+  label: "text-noc-text-dim",
 };
 
 export function EditorToolbox() {

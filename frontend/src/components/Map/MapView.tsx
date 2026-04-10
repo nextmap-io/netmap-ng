@@ -19,6 +19,7 @@ import { useMapStore } from "@/hooks/useMapStore";
 import { api } from "@/api/client";
 import { NetworkNode } from "./NetworkNode";
 import { GroupNode } from "./GroupNode";
+import { LabelNode } from "./LabelNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
@@ -32,6 +33,7 @@ import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
 const nodeTypes = {
   network: NetworkNode,
   group: GroupNode,
+  label: LabelNode,
 };
 
 const edgeTypes = {
@@ -40,9 +42,11 @@ const edgeTypes = {
 
 function mapNodeToFlow(n: MapNode, editMode: boolean): Node {
   const isGroup = n.node_type === "group";
+  const isLabel = n.node_type === "label";
+  const flowType = isGroup ? "group" : isLabel ? "label" : "network";
   return {
     id: n.id,
-    type: isGroup ? "group" : "network",
+    type: flowType,
     position: { x: n.x, y: n.y },
     parentId: n.parent_id || undefined,
     extent: n.parent_id ? "parent" as const : undefined,
@@ -55,6 +59,7 @@ function mapNodeToFlow(n: MapNode, editMode: boolean): Node {
       width: n.width,
       height: n.height,
       bgColor: n.style?.bg_color,
+      style: n.style,
     },
     style: isGroup
       ? { width: n.width || 400, height: n.height || 300 }
