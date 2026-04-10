@@ -1,3 +1,4 @@
+import { useReactFlow } from "@xyflow/react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
 import type { NodeType } from "@/types";
@@ -30,17 +31,26 @@ const BADGE_COLORS: Record<string, string> = {
 
 export function EditorToolbox() {
   const { map, editMode, loadMap } = useMapStore();
+  const flow = useReactFlow();
 
   if (!editMode || !map) return null;
 
   const handleAddNode = async (nodeType: NodeType, label: string) => {
     try {
+      // Spawn at center of current viewport
+      const viewport = flow.getViewport();
+      const container = document.querySelector(".react-flow");
+      const w = container?.clientWidth ?? 800;
+      const h = container?.clientHeight ?? 600;
+      const centerX = (-viewport.x + w / 2) / viewport.zoom;
+      const centerY = (-viewport.y + h / 2) / viewport.zoom;
+
       await api.createNode(map.id, {
         name: `new-${nodeType}`,
         label,
         node_type: nodeType,
-        x: 400 + Math.random() * 200,
-        y: 300 + Math.random() * 200,
+        x: Math.round(centerX + (Math.random() - 0.5) * 60),
+        y: Math.round(centerY + (Math.random() - 0.5) * 60),
         ...(nodeType === "group" ? { width: 400, height: 300 } : {}),
       });
       await loadMap(map.id);

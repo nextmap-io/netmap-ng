@@ -13,6 +13,10 @@ export function EditorToolbar() {
     toggleSnapToGrid,
     snapToGrid,
     createLink,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
   } = useMapStore();
 
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -67,7 +71,12 @@ export function EditorToolbar() {
         {btn(canDistribute, () => distributeNodes("horizontal"), <IconDistributeH />, "Distribute Horizontal")}
         {btn(canDistribute, () => distributeNodes("vertical"), <IconDistributeV />, "Distribute Vertical")}
 
-        {/* Group 3 - Canvas */}
+        {/* Group 3 - Undo/Redo */}
+        {sep}
+        {btn(canUndo, () => undo(), <IconUndo />, "Undo (Ctrl+Z)")}
+        {btn(canRedo, () => redo(), <IconRedo />, "Redo (Ctrl+Shift+Z)")}
+
+        {/* Group 4 - Canvas */}
         {sep}
         {btn(true, toggleSnapToGrid, <IconGrid />, "Snap to Grid", snapToGrid)}
         {btn(true, () => setShowSettings(true), <IconSettings />, "Map Settings")}
@@ -207,6 +216,24 @@ function IconAddLink() {
       <line x1={4} y1={12} x2={12} y2={4} />
       <circle cx={3} cy={13} r={2} />
       <circle cx={13} cy={3} r={2} />
+    </svg>
+  );
+}
+
+function IconUndo() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6l-3 3 3 3" />
+      <path d="M1 9h9a4 4 0 0 1 0 8H8" />
+    </svg>
+  );
+}
+
+function IconRedo() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 6l3 3-3 3" />
+      <path d="M15 9H6a4 4 0 0 0 0 8h2" />
     </svg>
   );
 }

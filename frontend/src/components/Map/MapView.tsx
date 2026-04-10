@@ -16,6 +16,7 @@ import {
 import "@xyflow/react/dist/style.css";
 
 import { useMapStore } from "@/hooks/useMapStore";
+import { api } from "@/api/client";
 import { NetworkNode } from "./NetworkNode";
 import { GroupNode } from "./GroupNode";
 import { TrafficEdge } from "./NetworkLink";
@@ -252,7 +253,7 @@ function isInputFocused(): boolean {
 
 function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
-  const { map, traffic, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, createLink } =
+  const { map, traffic, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, createLink, pushUndo, undo, redo } =
     useMapStore();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const { theme } = useTheme();
@@ -287,11 +288,47 @@ function MapViewInner() {
           selectNodes(allIds);
         }
       }
+      // Ctrl+Z / Cmd+Z — undo
+      if (e.key === "z" && (e.metaKey || e.ctrlKey) && !e.shiftKey && !isInputFocused()) {
+        e.preventDefault();
+        undo();
+      }
+      // Ctrl+Shift+Z / Cmd+Shift+Z — redo
+      if (e.key === "z" && (e.metaKey || e.ctrlKey) && e.shiftKey && !isInputFocused()) {
+        e.preventDefault();
+        redo();
+      }
+      // Ctrl+D / Cmd+D — duplicate selected nodes
+      if (e.key === "d" && (e.metaKey || e.ctrlKey) && !isInputFocused()) {
+        e.preventDefault();
+        const { selectedNodeIds, map: currentMap } = useMapStore.getState();
+        if (!currentMap || selectedNodeIds.length === 0) return;
+        const selectedNodes = currentMap.nodes.filter(n => selectedNodeIds.includes(n.id));
+        (async () => {
+          const newIds: string[] = [];
+          for (const n of selectedNodes) {
+            const result = await api.createNode(currentMap.id, {
+              name: `${n.name}-copy`,
+              label: `${n.label || n.name} (copy)`,
+              node_type: n.node_type,
+              x: n.x + 30,
+              y: n.y + 30,
+              width: n.width,
+              height: n.height,
+              parent_id: n.parent_id,
+              style: n.style,
+            });
+            newIds.push(result.id);
+          }
+          await useMapStore.getState().loadMap(currentMap.id);
+          useMapStore.getState().selectNodes(newIds);
+        })();
+      }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [editMode, clearSelection, selectNodes, map]);
+  }, [editMode, clearSelection, selectNodes, map, undo, redo]);
 
   const initialNodes = useMemo(() => {
     if (!map) return [];
@@ -328,6 +365,10 @@ function MapViewInner() {
     },
     [editMode, onNodesChange, updateNodePosition],
   );
+
+  const handleNodeDragStart = useCallback(() => {
+    if (editMode) pushUndo();
+  }, [editMode, pushUndo]);
 
   const handleNodeDragStop = useCallback(() => {
     if (editMode) saveNodePositions();
@@ -448,6 +489,7 @@ function MapViewInner() {
           preventScrolling
           onNodesChange={handleNodesChange}
           onEdgesChange={onEdgesChange}
+          onNodeDragStart={handleNodeDragStart}
           onNodeDragStop={handleNodeDragStop}
           onEdgeClick={handleEdgeClick}
           onNodeClick={handleNodeClick}
@@ -466,12 +508,12 @@ function MapViewInner() {
           minZoom={0.1}
           maxZoom={3}
         >
-          <Background gap={24} size={0.5} color={
+          <Background gap={24} size={snapToGrid ? 1.5 : 0.5} color={
             theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
-              ? "hsl(30 6% 78%)"
+              ? snapToGrid ? "hsl(30 6% 65%)" : "hsl(30 6% 78%)"
               : theme === "scada"
-                ? "#1a3a1a"
-                : "hsl(220 15% 12%)"
+                ? snapToGrid ? "#2a5a2a" : "#1a3a1a"
+                : snapToGrid ? "hsl(220 15% 22%)" : "hsl(220 15% 12%)"
           } />
           <Controls showInteractive={false} />
           <MiniMap

@@ -2,6 +2,11 @@ import { create } from "zustand";
 import type { NetmapData, TrafficData, MapNode, MapLink, AlignDirection } from "@/types";
 import { api, ApiError } from "@/api/client";
 
+/** Snapshot of node positions for undo/redo */
+type PosSnapshot = Array<{ id: string; x: number; y: number }>;
+
+const MAX_UNDO = 50;
+
 interface MapStore {
   // Data
   map: NetmapData | null;
@@ -17,6 +22,12 @@ interface MapStore {
   snapToGrid: boolean;
   saving: boolean;
   lastSaved: number | null;
+
+  // Undo/redo
+  _undoStack: PosSnapshot[];
+  _redoStack: PosSnapshot[];
+  canUndo: boolean;
+  canRedo: boolean;
 
   // Backward-compat computed getters
   selectedNodeId: string | null;
@@ -56,10 +67,27 @@ interface MapStore {
   updateNodePosition: (nodeId: string, x: number, y: number) => void;
   saveNodePositions: () => Promise<void>;
 
+  // Undo/redo
+  pushUndo: () => void;
+  undo: () => Promise<void>;
+  redo: () => Promise<void>;
+
   // Traffic
   setTraffic: (data: TrafficData) => void;
   startTrafficPolling: () => void;
   stopTrafficPolling: () => void;
+}
+
+function getPositions(nodes: MapNode[]): PosSnapshot {
+  return nodes.map((n) => ({ id: n.id, x: n.x, y: n.y }));
+}
+
+function applyPositions(nodes: MapNode[], snap: PosSnapshot): MapNode[] {
+  const posMap = new Map(snap.map((s) => [s.id, s]));
+  return nodes.map((n) => {
+    const p = posMap.get(n.id);
+    return p ? { ...n, x: p.x, y: p.y } : n;
+  });
 }
 
 export const useMapStore = create<MapStore>((set, get) => ({
@@ -77,12 +105,16 @@ export const useMapStore = create<MapStore>((set, get) => ({
   saving: false,
   lastSaved: null,
   _pollTimer: null,
+  _undoStack: [],
+  _redoStack: [],
+  canUndo: false,
+  canRedo: false,
 
   loadMap: async (id: string) => {
     set({ loading: true, error: null, errorStatus: null });
     try {
       const data = await api.getMap(id);
-      set({ map: data, loading: false });
+      set({ map: data, loading: false, _undoStack: [], _redoStack: [], canUndo: false, canRedo: false });
       // Start traffic polling after map loads
       get().startTrafficPolling();
     } catch (e: unknown) {
@@ -211,10 +243,69 @@ export const useMapStore = create<MapStore>((set, get) => ({
     await get().loadMap(map.id);
   },
 
+  // ── Undo / Redo ──
+
+  pushUndo: () => {
+    const { map, _undoStack } = get();
+    if (!map) return;
+    const snap = getPositions(map.nodes);
+    const newStack = [..._undoStack, snap].slice(-MAX_UNDO);
+    set({ _undoStack: newStack, _redoStack: [], canUndo: true, canRedo: false });
+  },
+
+  undo: async () => {
+    const { map, _undoStack, _redoStack } = get();
+    if (!map || _undoStack.length === 0) return;
+
+    const currentSnap = getPositions(map.nodes);
+    const prevSnap = _undoStack[_undoStack.length - 1];
+    const newUndoStack = _undoStack.slice(0, -1);
+    const newRedoStack = [..._redoStack, currentSnap];
+
+    const updatedNodes = applyPositions(map.nodes, prevSnap);
+    set({
+      map: { ...map, nodes: updatedNodes },
+      _undoStack: newUndoStack,
+      _redoStack: newRedoStack,
+      canUndo: newUndoStack.length > 0,
+      canRedo: true,
+    });
+
+    // Sync to backend
+    const moves = prevSnap;
+    await api.batchMoveNodes(map.id, moves);
+  },
+
+  redo: async () => {
+    const { map, _undoStack, _redoStack } = get();
+    if (!map || _redoStack.length === 0) return;
+
+    const currentSnap = getPositions(map.nodes);
+    const nextSnap = _redoStack[_redoStack.length - 1];
+    const newRedoStack = _redoStack.slice(0, -1);
+    const newUndoStack = [..._undoStack, currentSnap];
+
+    const updatedNodes = applyPositions(map.nodes, nextSnap);
+    set({
+      map: { ...map, nodes: updatedNodes },
+      _undoStack: newUndoStack,
+      _redoStack: newRedoStack,
+      canUndo: true,
+      canRedo: newRedoStack.length > 0,
+    });
+
+    // Sync to backend
+    const moves = nextSnap;
+    await api.batchMoveNodes(map.id, moves);
+  },
+
   // Align selected nodes
   alignNodes: async (direction) => {
     const { map, selectedNodeIds } = get();
     if (!map || selectedNodeIds.length < 2) return;
+
+    // Push undo before aligning
+    get().pushUndo();
 
     const selectedNodes = map.nodes.filter((n: MapNode) =>
       selectedNodeIds.includes(n.id)
@@ -223,17 +314,13 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     let updatedNodes: MapNode[];
 
-    // Helper: get the reference node
-    // For horizontal ops (left/center/right): reference = topmost node (smallest Y)
-    // For vertical ops (top/middle/bottom): reference = leftmost node (smallest X)
     const nw = (n: MapNode) => n.width || 100;
     const nh = (n: MapNode) => n.height || 28;
-    const refByY = [...selectedNodes].sort((a, b) => a.y - b.y)[0]; // topmost
-    const refByX = [...selectedNodes].sort((a, b) => a.x - b.x)[0]; // leftmost
+    const refByY = [...selectedNodes].sort((a, b) => a.y - b.y)[0];
+    const refByX = [...selectedNodes].sort((a, b) => a.x - b.x)[0];
 
     switch (direction) {
       case "left": {
-        // Align left edges to the reference (topmost) node's X
         const refX = refByY.x;
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, x: refX } : n
@@ -241,7 +328,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "center": {
-        // Align centers to the reference (topmost) node's center X
         const refCenterX = refByY.x + nw(refByY) / 2;
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, x: refCenterX - nw(n) / 2 } : n
@@ -249,7 +335,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "right": {
-        // Align right edges to the reference (topmost) node's right edge
         const refRight = refByY.x + nw(refByY);
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, x: refRight - nw(n) } : n
@@ -257,7 +342,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "top": {
-        // Align top edges to the reference (leftmost) node's Y
         const refY = refByX.y;
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, y: refY } : n
@@ -265,7 +349,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "middle": {
-        // Align vertical centers to the reference (leftmost) node's center Y
         const refMiddleY = refByX.y + nh(refByX) / 2;
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, y: refMiddleY - nh(n) / 2 } : n
@@ -273,7 +356,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "bottom": {
-        // Align bottom edges to the reference (leftmost) node's bottom edge
         const refBottom = refByX.y + nh(refByX);
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, y: refBottom - nh(n) } : n
@@ -282,10 +364,8 @@ export const useMapStore = create<MapStore>((set, get) => ({
       }
     }
 
-    // Update local state
     set({ map: { ...map, nodes: updatedNodes } });
 
-    // Batch move via API
     const moves = updatedNodes
       .filter((n: MapNode) => selectedNodeIds.includes(n.id))
       .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
@@ -296,6 +376,9 @@ export const useMapStore = create<MapStore>((set, get) => ({
   distributeNodes: async (axis) => {
     const { map, selectedNodeIds } = get();
     if (!map || selectedNodeIds.length < 3) return;
+
+    // Push undo before distributing
+    get().pushUndo();
 
     const selectedNodes = map.nodes.filter((n: MapNode) =>
       selectedNodeIds.includes(n.id)
@@ -338,10 +421,8 @@ export const useMapStore = create<MapStore>((set, get) => ({
       );
     }
 
-    // Update local state
     set({ map: { ...map, nodes: updatedNodes } });
 
-    // Batch move via API
     const moves = updatedNodes
       .filter((n: MapNode) => selectedNodeIds.includes(n.id))
       .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
@@ -388,7 +469,6 @@ export const useMapStore = create<MapStore>((set, get) => ({
       }
     };
 
-    // Fetch immediately, then on interval
     fetchTraffic();
     const timer = setInterval(fetchTraffic, Math.max(interval, 30000));
     set({ _pollTimer: timer });
