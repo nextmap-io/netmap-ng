@@ -47,6 +47,7 @@ export default {
           firewall: "hsl(0 72% 50%)",
           cloud: "hsl(190 90% 50%)",
           internet: "hsl(340 65% 55%)",
+          customer: "hsl(45 85% 50%)",
         },
       },
       borderRadius: {

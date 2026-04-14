@@ -10,6 +10,7 @@ export type NodeType =
   | "transit"
   | "pni"
   | "provider"
+  | "customer"
   | "group"
   | "label"
   | "custom";

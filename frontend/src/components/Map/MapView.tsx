@@ -7,6 +7,7 @@ import {
   MiniMap,
   useNodesState,
   useEdgesState,
+  useReactFlow,
   ReactFlowProvider,
   ConnectionMode,
   type Node,
@@ -258,10 +259,11 @@ function isInputFocused(): boolean {
 
 function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
-  const { map, traffic, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, createLink, pushUndo, undo, redo } =
+  const { map, traffic, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, selectMode, createLink, pushUndo, undo, redo } =
     useMapStore();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const { theme } = useTheme();
+  const flow = useReactFlow();
 
   useEffect(() => {
     if (mapId) loadMap(mapId);
@@ -302,6 +304,16 @@ function MapViewInner() {
       if (e.key === "z" && (e.metaKey || e.ctrlKey) && e.shiftKey && !isInputFocused()) {
         e.preventDefault();
         redo();
+      }
+      // Arrow keys — nudge selected nodes
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) && !isInputFocused()) {
+        const { selectedNodeIds, nudgeSelectedNodes, snapToGrid: snap } = useMapStore.getState();
+        if (selectedNodeIds.length === 0) return;
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : snap ? 24 : 1;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        nudgeSelectedNodes(dx, dy);
       }
       // Ctrl+D / Cmd+D — duplicate selected nodes
       if (e.key === "d" && (e.metaKey || e.ctrlKey) && !isInputFocused()) {
@@ -346,7 +358,14 @@ function MapViewInner() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
-    setNodes(initialNodes);
+    // Preserve selection state from the store when replacing nodes
+    const { selectedNodeIds } = useMapStore.getState();
+    if (selectedNodeIds.length > 0) {
+      const sel = new Set(selectedNodeIds);
+      setNodes(initialNodes.map((n) => sel.has(n.id) ? { ...n, selected: true } : n));
+    } else {
+      setNodes(initialNodes);
+    }
   }, [initialNodes, setNodes]);
 
   // Recompute edges whenever nodes move or traffic updates
@@ -359,9 +378,12 @@ function MapViewInner() {
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      onNodesChange(changes);
+      // Filter out "remove" changes — nodes are only removed via our deleteNode action,
+      // never through ReactFlow's internal reconciliation (which can cause ghost removals)
+      const safe = changes.filter((c) => c.type !== "remove");
+      onNodesChange(safe);
       if (editMode) {
-        for (const change of changes) {
+        for (const change of safe) {
           if (change.type === "position" && change.position && change.id) {
             updateNodePosition(change.id, change.position.x, change.position.y);
           }
@@ -432,11 +454,41 @@ function MapViewInner() {
   const handleSelectionChange = useCallback(
     ({ nodes: selNodes }: { nodes: Node[]; edges: Edge[] }) => {
       if (!editMode) return;
-      if (selNodes.length > 0) {
-        selectNodes(selNodes.map((n) => n.id));
-      }
+      selectNodes(selNodes.map((n) => n.id));
     },
     [editMode, selectNodes],
+  );
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    if (e.dataTransfer.types.includes("application/netmap-node-type")) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+    }
+  }, []);
+
+  const handleDrop = useCallback(
+    async (e: React.DragEvent) => {
+      const nodeType = e.dataTransfer.getData("application/netmap-node-type");
+      const label = e.dataTransfer.getData("application/netmap-node-label");
+      if (!nodeType || !map || !editMode) return;
+      e.preventDefault();
+
+      const position = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      try {
+        await api.createNode(map.id, {
+          name: `new-${nodeType}`,
+          label: label || nodeType,
+          node_type: nodeType as import("@/types").NodeType,
+          x: Math.round(position.x),
+          y: Math.round(position.y),
+          ...(nodeType === "group" ? { width: 400, height: 300 } : {}),
+        });
+        await loadMap(map.id);
+      } catch (err) {
+        console.error("Failed to create node on drop:", err);
+      }
+    },
+    [map, editMode, flow, loadMap],
   );
 
   const handlePaneClick = useCallback(() => {
@@ -488,7 +540,7 @@ function MapViewInner() {
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
-          panOnDrag
+          panOnDrag={editMode && selectMode ? [1, 2] : true}
           zoomOnPinch
           zoomOnScroll
           preventScrolling
@@ -501,9 +553,10 @@ function MapViewInner() {
           onPaneClick={handlePaneClick}
           onConnect={handleConnect}
           onSelectionChange={handleSelectionChange}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
           nodesDraggable={editMode}
-          selectionOnDrag={false}
-          // selectionMode partial
+          selectionOnDrag={editMode && selectMode}
           multiSelectionKeyCode={editMode ? "Shift" : null}
           snapToGrid={snapToGrid}
           snapGrid={[24, 24]}
@@ -534,6 +587,7 @@ function MapViewInner() {
               if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
               if (type === "pni") return "hsl(160 60% 45%)";
               if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
+              if (type === "customer") return "hsl(45 85% 50%)";
               return "hsl(220 10% 46%)";
             }}
             maskColor={

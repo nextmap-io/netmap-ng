@@ -113,6 +113,22 @@ async def get_neighbours(
             return await cur.fetchall()
 
 
+async def get_port_rrd_info(port_id: int) -> dict[str, Any] | None:
+    """Resolve hostname and port_id for RRD path construction from a port ID."""
+    async with get_observium_db() as conn:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+            await cur.execute(
+                """
+                SELECT d.hostname, p.port_id
+                FROM ports p
+                JOIN devices d ON d.device_id = p.device_id
+                WHERE p.port_id = %s
+            """,
+                (port_id,),
+            )
+            return await cur.fetchone()
+
+
 async def get_port_traffic(port_id: int) -> dict[str, Any] | None:
     """Get current traffic rates for a single port."""
     async with get_observium_db() as conn:

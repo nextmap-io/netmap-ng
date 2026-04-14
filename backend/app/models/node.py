@@ -24,6 +24,7 @@ class NodeType(str, enum.Enum):
     TRANSIT = "transit"  # Transit provider
     PNI = "pni"  # Private Network Interconnect
     PROVIDER = "provider"  # Transport / connectivity provider
+    CUSTOMER = "customer"  # Downstream customer
     GROUP = "group"
     LABEL = "label"
     CUSTOM = "custom"

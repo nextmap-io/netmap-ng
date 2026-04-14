@@ -20,6 +20,7 @@ interface MapStore {
   selectedNodeIds: string[];
   selectedLinkIds: string[];
   snapToGrid: boolean;
+  selectMode: boolean;
   saving: boolean;
   lastSaved: number | null;
 
@@ -62,9 +63,11 @@ interface MapStore {
   alignNodes: (direction: AlignDirection) => Promise<void>;
   distributeNodes: (axis: "horizontal" | "vertical") => Promise<void>;
   toggleSnapToGrid: () => void;
+  toggleSelectMode: () => void;
 
   // Positions
   updateNodePosition: (nodeId: string, x: number, y: number) => void;
+  nudgeSelectedNodes: (dx: number, dy: number) => Promise<void>;
   saveNodePositions: () => Promise<void>;
 
   // Undo/redo
@@ -102,6 +105,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
   selectedNodeId: null,
   selectedLinkId: null,
   snapToGrid: false,
+  selectMode: true,
   saving: false,
   lastSaved: null,
   _pollTimer: null,
@@ -321,44 +325,46 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     switch (direction) {
       case "left": {
-        const refX = refByY.x;
+        const refX = refByX.x;
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, x: refX } : n
         );
         break;
       }
       case "center": {
-        const refCenterX = refByY.x + nw(refByY) / 2;
+        const refCenterX = refByX.x + nw(refByX) / 2;
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, x: refCenterX - nw(n) / 2 } : n
         );
         break;
       }
       case "right": {
-        const refRight = refByY.x + nw(refByY);
+        const refRight = [...selectedNodes].sort((a, b) => (a.x + nw(a)) - (b.x + nw(b))).pop()!;
+        const rightEdge = refRight.x + nw(refRight);
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: refRight - nw(n) } : n
+          selectedNodeIds.includes(n.id) ? { ...n, x: rightEdge - nw(n) } : n
         );
         break;
       }
       case "top": {
-        const refY = refByX.y;
+        const refY = refByY.y;
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, y: refY } : n
         );
         break;
       }
       case "middle": {
-        const refMiddleY = refByX.y + nh(refByX) / 2;
+        const refMiddleY = refByY.y + nh(refByY) / 2;
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, y: refMiddleY - nh(n) / 2 } : n
         );
         break;
       }
       case "bottom": {
-        const refBottom = refByX.y + nh(refByX);
+        const refBot = [...selectedNodes].sort((a, b) => (a.y + nh(a)) - (b.y + nh(b))).pop()!;
+        const bottomEdge = refBot.y + nh(refBot);
         updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: refBottom - nh(n) } : n
+          selectedNodeIds.includes(n.id) ? { ...n, y: bottomEdge - nh(n) } : n
         );
         break;
       }
@@ -430,6 +436,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
   },
 
   toggleSnapToGrid: () => set({ snapToGrid: !get().snapToGrid }),
+  toggleSelectMode: () => set({ selectMode: !get().selectMode }),
 
   updateNodePosition: (nodeId, x, y) => {
     const { map } = get();
@@ -440,6 +447,24 @@ export const useMapStore = create<MapStore>((set, get) => ({
         nodes: map.nodes.map((n: MapNode) => (n.id === nodeId ? { ...n, x, y } : n)),
       },
     });
+  },
+
+  nudgeSelectedNodes: async (dx, dy) => {
+    const { map, selectedNodeIds } = get();
+    if (!map || selectedNodeIds.length === 0) return;
+
+    get().pushUndo();
+
+    const updatedNodes = map.nodes.map((n: MapNode) =>
+      selectedNodeIds.includes(n.id) ? { ...n, x: n.x + dx, y: n.y + dy } : n
+    );
+
+    set({ map: { ...map, nodes: updatedNodes } });
+
+    const moves = updatedNodes
+      .filter((n: MapNode) => selectedNodeIds.includes(n.id))
+      .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
+    await api.batchMoveNodes(map.id, moves);
   },
 
   saveNodePositions: async () => {

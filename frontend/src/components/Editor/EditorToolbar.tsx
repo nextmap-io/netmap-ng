@@ -12,6 +12,8 @@ export function EditorToolbar() {
     distributeNodes,
     toggleSnapToGrid,
     snapToGrid,
+    toggleSelectMode,
+    selectMode,
     createLink,
     undo,
     redo,
@@ -78,6 +80,7 @@ export function EditorToolbar() {
 
         {/* Group 4 - Canvas */}
         {sep}
+        {btn(true, toggleSelectMode, <IconSelect />, "Select Mode (drag to select)", selectMode)}
         {btn(true, toggleSnapToGrid, <IconGrid />, "Snap to Grid", snapToGrid)}
         {btn(true, () => setShowSettings(true), <IconSettings />, "Map Settings")}
         {btn(true, () => setShowLinkDialog(true), <IconAddLink />, "Add Link")}
@@ -184,6 +187,15 @@ function IconDistributeV() {
       <rect x={5} y={3} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
       <rect x={5} y={7} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
       <rect x={5} y={11} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconSelect() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <rect x={2} y={2} width={12} height={12} rx={1} strokeDasharray="3 2" />
+      <path d="M6 6h4v4H6z" fill="currentColor" stroke="none" opacity={0.4} />
     </svg>
   );
 }

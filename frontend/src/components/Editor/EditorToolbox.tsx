@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
@@ -9,6 +10,7 @@ const NODE_TYPES: { value: NodeType; label: string; badge: string }[] = [
   { value: "switch_l2", label: "Switch L2", badge: "L2" },
   { value: "server", label: "Server", badge: "SRV" },
   { value: "firewall", label: "Firewall", badge: "FW" },
+  { value: "customer", label: "Customer", badge: "CST" },
   { value: "ix", label: "IX Peering", badge: "IX" },
   { value: "transit", label: "Transit", badge: "TR" },
   { value: "pni", label: "PNI", badge: "PNI" },
@@ -25,6 +27,7 @@ const BADGE_COLORS: Record<string, string> = {
   switch_l2: "text-node-switch-l2",
   server: "text-node-server",
   firewall: "text-node-firewall",
+  customer: "text-node-customer",
   cloud: "text-node-cloud",
   internet: "text-node-internet",
   group: "text-noc-text-muted",
@@ -35,31 +38,44 @@ export function EditorToolbox() {
   const { map, editMode, loadMap } = useMapStore();
   const flow = useReactFlow();
 
+  const handleDragStart = useCallback(
+    (e: React.DragEvent, nodeType: NodeType, label: string) => {
+      e.dataTransfer.setData("application/netmap-node-type", nodeType);
+      e.dataTransfer.setData("application/netmap-node-label", label);
+      e.dataTransfer.effectAllowed = "move";
+    },
+    [],
+  );
+
+  const handleAddNode = useCallback(
+    async (nodeType: NodeType, label: string) => {
+      if (!map) return;
+      try {
+        // Fallback: spawn at center of current viewport
+        const viewport = flow.getViewport();
+        const container = document.querySelector(".react-flow");
+        const w = container?.clientWidth ?? 800;
+        const h = container?.clientHeight ?? 600;
+        const centerX = (-viewport.x + w / 2) / viewport.zoom;
+        const centerY = (-viewport.y + h / 2) / viewport.zoom;
+
+        await api.createNode(map.id, {
+          name: `new-${nodeType}`,
+          label,
+          node_type: nodeType,
+          x: Math.round(centerX + (Math.random() - 0.5) * 60),
+          y: Math.round(centerY + (Math.random() - 0.5) * 60),
+          ...(nodeType === "group" ? { width: 400, height: 300 } : {}),
+        });
+        await loadMap(map.id);
+      } catch (e) {
+        console.error("Failed to create node:", e);
+      }
+    },
+    [map, flow, loadMap],
+  );
+
   if (!editMode || !map) return null;
-
-  const handleAddNode = async (nodeType: NodeType, label: string) => {
-    try {
-      // Spawn at center of current viewport
-      const viewport = flow.getViewport();
-      const container = document.querySelector(".react-flow");
-      const w = container?.clientWidth ?? 800;
-      const h = container?.clientHeight ?? 600;
-      const centerX = (-viewport.x + w / 2) / viewport.zoom;
-      const centerY = (-viewport.y + h / 2) / viewport.zoom;
-
-      await api.createNode(map.id, {
-        name: `new-${nodeType}`,
-        label,
-        node_type: nodeType,
-        x: Math.round(centerX + (Math.random() - 0.5) * 60),
-        y: Math.round(centerY + (Math.random() - 0.5) * 60),
-        ...(nodeType === "group" ? { width: 400, height: 300 } : {}),
-      });
-      await loadMap(map.id);
-    } catch (e) {
-      console.error("Failed to create node:", e);
-    }
-  };
 
   return (
     <div className="absolute top-14 left-3 noc-glass rounded z-10 w-60 max-h-[80vh] overflow-auto animate-fade-in">
@@ -76,15 +92,17 @@ export function EditorToolbox() {
       <div className="p-3 space-y-4">
         {/* Add Node */}
         <section>
-          <div className="noc-label mb-2">Add Node</div>
+          <div className="noc-label mb-2">Add Node <span className="text-noc-text-dim font-normal">(drag to canvas)</span></div>
           <div className="grid grid-cols-2 gap-1">
             {NODE_TYPES.map((nt) => (
               <button
                 key={nt.value}
+                draggable
+                onDragStart={(e) => handleDragStart(e, nt.value, nt.label)}
                 onClick={() => handleAddNode(nt.value, nt.label)}
-                className="group flex items-center gap-1.5 px-2 py-1.5 text-2xs bg-noc-surface/50 border border-noc-border/50 rounded hover:border-noc-muted hover:bg-noc-surface transition-colors text-left"
+                className="group flex items-center gap-1.5 px-2 py-1.5 text-2xs bg-noc-surface/50 border border-noc-border/50 rounded hover:border-noc-muted hover:bg-noc-surface transition-colors text-left cursor-grab active:cursor-grabbing"
               >
-                <span className={`font-semibold tracking-wider ${BADGE_COLORS[nt.value]}`}>
+                <span className={`font-semibold tracking-wider ${BADGE_COLORS[nt.value] ?? ""}`}>
                   {nt.badge}
                 </span>
                 <span className="text-noc-text-muted group-hover:text-noc-text transition-colors truncate">

@@ -96,6 +96,8 @@ export const api = {
     request<TrafficData>(`/api/datasources/traffic/live?${qs({ map_id: mapId })}`),
   getTrafficHistory: (hostname: string, portId: string, mapId: string, start?: string, end?: string) =>
     request<TrafficHistory>(`/api/datasources/traffic/history?${qs({ hostname, port_identifier: portId, map_id: mapId, start: start || "-24h", end: end || "now" })}`),
+  getTrafficHistoryByPort: (portId: number, mapId: string, start?: string, end?: string) =>
+    request<TrafficHistory>(`/api/datasources/traffic/history/by-port?${qs({ port_id: String(portId), map_id: mapId, start: start || "-24h", end: end || "now" })}`),
 
   // AI
   generateMap: (data: { device_ids: number[]; instructions: string; map_id?: string }) =>

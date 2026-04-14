@@ -7,7 +7,7 @@ const NODE_ICONS: Record<NodeType, string> = {
   router: "RTR", switch_l3: "L3", switch_l2: "L2", server: "SRV",
   firewall: "FW", cloud: "CLD", internet: "NET",
   ix: "IX", transit: "TR", pni: "PNI", provider: "PRV",
-  group: "GRP", label: "TXT", custom: "---",
+  customer: "CST", group: "GRP", label: "TXT", custom: "---",
 };
 
 const NODE_BORDER: Record<NodeType, string> = {
@@ -22,6 +22,7 @@ const NODE_BORDER: Record<NodeType, string> = {
   transit: "border-node-internet/40 hover:border-node-internet/70",
   pni: "border-[hsl(160,60%,45%)]/40 hover:border-[hsl(160,60%,45%)]/70",
   provider: "border-node-cloud/40 hover:border-node-cloud/70",
+  customer: "border-node-customer/40 hover:border-node-customer/70",
   group: "border-noc-border", label: "border-transparent", custom: "border-noc-border",
 };
 
@@ -37,6 +38,7 @@ const NODE_BADGE_BG: Record<NodeType, string> = {
   transit: "bg-node-internet/20 text-node-internet",
   pni: "bg-[hsl(160,60%,45%)]/20 text-[hsl(160,60%,45%)]",
   provider: "bg-node-cloud/20 text-node-cloud",
+  customer: "bg-node-customer/20 text-node-customer",
   group: "bg-noc-muted/20 text-noc-text-muted", label: "bg-transparent text-noc-text-muted", custom: "bg-noc-muted/20 text-noc-text-muted",
 };
 
