@@ -10,6 +10,7 @@ export function EditorToolbar() {
     selectedNodeIds,
     alignNodes,
     distributeNodes,
+    flipNodes,
     toggleSnapToGrid,
     snapToGrid,
     toggleSelectMode,
@@ -19,6 +20,9 @@ export function EditorToolbar() {
     redo,
     canUndo,
     canRedo,
+    bindSelectedNodes,
+    unbindSelectedNodes,
+    getBoundGroup,
   } = useMapStore();
 
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -28,6 +32,8 @@ export function EditorToolbar() {
 
   const canAlign = selectedNodeIds.length >= 2;
   const canDistribute = selectedNodeIds.length >= 3;
+  const canBind = selectedNodeIds.length >= 2;
+  const isBound = selectedNodeIds.length > 0 && selectedNodeIds.some((id) => getBoundGroup(id));
 
   const btnBase =
     "p-1.5 rounded border border-transparent text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors";
@@ -73,12 +79,22 @@ export function EditorToolbar() {
         {btn(canDistribute, () => distributeNodes("horizontal"), <IconDistributeH />, "Distribute Horizontal")}
         {btn(canDistribute, () => distributeNodes("vertical"), <IconDistributeV />, "Distribute Vertical")}
 
-        {/* Group 3 - Undo/Redo */}
+        {/* Group 3 - Flip / Mirror */}
+        {sep}
+        {btn(canAlign, () => flipNodes("horizontal"), <IconFlipH />, "Flip Horizontal")}
+        {btn(canAlign, () => flipNodes("vertical"), <IconFlipV />, "Flip Vertical")}
+
+        {/* Group 4 - Bind */}
+        {sep}
+        {btn(canBind, () => bindSelectedNodes(), <IconBind />, "Bind (move together)")}
+        {btn(isBound, () => unbindSelectedNodes(), <IconUnbind />, "Unbind")}
+
+        {/* Group 5 - Undo/Redo */}
         {sep}
         {btn(canUndo, () => undo(), <IconUndo />, "Undo (Ctrl+Z)")}
         {btn(canRedo, () => redo(), <IconRedo />, "Redo (Ctrl+Shift+Z)")}
 
-        {/* Group 4 - Canvas */}
+        {/* Group 6 - Canvas */}
         {sep}
         {btn(true, toggleSelectMode, <IconSelect />, "Select Mode (drag to select)", selectMode)}
         {btn(true, toggleSnapToGrid, <IconGrid />, "Snap to Grid", snapToGrid)}
@@ -187,6 +203,43 @@ function IconDistributeV() {
       <rect x={5} y={3} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
       <rect x={5} y={7} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
       <rect x={5} y={11} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconFlipH() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <line x1={8} y1={1} x2={8} y2={15} strokeDasharray="2 2" strokeOpacity={0.4} />
+      <path d="M5 4L2 8l3 4" />
+      <path d="M11 4l3 4-3 4" />
+    </svg>
+  );
+}
+
+function IconFlipV() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <line x1={1} y1={8} x2={15} y2={8} strokeDasharray="2 2" strokeOpacity={0.4} />
+      <path d="M4 5L8 2l4 3" />
+      <path d="M4 11l4 3 4-3" />
+    </svg>
+  );
+}
+
+function IconBind() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 5H5a3 3 0 000 6h2M9 5h2a3 3 0 010 6H9M5 8h6" />
+    </svg>
+  );
+}
+
+function IconUnbind() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M7 5H5a3 3 0 000 6h2M9 5h2a3 3 0 010 6H9" />
+      <line x1={6} y1={8} x2={10} y2={8} strokeDasharray="1.5 1.5" strokeOpacity={0.4} />
     </svg>
   );
 }

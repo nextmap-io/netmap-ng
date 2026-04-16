@@ -101,6 +101,7 @@ export interface MapSettings {
   refresh_interval: number;
   default_link_width: number;
   scale_mode?: "steps" | "gradient";
+  bound_groups?: string[][];
 }
 
 export interface TrafficData {

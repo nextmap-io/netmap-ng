@@ -62,8 +62,14 @@ interface MapStore {
   // Layout
   alignNodes: (direction: AlignDirection) => Promise<void>;
   distributeNodes: (axis: "horizontal" | "vertical") => Promise<void>;
+  flipNodes: (axis: "horizontal" | "vertical") => Promise<void>;
   toggleSnapToGrid: () => void;
   toggleSelectMode: () => void;
+
+  // Bound groups (move together)
+  getBoundGroup: (nodeId: string) => string[] | undefined;
+  bindSelectedNodes: () => Promise<void>;
+  unbindSelectedNodes: () => Promise<void>;
 
   // Positions
   updateNodePosition: (nodeId: string, x: number, y: number) => void;
@@ -435,8 +441,92 @@ export const useMapStore = create<MapStore>((set, get) => ({
     await api.batchMoveNodes(map.id, moves);
   },
 
+  // Flip selected nodes (mirror positions)
+  flipNodes: async (axis) => {
+    const { map, selectedNodeIds } = get();
+    if (!map || selectedNodeIds.length < 2) return;
+
+    get().pushUndo();
+
+    const selected = map.nodes.filter((n: MapNode) => selectedNodeIds.includes(n.id));
+    const nw = (n: MapNode) => n.width || 100;
+    const nh = (n: MapNode) => n.height || 28;
+
+    let updatedNodes: MapNode[];
+    if (axis === "horizontal") {
+      const centers = selected.map((n) => n.x + nw(n) / 2);
+      const mid = (Math.min(...centers) + Math.max(...centers)) / 2;
+      updatedNodes = map.nodes.map((n: MapNode) =>
+        selectedNodeIds.includes(n.id) ? { ...n, x: 2 * mid - n.x - nw(n) } : n
+      );
+    } else {
+      const centers = selected.map((n) => n.y + nh(n) / 2);
+      const mid = (Math.min(...centers) + Math.max(...centers)) / 2;
+      updatedNodes = map.nodes.map((n: MapNode) =>
+        selectedNodeIds.includes(n.id) ? { ...n, y: 2 * mid - n.y - nh(n) } : n
+      );
+    }
+
+    set({ map: { ...map, nodes: updatedNodes } });
+    const moves = updatedNodes
+      .filter((n: MapNode) => selectedNodeIds.includes(n.id))
+      .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
+    await api.batchMoveNodes(map.id, moves);
+  },
+
   toggleSnapToGrid: () => set({ snapToGrid: !get().snapToGrid }),
   toggleSelectMode: () => set({ selectMode: !get().selectMode }),
+
+  // Bound groups
+  getBoundGroup: (nodeId) => {
+    const { map } = get();
+    const groups = map?.settings?.bound_groups || [];
+    return groups.find((g) => g.includes(nodeId));
+  },
+
+  bindSelectedNodes: async () => {
+    const { map, selectedNodeIds } = get();
+    if (!map || selectedNodeIds.length < 2) return;
+
+    const groups = [...(map.settings?.bound_groups || [])];
+
+    // Merge selected nodes: if any are already in existing groups, merge those groups
+    const touchedIndices = new Set<number>();
+    for (const id of selectedNodeIds) {
+      const idx = groups.findIndex((g) => g.includes(id));
+      if (idx >= 0) touchedIndices.add(idx);
+    }
+
+    // Collect all node IDs from touched groups + selected
+    const merged = new Set(selectedNodeIds);
+    for (const idx of touchedIndices) {
+      for (const id of groups[idx]) merged.add(id);
+    }
+
+    // Remove touched groups, add the merged one
+    const remaining = groups.filter((_, i) => !touchedIndices.has(i));
+    remaining.push([...merged]);
+
+    const settings = { ...map.settings, bound_groups: remaining };
+    set({ map: { ...map, settings } });
+    await api.updateMap(map.id, { settings });
+  },
+
+  unbindSelectedNodes: async () => {
+    const { map, selectedNodeIds } = get();
+    if (!map || selectedNodeIds.length === 0) return;
+
+    const groups = [...(map.settings?.bound_groups || [])];
+
+    // Remove selected nodes from any groups they're in
+    const updated = groups
+      .map((g) => g.filter((id) => !selectedNodeIds.includes(id)))
+      .filter((g) => g.length >= 2); // discard groups with <2 members
+
+    const settings = { ...map.settings, bound_groups: updated };
+    set({ map: { ...map, settings } });
+    await api.updateMap(map.id, { settings });
+  },
 
   updateNodePosition: (nodeId, x, y) => {
     const { map } = get();

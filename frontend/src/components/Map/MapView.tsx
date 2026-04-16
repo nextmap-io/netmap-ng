@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   ReactFlow,
@@ -264,6 +264,7 @@ function MapViewInner() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const { theme } = useTheme();
   const flow = useReactFlow();
+  const dragStartPos = useRef<Map<string, { x: number; y: number }>>(new Map());
 
   useEffect(() => {
     if (mapId) loadMap(mapId);
@@ -393,12 +394,36 @@ function MapViewInner() {
     [editMode, onNodesChange, updateNodePosition],
   );
 
-  const handleNodeDragStart = useCallback(() => {
-    if (editMode) pushUndo();
-  }, [editMode, pushUndo]);
+  const handleNodeDragStart = useCallback(
+    (_event: React.MouseEvent, node: Node) => {
+      if (!editMode) return;
+      pushUndo();
+      // Capture positions of all nodes for bound-group delta calculation
+      const allNodes = flow.getNodes();
+      const posMap = new Map<string, { x: number; y: number }>();
+      for (const n of allNodes) posMap.set(n.id, { ...n.position });
+      dragStartPos.current = posMap;
+
+      // Auto-select all members of bound group so they move together
+      const { getBoundGroup, selectNodes: sel } = useMapStore.getState();
+      const group = getBoundGroup(node.id);
+      if (group) {
+        const { selectedNodeIds } = useMapStore.getState();
+        const allSelected = new Set(selectedNodeIds);
+        let changed = false;
+        for (const id of group) {
+          if (!allSelected.has(id)) { allSelected.add(id); changed = true; }
+        }
+        if (changed) sel([...allSelected]);
+      }
+    },
+    [editMode, pushUndo, flow],
+  );
 
   const handleNodeDragStop = useCallback(() => {
-    if (editMode) saveNodePositions();
+    if (!editMode) return;
+    saveNodePositions();
+    dragStartPos.current.clear();
   }, [editMode, saveNodePositions]);
 
   const handleEdgeClick = useCallback(
