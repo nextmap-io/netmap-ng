@@ -31,7 +31,7 @@ async def _get_pool() -> asyncmy.Pool:
             host=settings.observium_db_host,
             port=settings.observium_db_port,
             user=settings.observium_db_user,
-            password=settings.observium_db_password,
+            password=settings.observium_db_password.get_secret_value(),
             db=settings.observium_db_name,
             minsize=2,
             maxsize=10,
@@ -41,11 +41,7 @@ async def _get_pool() -> asyncmy.Pool:
 
 
 async def close_pool() -> None:
-    """Close the Observium MySQL pool. Call this from app shutdown.
-
-    NOTE: main.py should invoke `await close_pool()` from its lifespan
-    shutdown phase to release MySQL connections cleanly.
-    """
+    """Close the Observium MySQL pool. Called from app shutdown lifespan."""
     global _pool
     if _pool is not None:
         _pool.close()
