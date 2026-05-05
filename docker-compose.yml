@@ -6,10 +6,18 @@
 # Backend: source mounted for live reload (uvicorn --reload)
 # Frontend: source mounted with Vite dev server (HMR)
 
+networks:
+  app:
+    driver: bridge
+  internal:
+    driver: bridge
+    internal: true
+
 services:
   # FastAPI backend with live reload
   backend:
     build: ./backend
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     ports:
       - "8000:8000"
     env_file: .env
@@ -21,8 +29,18 @@ services:
       # Mount Observium RRD directory (read-only)
       # Uncomment and adjust the path to your Observium RRD directory:
       # - /opt/observium/rrd:/rrd:ro
+    networks:
+      - app
+      - internal
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
 
   # React frontend with Vite dev server (HMR)
   frontend:
@@ -34,12 +52,19 @@ services:
       - ./frontend/src:/app/src
     environment:
       - VITE_API_URL=http://localhost:8000
+    networks:
+      - app
 
-  # Redis for session storage and caching
+  # Redis for session storage and caching (internal-only — no host port)
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
 
 volumes:
   app-data:

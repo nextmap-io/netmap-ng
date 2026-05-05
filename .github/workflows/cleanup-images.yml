@@ -1,22 +1,25 @@
+# TODO(P3-1): pin third-party actions to commit SHAs (deferred).
 name: Cleanup old container images
 
-# Runs weekly and on-demand to remove old container image versions,
-# keeping only the 5 most recent ones.
+# Runs weekly and on-demand to remove old container image versions.
+# Defaults are conservative: keep the 60 most recent versions and only
+# delete pre-release versions automatically.
 on:
   schedule:
     - cron: "0 3 * * 0" # Every Sunday at 3am UTC
   workflow_dispatch:
 
 permissions:
+  contents: read
   packages: write
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   cleanup:
     name: Delete old images
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       matrix:
         package: [netmap-ng-backend, netmap-ng-frontend]
@@ -26,6 +29,6 @@ jobs:
         with:
           package-name: ${{ matrix.package }}
           package-type: container
-          min-versions-to-keep: 5
-          delete-only-pre-release-versions: false
+          min-versions-to-keep: 60
+          delete-only-pre-release-versions: true
           token: ${{ secrets.GITHUB_TOKEN }}

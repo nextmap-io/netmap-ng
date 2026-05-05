@@ -1,3 +1,4 @@
+# TODO(P3-1): pin third-party actions to commit SHAs (deferred).
 name: Supply Chain Check
 
 # Verify dependencies are not too recent (>7 days old) to mitigate
@@ -10,15 +11,20 @@ on:
       - "frontend/package-lock.json"
       - "backend/requirements.txt"
 
+permissions:
+  contents: read
+
 jobs:
   check-npm-package-age:
     name: Check npm package age
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Check for packages published less than 7 days ago
         run: |
@@ -87,9 +93,11 @@ jobs:
   check-pip-package-age:
     name: Check pip package age
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
