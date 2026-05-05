@@ -1,11 +1,12 @@
 """Authorization guards for map access control."""
 
 import logging
+
 from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.oauth import get_current_user, _has_role
+from app.auth.oauth import _auth_disabled_active, _has_role, get_current_user
 from app.config import get_settings
 from app.models import Map, get_db
 
@@ -13,13 +14,29 @@ logger = logging.getLogger("netmap.auth")
 
 
 def is_editor(user: dict) -> bool:
-    """Check if user has the editor role."""
-    return _has_role(user, get_settings().oauth_editor_role)
+    """Check if user has the editor role.
+
+    In explicit AUTH_DISABLED dev-bypass mode, every authenticated local user is
+    treated as an editor. Otherwise, the editor role must be both configured
+    and present on the user — an unset OAUTH_EDITOR_ROLE never grants access.
+    """
+    settings = get_settings()
+    if _auth_disabled_active(settings):
+        return True
+    return _has_role(user, settings.oauth_editor_role)
 
 
 def is_admin(user: dict) -> bool:
-    """Check if user has the admin role."""
-    return _has_role(user, get_settings().oauth_admin_role)
+    """Check if user has the admin role.
+
+    In explicit AUTH_DISABLED dev-bypass mode, every authenticated local user is
+    treated as an admin. Otherwise, the admin role must be both configured and
+    present on the user.
+    """
+    settings = get_settings()
+    if _auth_disabled_active(settings):
+        return True
+    return _has_role(user, settings.oauth_admin_role)
 
 
 async def require_editor(user=Depends(get_current_user)):
@@ -62,10 +79,8 @@ async def require_map_read(
     m = result.scalar_one_or_none()
     if not m:
         raise HTTPException(404, "Map not found")
-    # Admins and owners can always read
     if is_admin(user) or m.owner == user.get("email"):
         return m
-    # Internal and public maps readable by any authenticated user
     if m.visibility in ("internal", "public"):
         return m
     raise HTTPException(403, "Not authorized to access this map")

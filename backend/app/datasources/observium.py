@@ -20,7 +20,7 @@ async def get_observium_db():
         host=settings.observium_db_host,
         port=settings.observium_db_port,
         user=settings.observium_db_user,
-        password=settings.observium_db_password,
+        password=settings.observium_db_password.get_secret_value(),
         db=settings.observium_db_name,
     )
     try:
