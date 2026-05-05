@@ -30,30 +30,19 @@ export function TrafficGraphPanel({ link, onClose }: TrafficGraphPanelProps) {
       return;
     }
 
-    const hasExplicitRrd = link.extra?.hostname && link.extra?.port_identifier;
     const hasPortBinding = link.observium_port_id_a;
 
-    if (!hasExplicitRrd && !hasPortBinding) {
+    if (!hasPortBinding) {
       setLoading(false);
       return;
     }
 
     setLoading(true);
 
-    const promise = hasExplicitRrd
-      ? api.getTrafficHistory(
-          link.extra.hostname as string,
-          link.extra.port_identifier as string,
-          mapId,
-          timeRange,
-        )
-      : api.getTrafficHistoryByPort(
-          link.observium_port_id_a!,
-          mapId,
-          timeRange,
-        );
-
-    promise.then(setHistory).finally(() => setLoading(false));
+    api
+      .getTrafficHistoryByPort(link.observium_port_id_a!, mapId, timeRange)
+      .then(setHistory)
+      .finally(() => setLoading(false));
   }, [link, timeRange, mapId]);
 
   const chartData = history
