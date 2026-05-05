@@ -76,25 +76,32 @@ async def get_live_traffic(
     result = await db.execute(select(Link).where(Link.map_id == map_id))
     links = result.scalars().all()
 
-    traffic_data = {}
+    # Batch-fetch all port traffic in a single query
+    port_ids = [link.observium_port_id_a for link in links if link.observium_port_id_a]
+    bulk = await observium.get_ports_traffic_bulk(port_ids)
+
+    traffic_data: dict[str, dict[str, float]] = {}
     for link in links:
-        if link.observium_port_id_a:
-            port_data = await observium.get_port_traffic(link.observium_port_id_a)
-            if port_data:
-                in_rate = port_data.get("ifInOctets_rate", 0) or 0
-                out_rate = port_data.get("ifOutOctets_rate", 0) or 0
-                in_bps = float(in_rate) * 8
-                out_bps = float(out_rate) * 8
-                bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
-                in_pct = min(100.0, (in_bps / bw) * 100)
-                out_pct = min(100.0, (out_bps / bw) * 100)
-                traffic_data[link.id] = {
-                    "in_bps": in_bps,
-                    "out_bps": out_bps,
-                    "in_pct": round(in_pct, 1),
-                    "out_pct": round(out_pct, 1),
-                }
-        if link.id not in traffic_data:
+        port_data = (
+            bulk.get(int(link.observium_port_id_a))
+            if link.observium_port_id_a
+            else None
+        )
+        if port_data:
+            in_rate = port_data.get("ifInOctets_rate", 0) or 0
+            out_rate = port_data.get("ifOutOctets_rate", 0) or 0
+            in_bps = float(in_rate) * 8
+            out_bps = float(out_rate) * 8
+            bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
+            in_pct = min(100.0, (in_bps / bw) * 100)
+            out_pct = min(100.0, (out_bps / bw) * 100)
+            traffic_data[link.id] = {
+                "in_bps": in_bps,
+                "out_bps": out_bps,
+                "in_pct": round(in_pct, 1),
+                "out_pct": round(out_pct, 1),
+            }
+        else:
             traffic_data[link.id] = {
                 "in_bps": 0,
                 "out_bps": 0,
@@ -103,48 +110,6 @@ async def get_live_traffic(
             }
 
     return traffic_data
-
-
-@router.get("/traffic/history")
-async def get_traffic_history(
-    hostname: str,
-    port_identifier: str,
-    map_id: str = Query(..., description="Map ID for authorization"),
-    start: str = "-24h",
-    end: str = "now",
-    resolution: int = Query(300, ge=60, le=86400),
-    db: AsyncSession = Depends(get_db),
-    user=Depends(get_current_user),
-):
-    """Fetch historical traffic from RRD file. Requires map read access."""
-    # Verify user has access to this map
-    m = await require_map_read(map_id, user, db)
-
-    # Verify the hostname/port actually belongs to a link in this map
-    result = await db.execute(select(Link).where(Link.map_id == map_id))
-    links = result.scalars().all()
-    link_found = False
-    for link in links:
-        extra = link.extra or {}
-        if extra.get("hostname") == hostname and str(
-            extra.get("port_identifier")
-        ) == str(port_identifier):
-            link_found = True
-            break
-    if not link_found:
-        raise HTTPException(403, "This data source is not part of the specified map")
-
-    # Admins and editors always have graph access
-    # Only restrict for viewers who are not the owner
-    from app.auth.guards import is_admin, is_editor
-
-    if not is_admin(user) and not is_editor(user) and m.owner != user.get("email"):
-        ps = m.public_settings or {}
-        if not ps.get("show_graph", False):
-            raise HTTPException(403, "Traffic history is not available for this map")
-
-    data = rrd.fetch_history(hostname, port_identifier, start, end, resolution)
-    return data
 
 
 @router.get("/traffic/history/by-port")
@@ -188,5 +153,5 @@ async def get_traffic_history_by_port(
     hostname = port_info["hostname"]
     port_identifier = str(port_info["port_id"])
 
-    data = rrd.fetch_history(hostname, port_identifier, start, end, resolution)
+    data = await rrd.read_xport(hostname, port_identifier, start, end, resolution)
     return data

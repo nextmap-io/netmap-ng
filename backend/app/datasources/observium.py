@@ -4,35 +4,60 @@ Provides topology discovery (CDP/LLDP neighbours), device info, port rates.
 
 Compatible with Observium CE where rate columns are in the `ports` table
 directly (no separate `ports-state` table).
+
+Uses a module-level connection pool (lazily created) for efficiency. All public
+functions degrade gracefully on connection / query errors — they log a warning
+and return an empty list/dict/None so callers do not raise 500 to the client.
 """
 
-from contextlib import asynccontextmanager
+import logging
 from typing import Any
 
 import asyncmy
+import asyncmy.errors
 from app.config import get_settings
 
+logger = logging.getLogger("netmap.observium")
 
-@asynccontextmanager
-async def get_observium_db():
-    settings = get_settings()
-    conn = await asyncmy.connect(
-        host=settings.observium_db_host,
-        port=settings.observium_db_port,
-        user=settings.observium_db_user,
-        password=settings.observium_db_password,
-        db=settings.observium_db_name,
-    )
-    try:
-        yield conn
-    finally:
-        await conn.ensure_closed()
+_pool: asyncmy.Pool | None = None
+
+
+async def _get_pool() -> asyncmy.Pool:
+    """Lazily create and cache the module-level Observium MySQL pool."""
+    global _pool
+    if _pool is None:
+        settings = get_settings()
+        _pool = await asyncmy.create_pool(
+            host=settings.observium_db_host,
+            port=settings.observium_db_port,
+            user=settings.observium_db_user,
+            password=settings.observium_db_password,
+            db=settings.observium_db_name,
+            minsize=2,
+            maxsize=10,
+            connect_timeout=5,
+        )
+    return _pool
+
+
+async def close_pool() -> None:
+    """Close the Observium MySQL pool. Call this from app shutdown.
+
+    NOTE: main.py should invoke `await close_pool()` from its lifespan
+    shutdown phase to release MySQL connections cleanly.
+    """
+    global _pool
+    if _pool is not None:
+        _pool.close()
+        await _pool.wait_closed()
+        _pool = None
 
 
 async def get_devices(device_ids: list[int] | None = None) -> list[dict[str, Any]]:
-    """Fetch devices from Observium."""
-    async with get_observium_db() as conn:
-        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+    """Fetch devices from Observium. Returns [] on connection / query error."""
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
             sql = """
                 SELECT device_id, hostname, sysName, os, hardware,
                        location, status, type, version
@@ -46,12 +71,16 @@ async def get_devices(device_ids: list[int] | None = None) -> list[dict[str, Any
                 params = device_ids
             await cur.execute(sql, params)
             return await cur.fetchall()
+    except (asyncmy.errors.Error, OSError) as e:
+        logger.warning("get_devices failed: %s", e)
+        return []
 
 
 async def get_device_ports(device_id: int) -> list[dict[str, Any]]:
-    """Fetch ports with current rates for a device."""
-    async with get_observium_db() as conn:
-        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+    """Fetch ports with current rates for a device. Returns [] on error."""
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 """
                 SELECT port_id, ifIndex, ifName, ifDescr, ifAlias,
@@ -66,6 +95,9 @@ async def get_device_ports(device_id: int) -> list[dict[str, Any]]:
                 (device_id,),
             )
             return await cur.fetchall()
+    except (asyncmy.errors.Error, OSError) as e:
+        logger.warning("get_device_ports(device_id=%s) failed: %s", device_id, e)
+        return []
 
 
 async def get_neighbours(
@@ -74,9 +106,11 @@ async def get_neighbours(
     """
     Fetch CDP/LLDP neighbour links. This is the core topology query.
     Returns links where both ends are monitored (remote_port_id > 0).
+    Returns [] on error.
     """
-    async with get_observium_db() as conn:
-        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
             sql = """
                 SELECT
                     l.neighbour_id,
@@ -111,12 +145,16 @@ async def get_neighbours(
                 params = device_ids
             await cur.execute(sql, params)
             return await cur.fetchall()
+    except (asyncmy.errors.Error, OSError) as e:
+        logger.warning("get_neighbours failed: %s", e)
+        return []
 
 
 async def get_port_rrd_info(port_id: int) -> dict[str, Any] | None:
-    """Resolve hostname and port_id for RRD path construction from a port ID."""
-    async with get_observium_db() as conn:
-        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+    """Resolve hostname and port_id for RRD path construction. None on error."""
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 """
                 SELECT d.hostname, p.port_id
@@ -127,12 +165,16 @@ async def get_port_rrd_info(port_id: int) -> dict[str, Any] | None:
                 (port_id,),
             )
             return await cur.fetchone()
+    except (asyncmy.errors.Error, OSError) as e:
+        logger.warning("get_port_rrd_info(port_id=%s) failed: %s", port_id, e)
+        return None
 
 
 async def get_port_traffic(port_id: int) -> dict[str, Any] | None:
-    """Get current traffic rates for a single port."""
-    async with get_observium_db() as conn:
-        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+    """Get current traffic rates for a single port. None on error."""
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 """
                 SELECT port_id, ifName, ifSpeed,
@@ -145,3 +187,34 @@ async def get_port_traffic(port_id: int) -> dict[str, Any] | None:
                 (port_id,),
             )
             return await cur.fetchone()
+    except (asyncmy.errors.Error, OSError) as e:
+        logger.warning("get_port_traffic(port_id=%s) failed: %s", port_id, e)
+        return None
+
+
+async def get_ports_traffic_bulk(port_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Batch-fetch current traffic rates for many ports in a single query.
+
+    Returns a {port_id: row} mapping. Missing ports are absent from the dict.
+    Returns {} on connection / query error.
+    """
+    if not port_ids:
+        return {}
+    try:
+        pool = await _get_pool()
+        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
+            placeholders = ",".join(["%s"] * len(port_ids))
+            sql = f"""
+                SELECT port_id, ifName, ifSpeed,
+                       ifInOctets_rate, ifOutOctets_rate,
+                       ifInOctets_perc, ifOutOctets_perc,
+                       ifInErrors_rate, ifOutErrors_rate
+                FROM ports
+                WHERE port_id IN ({placeholders})
+            """
+            await cur.execute(sql, list(port_ids))
+            rows = await cur.fetchall()
+            return {int(r["port_id"]): r for r in rows}
+    except (asyncmy.errors.Error, OSError) as e:
+        logger.warning("get_ports_traffic_bulk failed: %s", e)
+        return {}

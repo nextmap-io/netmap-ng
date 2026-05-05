@@ -116,29 +116,38 @@ async def get_public_traffic(token: str, db: AsyncSession = Depends(get_db)):
     m = await _get_public_map(token, db)
     ps = m.public_settings or {}
 
-    # Fetch live traffic
+    # Fetch live traffic in a single batched query.
     result = await db.execute(select(Link).where(Link.map_id == m.id))
     links = result.scalars().all()
 
-    traffic_data = {}
-    for link in links:
-        if link.observium_port_id_a:
-            port_data = await observium.get_port_traffic(link.observium_port_id_a)
-            if port_data:
-                in_rate = port_data.get("ifInOctets_rate", 0) or 0
-                out_rate = port_data.get("ifOutOctets_rate", 0) or 0
-                in_bps = float(in_rate) * 8
-                out_bps = float(out_rate) * 8
-                bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
-                in_pct = min(100.0, (in_bps / bw) * 100)
-                out_pct = min(100.0, (out_bps / bw) * 100)
+    port_ids = [link.observium_port_id_a for link in links if link.observium_port_id_a]
+    bulk = await observium.get_ports_traffic_bulk(port_ids)
 
-                entry = {"in_pct": round(in_pct, 1), "out_pct": round(out_pct, 1)}
-                if ps.get("show_bps", False):
-                    entry["in_bps"] = in_bps
-                    entry["out_bps"] = out_bps
-                traffic_data[link.id] = entry
-        if link.id not in traffic_data:
+    traffic_data: dict[str, dict[str, float]] = {}
+    for link in links:
+        port_data = (
+            bulk.get(int(link.observium_port_id_a))
+            if link.observium_port_id_a
+            else None
+        )
+        if port_data:
+            in_rate = port_data.get("ifInOctets_rate", 0) or 0
+            out_rate = port_data.get("ifOutOctets_rate", 0) or 0
+            in_bps = float(in_rate) * 8
+            out_bps = float(out_rate) * 8
+            bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
+            in_pct = min(100.0, (in_bps / bw) * 100)
+            out_pct = min(100.0, (out_bps / bw) * 100)
+
+            entry: dict[str, float] = {
+                "in_pct": round(in_pct, 1),
+                "out_pct": round(out_pct, 1),
+            }
+            if ps.get("show_bps", False):
+                entry["in_bps"] = in_bps
+                entry["out_bps"] = out_bps
+            traffic_data[link.id] = entry
+        else:
             entry = {"in_pct": 0, "out_pct": 0}
             if ps.get("show_bps", False):
                 entry["in_bps"] = 0
