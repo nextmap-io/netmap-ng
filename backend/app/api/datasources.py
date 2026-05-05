@@ -171,7 +171,9 @@ async def get_traffic_history_by_port(
         for link in links
     )
     if not link_found:
-        raise HTTPException(403, "This port is not bound to any link in the specified map")
+        raise HTTPException(
+            403, "This port is not bound to any link in the specified map"
+        )
 
     from app.auth.guards import is_admin, is_editor
 

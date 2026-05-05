@@ -25,6 +25,29 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const [showPercentage, setShowPercentage] = useState(true);
   const [showGraph, setShowGraph] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        ta.style.pointerEvents = "none";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (err) {
+      console.error("Copy failed", err);
+    }
+  };
 
   // Sync local state when dialog opens
   useEffect(() => {
@@ -225,10 +248,10 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                     />
                     <button
-                      onClick={() => navigator.clipboard.writeText(`${window.location.origin}/public/${publicToken}`)}
+                      onClick={() => copyToClipboard(`${window.location.origin}/public/${publicToken}`)}
                       className="px-2 py-1 text-2xs bg-accent/10 text-accent border border-accent/20 rounded hover:bg-accent/20 transition-colors shrink-0"
                     >
-                      Copy
+                      {copied ? "Copied!" : "Copy"}
                     </button>
                   </div>
                 </div>
