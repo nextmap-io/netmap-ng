@@ -87,21 +87,14 @@ export const api = {
 
   // Datasources
   getObserviumDevices: () => request<Record<string, unknown>[]>("/api/datasources/observium/devices"),
-  getDevicePorts: (deviceId: number) => request<Record<string, unknown>[]>(`/api/datasources/observium/devices/${deviceId}/ports`),
-  getNeighbours: (deviceIds?: number[]) => {
-    const query = deviceIds ? `?${qs({ device_ids: deviceIds.join(",") })}` : "";
-    return request<Record<string, unknown>[]>(`/api/datasources/observium/neighbours${query}`);
-  },
+  getDevicePorts: (deviceId: number) =>
+    request<Record<string, unknown>[]>(
+      `/api/datasources/observium/devices/${encodeURIComponent(String(deviceId))}/ports`,
+    ),
   getLiveTraffic: (mapId: string) =>
     request<TrafficData>(`/api/datasources/traffic/live?${qs({ map_id: mapId })}`),
-  getTrafficHistory: (hostname: string, portId: string, mapId: string, start?: string, end?: string) =>
-    request<TrafficHistory>(`/api/datasources/traffic/history?${qs({ hostname, port_identifier: portId, map_id: mapId, start: start || "-24h", end: end || "now" })}`),
   getTrafficHistoryByPort: (portId: number, mapId: string, start?: string, end?: string) =>
     request<TrafficHistory>(`/api/datasources/traffic/history/by-port?${qs({ port_id: String(portId), map_id: mapId, start: start || "-24h", end: end || "now" })}`),
-
-  // AI
-  generateMap: (data: { device_ids: number[]; instructions: string; map_id?: string }) =>
-    request<Record<string, unknown>>("/api/ai/generate-map", { method: "POST", body: JSON.stringify(data) }),
 
   // Auth
   getUser: () => request<{ sub: string; name: string; email: string }>("/auth/me"),
