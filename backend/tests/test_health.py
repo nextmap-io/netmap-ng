@@ -17,6 +17,7 @@ def anyio_backend():
 async def client():
     from app.main import app
     from app.models.database import init_db
+
     await init_db()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
