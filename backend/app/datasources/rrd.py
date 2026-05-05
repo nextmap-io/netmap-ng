@@ -134,9 +134,7 @@ async def _run_subprocess(cmd: list[str], timeout: int) -> subprocess.CompletedP
         )
 
 
-async def fetch_current(
-    hostname: str, port_identifier: str | int
-) -> dict[str, float]:
+async def fetch_current(hostname: str, port_identifier: str | int) -> dict[str, float]:
     """Fetch the latest data point from an RRD file."""
     path = _safe_rrd_path(hostname, port_identifier)
     if not os.path.exists(path):
@@ -149,9 +147,7 @@ async def fetch_current(
             in_bytes = float(ds.get("INOCTETS", 0) or 0)
             out_bytes = float(ds.get("OUTOCTETS", 0) or 0)
         else:
-            result = await _run_subprocess(
-                ["rrdtool", "lastupdate", path], timeout=10
-            )
+            result = await _run_subprocess(["rrdtool", "lastupdate", path], timeout=10)
             lines = result.stdout.strip().split("\n")
             if len(lines) >= 2:
                 headers = lines[0].split()

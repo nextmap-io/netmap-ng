@@ -92,7 +92,12 @@ class Settings(BaseSettings):
     @field_validator("app_secret_key", mode="before")
     @classmethod
     def validate_secret_key(cls, v: object) -> SecretStr:
-        raw = v.get_secret_value() if isinstance(v, SecretStr) else (v or "")
+        if isinstance(v, SecretStr):
+            raw = v.get_secret_value()
+        elif isinstance(v, str):
+            raw = v
+        else:
+            raw = ""
         if not raw or raw == "change-me":
             generated = secrets.token_urlsafe(32)
             logger.warning(

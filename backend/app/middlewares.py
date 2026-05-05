@@ -102,7 +102,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     def _capacity(self, bucket: str) -> int:
         s = get_settings()
-        return s.rate_limit_public_per_min if bucket == _PUBLIC else s.rate_limit_api_per_min
+        return (
+            s.rate_limit_public_per_min
+            if bucket == _PUBLIC
+            else s.rate_limit_api_per_min
+        )
 
     def _consume(self, ip: str, bucket: str) -> bool:
         capacity = self._capacity(bucket)
@@ -132,7 +136,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         ip = self._client_ip(request)
         if not self._consume(ip, bucket):
             logger.info(
-                "Rate limit exceeded ip=%s bucket=%s path=%s", ip, bucket, request.url.path
+                "Rate limit exceeded ip=%s bucket=%s path=%s",
+                ip,
+                bucket,
+                request.url.path,
             )
             return JSONResponse(
                 {"detail": "Too Many Requests"},

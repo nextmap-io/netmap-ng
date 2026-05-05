@@ -53,7 +53,10 @@ async def get_devices(device_ids: list[int] | None = None) -> list[dict[str, Any
     """Fetch devices from Observium. Returns [] on connection / query error."""
     try:
         pool = await _get_pool()
-        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
+        async with (
+            pool.acquire() as conn,
+            conn.cursor(asyncmy.cursors.DictCursor) as cur,
+        ):
             sql = """
                 SELECT device_id, hostname, sysName, os, hardware,
                        location, status, type, version
@@ -76,7 +79,10 @@ async def get_device_ports(device_id: int) -> list[dict[str, Any]]:
     """Fetch ports with current rates for a device. Returns [] on error."""
     try:
         pool = await _get_pool()
-        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
+        async with (
+            pool.acquire() as conn,
+            conn.cursor(asyncmy.cursors.DictCursor) as cur,
+        ):
             await cur.execute(
                 """
                 SELECT port_id, ifIndex, ifName, ifDescr, ifAlias,
@@ -106,7 +112,10 @@ async def get_neighbours(
     """
     try:
         pool = await _get_pool()
-        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
+        async with (
+            pool.acquire() as conn,
+            conn.cursor(asyncmy.cursors.DictCursor) as cur,
+        ):
             sql = """
                 SELECT
                     l.neighbour_id,
@@ -150,7 +159,10 @@ async def get_port_rrd_info(port_id: int) -> dict[str, Any] | None:
     """Resolve hostname and port_id for RRD path construction. None on error."""
     try:
         pool = await _get_pool()
-        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
+        async with (
+            pool.acquire() as conn,
+            conn.cursor(asyncmy.cursors.DictCursor) as cur,
+        ):
             await cur.execute(
                 """
                 SELECT d.hostname, p.port_id
@@ -170,7 +182,10 @@ async def get_port_traffic(port_id: int) -> dict[str, Any] | None:
     """Get current traffic rates for a single port. None on error."""
     try:
         pool = await _get_pool()
-        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
+        async with (
+            pool.acquire() as conn,
+            conn.cursor(asyncmy.cursors.DictCursor) as cur,
+        ):
             await cur.execute(
                 """
                 SELECT port_id, ifName, ifSpeed,
@@ -198,7 +213,10 @@ async def get_ports_traffic_bulk(port_ids: list[int]) -> dict[int, dict[str, Any
         return {}
     try:
         pool = await _get_pool()
-        async with pool.acquire() as conn, conn.cursor(asyncmy.cursors.DictCursor) as cur:
+        async with (
+            pool.acquire() as conn,
+            conn.cursor(asyncmy.cursors.DictCursor) as cur,
+        ):
             placeholders = ",".join(["%s"] * len(port_ids))
             sql = f"""
                 SELECT port_id, ifName, ifSpeed,
