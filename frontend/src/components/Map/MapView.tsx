@@ -28,6 +28,7 @@ import { EditorToolbox } from "../Editor/EditorToolbox";
 import { EditorToolbar } from "../Editor/EditorToolbar";
 import { PropertyPanel } from "../Editor/PropertyPanel";
 import { useTheme } from "@/hooks/useTheme";
+import { logError } from "@/lib/log";
 import { NotFound } from "../Layout/NotFound";
 import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
 
@@ -485,7 +486,7 @@ function MapViewInner() {
         });
         await loadMap(map.id);
       } catch (err) {
-        console.error("Failed to create node on drop:", err);
+        logError(err, { where: "MapView.handleDrop", mapId: map.id });
       }
     },
     [map, editMode, flow, loadMap],

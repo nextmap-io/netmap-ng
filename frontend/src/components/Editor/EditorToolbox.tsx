@@ -2,6 +2,7 @@ import { useCallback } from "react";
 import { useReactFlow } from "@xyflow/react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
+import { logError } from "@/lib/log";
 import type { NodeType } from "@/types";
 
 const NODE_TYPES: { value: NodeType; label: string; badge: string }[] = [
@@ -69,7 +70,7 @@ export function EditorToolbox() {
         });
         await loadMap(map.id);
       } catch (e) {
-        console.error("Failed to create node:", e);
+        logError(e, { where: "EditorToolbox.handleAddNode", nodeType });
       }
     },
     [map, flow, loadMap],

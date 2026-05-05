@@ -1,4 +1,5 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useRef } from "react";
+import { useFocusTrap } from "@/lib/focusTrap";
 
 interface DeleteConfirmDialogProps {
   open: boolean;
@@ -15,12 +16,13 @@ export function DeleteConfirmDialog({
   onConfirm,
   onCancel,
 }: DeleteConfirmDialogProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
       if (e.key === "Enter") onConfirm();
     },
-    [onCancel, onConfirm],
+    [onConfirm],
   );
 
   useEffect(() => {
@@ -29,14 +31,27 @@ export function DeleteConfirmDialog({
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [open, handleKeyDown]);
 
+  useFocusTrap(dialogRef, open, onCancel);
+
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
-      <div className="noc-card rounded-lg shadow-lg w-80 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="delete-dialog-title"
+    >
+      <div
+        ref={dialogRef}
+        className="noc-card rounded-lg shadow-lg w-80 animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+        tabIndex={-1}
+      >
         {/* Header */}
         <div className="px-4 pt-4 pb-2">
-          <h3 className="text-xs font-semibold text-noc-text">{title}</h3>
+          <h3 id="delete-dialog-title" className="text-xs font-semibold text-noc-text">{title}</h3>
         </div>
 
         {/* Body */}

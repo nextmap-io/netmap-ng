@@ -30,6 +30,14 @@ export function PublicIndex() {
       .finally(() => setLoading(false));
   }, []);
 
+  // Redirect to login if public index is disabled (after loading completes).
+  // Side-effects in render bodies are forbidden in React 18 strict mode.
+  useEffect(() => {
+    if (!loading && !enabled) {
+      window.location.href = "/auth/login";
+    }
+  }, [loading, enabled]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-noc-bg flex items-center justify-center">
@@ -39,9 +47,12 @@ export function PublicIndex() {
   }
 
   if (!enabled) {
-    // Redirect to login
-    window.location.href = "/auth/login";
-    return null;
+    // Loading indicator while the redirect effect runs.
+    return (
+      <div className="min-h-screen bg-noc-bg flex items-center justify-center">
+        <div className="w-6 h-6 border border-accent/40 border-t-accent rounded-full animate-spin-slow" />
+      </div>
+    );
   }
 
   return (
@@ -63,6 +74,7 @@ export function PublicIndex() {
             onClick={cycle}
             className="p-1.5 rounded text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors"
             title={`Theme: ${theme}`}
+            aria-label={`Theme: ${theme}`}
           >
             {theme === "dark" && (
               <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>

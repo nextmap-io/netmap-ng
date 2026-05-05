@@ -1,5 +1,6 @@
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
+import { logError } from "@/lib/log";
 import type { NodeType } from "@/types";
 
 const NODE_TYPES: { value: NodeType; label: string; badge: string }[] = [
@@ -45,7 +46,7 @@ export function MapEditor() {
       });
       await loadMap(map.id);
     } catch (e) {
-      console.error("Failed to create node:", e);
+      logError(e, { where: "MapEditor.handleAddNode", nodeType });
     }
   };
 

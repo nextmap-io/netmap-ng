@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { MapNode, LinkType } from "@/types";
+import { useFocusTrap } from "@/lib/focusTrap";
 
 interface LinkCreationDialogProps {
   open: boolean;
@@ -45,6 +46,9 @@ export function LinkCreationDialog({
   const [linkType, setLinkType] = useState<LinkType>("internal");
   const [bandwidthLabel, setBandwidthLabel] = useState("1G");
   const [creating, setCreating] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(dialogRef, open, onClose);
 
   // Filter out group nodes
   const availableNodes = useMemo(
@@ -113,11 +117,22 @@ export function LinkCreationDialog({
   const inputClass = selectClass;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="noc-card rounded-lg shadow-lg w-96 animate-fade-in">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="link-creation-title"
+      onClick={onClose}
+    >
+      <div
+        ref={dialogRef}
+        className="noc-card rounded-lg shadow-lg w-96 animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+        tabIndex={-1}
+      >
         {/* Header */}
         <div className="px-4 pt-4 pb-2">
-          <h3 className="text-xs font-semibold text-noc-text">Create Link</h3>
+          <h3 id="link-creation-title" className="text-xs font-semibold text-noc-text">Create Link</h3>
         </div>
 
         {/* Body */}

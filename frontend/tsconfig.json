@@ -15,6 +15,10 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
+    /* TODO(P3-7): enable noUncheckedIndexedAccess once ScaleBand
+       indexing in MapView.tsx and NetworkLink.tsx, plus useTheme order[]
+       indexing, are guarded. Trial run produced 27 errors (>20). */
+    /* "noUncheckedIndexedAccess": true, */
     "paths": {
       "@/*": ["./src/*"]
     }

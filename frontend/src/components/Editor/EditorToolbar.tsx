@@ -48,6 +48,7 @@ export function EditorToolbar() {
         onClick={enabled ? onClick : undefined}
         disabled={!enabled}
         title={title}
+        aria-label={title}
       >
         {icon}
       </button>

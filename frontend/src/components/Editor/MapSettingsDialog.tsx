@@ -1,6 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
+import { useFocusTrap } from "@/lib/focusTrap";
+import { logError } from "@/lib/log";
 import type { ScaleBand } from "@/types";
 
 interface MapSettingsDialogProps {
@@ -25,6 +27,9 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const [showPercentage, setShowPercentage] = useState(true);
   const [showGraph, setShowGraph] = useState(false);
   const [saving, setSaving] = useState(false);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useFocusTrap(dialogRef, open, onClose);
 
   // Sync local state when dialog opens
   useEffect(() => {
@@ -92,24 +97,33 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
       await loadMap(map.id);
       onClose();
     } catch (e) {
-      console.error("Failed to save map settings:", e);
+      logError(e, { where: "saveMapSettings", mapId: map.id });
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="map-settings-title"
+    >
       <div
+        ref={dialogRef}
         className="noc-card w-[480px] max-h-[80vh] overflow-y-auto p-4 animate-fade-in"
         onClick={(e) => e.stopPropagation()}
+        tabIndex={-1}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <span className="noc-label text-sm">Map Settings</span>
+          <span id="map-settings-title" className="noc-label text-sm">Map Settings</span>
           <button
             onClick={onClose}
             className="text-noc-text-muted hover:text-noc-text transition-colors"
+            aria-label="Close map settings"
           >
             <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5}>
               <path d="M4 4l8 8M12 4l-8 8" />
@@ -293,6 +307,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
                     onClick={() => handleDeleteBand(idx)}
                     className="text-noc-text-muted hover:text-node-firewall transition-colors p-0.5"
                     title="Remove band"
+                    aria-label="Remove band"
                   >
                     <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5}>
                       <path d="M4 4l8 8M12 4l-8 8" />
