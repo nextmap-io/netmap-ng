@@ -5,6 +5,7 @@ Traffic endpoints require map read access.
 """
 
 import logging
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
@@ -105,48 +106,6 @@ async def get_live_traffic(
     return traffic_data
 
 
-@router.get("/traffic/history")
-async def get_traffic_history(
-    hostname: str,
-    port_identifier: str,
-    map_id: str = Query(..., description="Map ID for authorization"),
-    start: str = "-24h",
-    end: str = "now",
-    resolution: int = Query(300, ge=60, le=86400),
-    db: AsyncSession = Depends(get_db),
-    user=Depends(get_current_user),
-):
-    """Fetch historical traffic from RRD file. Requires map read access."""
-    # Verify user has access to this map
-    m = await require_map_read(map_id, user, db)
-
-    # Verify the hostname/port actually belongs to a link in this map
-    result = await db.execute(select(Link).where(Link.map_id == map_id))
-    links = result.scalars().all()
-    link_found = False
-    for link in links:
-        extra = link.extra or {}
-        if extra.get("hostname") == hostname and str(
-            extra.get("port_identifier")
-        ) == str(port_identifier):
-            link_found = True
-            break
-    if not link_found:
-        raise HTTPException(403, "This data source is not part of the specified map")
-
-    # Admins and editors always have graph access
-    # Only restrict for viewers who are not the owner
-    from app.auth.guards import is_admin, is_editor
-
-    if not is_admin(user) and not is_editor(user) and m.owner != user.get("email"):
-        ps = m.public_settings or {}
-        if not ps.get("show_graph", False):
-            raise HTTPException(403, "Traffic history is not available for this map")
-
-    data = rrd.fetch_history(hostname, port_identifier, start, end, resolution)
-    return data
-
-
 @router.get("/traffic/history/by-port")
 async def get_traffic_history_by_port(
     port_id: int,
@@ -156,14 +115,15 @@ async def get_traffic_history_by_port(
     resolution: int = Query(300, ge=60, le=86400),
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
-):
+) -> dict[str, list[Any]]:
     """
     Fetch historical traffic from RRD file using an Observium port ID.
-    Resolves hostname and port_identifier automatically from Observium.
+    Resolves hostname and port_identifier server-side from the Observium
+    port id bound to a link in the map (no client-supplied hostname/path).
     """
     m = await require_map_read(map_id, user, db)
 
-    # Verify this port_id belongs to a link in this map
+    # Verify this port_id belongs to a link in this map.
     result = await db.execute(select(Link).where(Link.map_id == map_id))
     links = result.scalars().all()
     link_found = any(
@@ -171,7 +131,9 @@ async def get_traffic_history_by_port(
         for link in links
     )
     if not link_found:
-        raise HTTPException(403, "This port is not bound to any link in the specified map")
+        raise HTTPException(
+            403, "This port is not bound to any link in the specified map"
+        )
 
     from app.auth.guards import is_admin, is_editor
 
@@ -180,7 +142,7 @@ async def get_traffic_history_by_port(
         if not ps.get("show_graph", False):
             raise HTTPException(403, "Traffic history is not available for this map")
 
-    # Resolve hostname and port_identifier from Observium
+    # Resolve hostname and port_identifier from Observium.
     port_info = await observium.get_port_rrd_info(port_id)
     if not port_info:
         return {"timestamps": [], "in_bps": [], "out_bps": []}
