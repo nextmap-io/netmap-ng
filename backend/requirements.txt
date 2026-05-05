@@ -10,9 +10,8 @@ itsdangerous>=2.2.0,<3.0.0
 python-multipart>=0.0.9,<1.0.0
 pydantic>=2.7.0,<3.0.0
 pydantic-settings>=2.2.0,<3.0.0
-redis>=5.0.0,<7.0.0
+redis>=5.0.0,<8.0.0
 starsessions>=2.2.0,<3.0.0
-cryptography>=42.0.0,<46.0.0
-websockets>=12.0,<14.0
+cryptography>=42.0.0,<49.0.0
 # rrdtool requires librrd-dev system package — installed in Docker only
 # pip install rrdtool  (optional, falls back to subprocess)
