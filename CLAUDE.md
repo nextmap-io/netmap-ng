@@ -131,12 +131,31 @@ gh pr merge <number> --squash --delete-branch
 ```
 
 ### Deploy to production (your-server)
-```bash
-# ALWAYS backup DB first
-ssh your-server 'sudo cp /opt/netmap-ng/backend/data/netmap.db /opt/netmap-ng/backend/data/netmap.db.backup-$(date +%Y%m%d-%H%M%S)'
+Production runs the prebuilt GHCR images via `docker-compose.prod.yml` — no
+on-server `git pull` / `npm run build`.
 
-# Pull, build, restart
-ssh your-server 'cd /opt/netmap-ng && sudo -u netmap git checkout -- frontend/tsconfig.tsbuildinfo && sudo -u netmap git pull && cd frontend && sudo -u netmap npm run build && sudo systemctl restart netmap-ng'
+```bash
+# 1. ALWAYS backup the SQLite DB first (volume-backed)
+ssh your-server 'sudo cp /opt/netmap-ng/data/netmap.db /opt/netmap-ng/data/netmap.db.backup-$(date +%Y%m%d-%H%M%S)'
+
+# 2. Pull the new images and roll the stack
+ssh your-server 'cd /opt/netmap-ng && sudo docker compose -f docker-compose.prod.yml pull && sudo docker compose -f docker-compose.prod.yml up -d'
+
+# 3. Verify health
+ssh your-server 'sudo docker compose -f docker-compose.prod.yml ps && sudo docker compose -f docker-compose.prod.yml logs --tail=100 backend'
+```
+
+Schema migrations: Alembic is **deferred** — for now schema changes are
+applied manually via `sqlite3` (see "Schema migration" below). When Alembic
+lands, it will run inside the backend container on startup.
+
+#### Rollback
+```bash
+# Roll back to the previous image tag (latest -> a specific version)
+ssh your-server 'cd /opt/netmap-ng && sudo IMAGE_TAG=<previous-version> docker compose -f docker-compose.prod.yml up -d'
+
+# If a migration corrupted the DB, restore the backup taken in step 1
+ssh your-server 'sudo docker compose -f docker-compose.prod.yml stop backend && sudo cp /opt/netmap-ng/data/netmap.db.backup-<timestamp> /opt/netmap-ng/data/netmap.db && sudo docker compose -f docker-compose.prod.yml up -d backend'
 ```
 
 ### Schema migration (new DB columns)

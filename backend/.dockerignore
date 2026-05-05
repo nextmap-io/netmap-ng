@@ -1,0 +1,10 @@
+tests
+__pycache__
+*.pyc
+.venv
+.env*
+data
+*.db
+.mypy_cache
+.pytest_cache
+.ruff_cache

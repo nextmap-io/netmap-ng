@@ -1,3 +1,4 @@
+# TODO(P3-1): pin third-party actions to commit SHAs (deferred).
 name: Release
 
 # Two triggers:
@@ -20,8 +21,7 @@ on:
       - "v*"
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 env:
   REGISTRY: ghcr.io
@@ -34,11 +34,13 @@ jobs:
   prepare:
     name: Prepare Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -72,9 +74,11 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     needs: prepare
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
@@ -93,12 +97,14 @@ jobs:
     name: Build Frontend
     runs-on: ubuntu-latest
     needs: [prepare, test]
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: "22"
           cache: npm
@@ -107,7 +113,7 @@ jobs:
       - run: npm run build
       - name: Archive
         run: tar -czf ../frontend-dist.tar.gz -C dist .
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v4
         with:
           name: frontend-dist
           path: frontend-dist.tar.gz
@@ -119,18 +125,26 @@ jobs:
     name: Docker ${{ matrix.image.name }}
     runs-on: ubuntu-latest
     needs: [prepare, test]
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    outputs:
+      backend-digest: ${{ steps.collect.outputs.backend-digest }}
+      frontend-digest: ${{ steps.collect.outputs.frontend-digest }}
     strategy:
       matrix:
         image:
           - { name: backend, dockerfile: backend/Dockerfile, context: backend }
           - { name: frontend, dockerfile: frontend/Dockerfile, context: frontend }
     steps:
-      - uses: actions/checkout@v6
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -138,7 +152,7 @@ jobs:
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v6
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.IMAGE_PREFIX }}-${{ matrix.image.name }}
           tags: |
@@ -148,7 +162,8 @@ jobs:
             type=semver,pattern={{major}},value=${{ needs.prepare.outputs.tag }}
 
       - name: Build and push
-        uses: docker/build-push-action@v7
+        id: build
+        uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.image.context }}
           file: ${{ matrix.image.dockerfile }}
@@ -159,6 +174,41 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # SBOM (SPDX-JSON) for the pushed image
+      - name: Generate SBOM (SPDX-JSON)
+        uses: anchore/sbom-action@v0
+        with:
+          image: ${{ env.IMAGE_PREFIX }}-${{ matrix.image.name }}@${{ steps.build.outputs.digest }}
+          format: spdx-json
+          output-file: sbom-${{ matrix.image.name }}.spdx.json
+          upload-artifact: false
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.image.name }}
+          path: sbom-${{ matrix.image.name }}.spdx.json
+
+      # Build provenance attestation (SLSA)
+      - name: Generate build provenance attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.IMAGE_PREFIX }}-${{ matrix.image.name }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
+      # Keyless cosign signature (OIDC)
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign image with cosign (keyless)
+        env:
+          COSIGN_EXPERIMENTAL: "1"
+          IMAGE: ${{ env.IMAGE_PREFIX }}-${{ matrix.image.name }}
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          cosign sign --yes "${IMAGE}@${DIGEST}"
+
   # ──────────────────────────────────────────────
   # Create GitHub Release with changelog + artifacts
   # ──────────────────────────────────────────────
@@ -166,13 +216,18 @@ jobs:
     name: GitHub Release
     runs-on: ubuntu-latest
     needs: [prepare, build-frontend, docker]
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+      attestations: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
       - name: Download artifacts
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           path: artifacts
 
@@ -180,6 +235,10 @@ jobs:
         run: |
           mkdir -p release
           cp artifacts/frontend-dist/frontend-dist.tar.gz release/ 2>/dev/null || true
+          # Include SBOMs in the release assets if present
+          for d in artifacts/sbom-*; do
+            [ -d "$d" ] && cp "$d"/*.spdx.json release/ 2>/dev/null || true
+          done
           cd release && sha256sum * > checksums.txt
 
       - name: Generate changelog
@@ -192,10 +251,12 @@ jobs:
           else
             CHANGELOG=$(git log --pretty=format:"- %s (%h)" "${TAG}" -- . ':!.github')
           fi
+          # Use a random sentinel rather than literal EOF to avoid clashes with commit-message bodies.
+          DELIM="EOF_$(uuidgen)"
           {
-            echo "changelog<<EOF"
+            echo "changelog<<${DELIM}"
             echo "$CHANGELOG"
-            echo "EOF"
+            echo "${DELIM}"
           } >> "$GITHUB_OUTPUT"
 
       - name: Create GitHub Release
@@ -218,6 +279,8 @@ jobs:
             ```
 
             Available architectures: `linux/amd64`, `linux/arm64`
+
+            Images are signed with [cosign](https://github.com/sigstore/cosign) (keyless / OIDC) and ship with SLSA build-provenance attestations and SPDX SBOMs.
 
             ## Quick Start
 
