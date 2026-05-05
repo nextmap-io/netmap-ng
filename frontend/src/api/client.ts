@@ -87,9 +87,15 @@ export const api = {
 
   // Datasources
   getObserviumDevices: () => request<Record<string, unknown>[]>("/api/datasources/observium/devices"),
-  getDevicePorts: (deviceId: number) => request<Record<string, unknown>[]>(`/api/datasources/observium/devices/${deviceId}/ports`),
+  getDevicePorts: (deviceId: number) =>
+    request<Record<string, unknown>[]>(`/api/datasources/observium/devices/${encodeURIComponent(String(deviceId))}/ports`),
   getNeighbours: (deviceIds?: number[]) => {
-    const query = deviceIds ? `?${qs({ device_ids: deviceIds.join(",") })}` : "";
+    let query = "";
+    if (deviceIds && deviceIds.length > 0) {
+      const sp = new URLSearchParams();
+      deviceIds.forEach((id) => sp.append("device_ids", String(id)));
+      query = `?${sp.toString()}`;
+    }
     return request<Record<string, unknown>[]>(`/api/datasources/observium/neighbours${query}`);
   },
   getLiveTraffic: (mapId: string) =>

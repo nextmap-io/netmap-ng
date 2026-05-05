@@ -1,7 +1,183 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { api } from "@/api/client";
+import { logError } from "@/lib/log";
+import { DeleteConfirmDialog } from "@/components/Editor/DeleteConfirmDialog";
 import type { MapSummary } from "@/types";
+
+interface CreateDialogProps {
+  open: boolean;
+  onCancel: () => void;
+  onConfirm: (name: string) => void;
+}
+
+function CreateMapDialog({ open, onCancel, onConfirm }: CreateDialogProps) {
+  const [name, setName] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open) {
+      setName("");
+      // focus first focusable on mount
+      setTimeout(() => inputRef.current?.focus(), 0);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+      else if (e.key === "Enter" && name.trim()) onConfirm(name.trim());
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, name, onCancel, onConfirm]);
+
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="create-map-title"
+    >
+      <div className="noc-card rounded-lg shadow-lg w-80 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="px-4 pt-4 pb-2">
+          <h3 id="create-map-title" className="text-xs font-semibold text-noc-text">New Map</h3>
+        </div>
+        <div className="px-4 pb-3">
+          <label className="noc-label mb-1 block">Name</label>
+          <input
+            ref={inputRef}
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent/50"
+          />
+        </div>
+        <div className="flex items-center justify-end gap-2 px-4 pb-4">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-2xs font-medium text-noc-text-muted bg-noc-bg border border-noc-border rounded hover:bg-noc-surface transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => name.trim() && onConfirm(name.trim())}
+            disabled={!name.trim()}
+            className="px-3 py-1.5 text-2xs font-medium text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            Create
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface AlertProps {
+  open: boolean;
+  title: string;
+  message: string;
+  onClose: () => void;
+}
+
+function AlertDialog({ open, title, message, onClose }: AlertProps) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape" || e.key === "Enter") onClose();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="alert-title"
+    >
+      <div className="noc-card rounded-lg shadow-lg w-80 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="px-4 pt-4 pb-2">
+          <h3 id="alert-title" className="text-xs font-semibold text-noc-text">{title}</h3>
+        </div>
+        <div className="px-4 pb-4">
+          <p className="text-2xs text-noc-text-muted leading-relaxed">{message}</p>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-4 pb-4">
+          <button
+            onClick={onClose}
+            autoFocus
+            className="px-3 py-1.5 text-2xs font-medium text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 transition-colors"
+          >
+            OK
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ConfirmProps {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}
+
+function ConfirmDialog({ open, title, message, confirmLabel = "Confirm", onConfirm, onCancel }: ConfirmProps) {
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+      else if (e.key === "Enter") onConfirm();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [open, onCancel, onConfirm]);
+
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onCancel}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-title"
+    >
+      <div className="noc-card rounded-lg shadow-lg w-80 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="px-4 pt-4 pb-2">
+          <h3 id="confirm-title" className="text-xs font-semibold text-noc-text">{title}</h3>
+        </div>
+        <div className="px-4 pb-4">
+          <p className="text-2xs text-noc-text-muted leading-relaxed">{message}</p>
+        </div>
+        <div className="flex items-center justify-end gap-2 px-4 pb-4">
+          <button
+            onClick={onCancel}
+            className="px-3 py-1.5 text-2xs font-medium text-noc-text-muted bg-noc-bg border border-noc-border rounded hover:bg-noc-surface transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            autoFocus
+            className="px-3 py-1.5 text-2xs font-medium text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 transition-colors"
+          >
+            {confirmLabel}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function MapList() {
   const [maps, setMaps] = useState<MapSummary[]>([]);
@@ -9,6 +185,12 @@ export function MapList() {
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Dialog states (replacing prompt/confirm/alert)
+  const [showCreate, setShowCreate] = useState(false);
+  const [duplicateTarget, setDuplicateTarget] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string } | null>(null);
+  const [alertState, setAlertState] = useState<{ title: string; message: string } | null>(null);
 
   const refreshMaps = () => {
     api.listMaps().then(setMaps).finally(() => setLoading(false));
@@ -31,34 +213,58 @@ export function MapList() {
     return () => document.removeEventListener("mousedown", handler);
   }, [menuOpen]);
 
-  const createMap = async () => {
-    const name = prompt("Map name:");
-    if (!name?.trim()) return;
-    const result = await api.createMap({ name: name.trim() });
-    setMaps((prev) => [{ id: result.id, name: name.trim(), description: "", updated_at: new Date().toISOString() }, ...prev]);
+  const handleCreateConfirm = async (name: string) => {
+    setShowCreate(false);
+    try {
+      const result = await api.createMap({ name });
+      setMaps((prev) => [
+        { id: result.id, name, description: "", updated_at: new Date().toISOString() },
+        ...prev,
+      ]);
+    } catch (e) {
+      logError(e, { where: "createMap" });
+      setAlertState({ title: "Create failed", message: "Could not create map. Please try again." });
+    }
   };
 
-  const duplicateMap = useCallback(async (mapId: string) => {
-    setMenuOpen(null);
-    if (!confirm("Duplicate this map?")) return;
+  const handleDuplicateConfirm = useCallback(async () => {
+    const id = duplicateTarget;
+    setDuplicateTarget(null);
+    if (!id) return;
     try {
-      await api.duplicateMap(mapId);
+      await api.duplicateMap(id);
       refreshMaps();
-    } catch {
-      alert("Failed to duplicate map");
+    } catch (e) {
+      logError(e, { where: "duplicateMap", mapId: id });
+      setAlertState({ title: "Duplicate failed", message: "Failed to duplicate map." });
     }
-  }, []);
+  }, [duplicateTarget]);
 
-  const deleteMap = useCallback(async (mapId: string, mapName: string) => {
-    setMenuOpen(null);
-    if (!confirm(`Delete "${mapName}"? This cannot be undone.`)) return;
+  const handleDeleteConfirm = useCallback(async () => {
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    if (!target) return;
     try {
-      await api.deleteMap(mapId);
-      setMaps((prev) => prev.filter((m) => m.id !== mapId));
-    } catch {
-      alert("Failed to delete map (you may not be the owner)");
+      await api.deleteMap(target.id);
+      setMaps((prev) => prev.filter((m) => m.id !== target.id));
+    } catch (e) {
+      logError(e, { where: "deleteMap", mapId: target.id });
+      setAlertState({
+        title: "Delete failed",
+        message: "Failed to delete map (you may not be the owner).",
+      });
     }
-  }, []);
+  }, [deleteTarget]);
+
+  const requestDuplicate = (mapId: string) => {
+    setMenuOpen(null);
+    setDuplicateTarget(mapId);
+  };
+
+  const requestDelete = (mapId: string, mapName: string) => {
+    setMenuOpen(null);
+    setDeleteTarget({ id: mapId, name: mapName });
+  };
 
   const toggleMenu = (e: React.MouseEvent, mapId: string) => {
     e.preventDefault();
@@ -92,7 +298,7 @@ export function MapList() {
           </p>
         </div>
         <button
-          onClick={createMap}
+          onClick={() => setShowCreate(true)}
           className="px-3 py-1.5 bg-accent/10 text-accent border border-accent/20 rounded text-2xs font-medium tracking-wider uppercase hover:bg-accent/20 transition-colors focus-visible:ring-1 focus-visible:ring-accent"
         >
           + New Map
@@ -139,6 +345,7 @@ export function MapList() {
                     onClick={(e) => toggleMenu(e, m.id)}
                     className="p-1 rounded text-noc-text-dim hover:text-noc-text hover:bg-noc-surface transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                     title="Actions"
+                    aria-label="Map actions"
                   >
                     <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
                       <circle cx="12" cy="5" r="1.5" />
@@ -150,7 +357,7 @@ export function MapList() {
                   {menuOpen === m.id && (
                     <div className="absolute right-0 top-7 z-50 noc-card border border-noc-border rounded py-1 min-w-[140px] shadow-lg">
                       <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); duplicateMap(m.id); }}
+                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); requestDuplicate(m.id); }}
                         className="w-full text-left px-3 py-1.5 text-2xs text-noc-text hover:bg-noc-surface transition-colors flex items-center gap-2"
                       >
                         <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -161,7 +368,7 @@ export function MapList() {
                       </button>
                       {userEmail && m.owner === userEmail && (
                         <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteMap(m.id, m.name); }}
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); requestDelete(m.id, m.name); }}
                           className="w-full text-left px-3 py-1.5 text-2xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
                         >
                           <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -186,6 +393,33 @@ export function MapList() {
           ))}
         </div>
       )}
+
+      <CreateMapDialog
+        open={showCreate}
+        onCancel={() => setShowCreate(false)}
+        onConfirm={handleCreateConfirm}
+      />
+      <ConfirmDialog
+        open={duplicateTarget !== null}
+        title="Duplicate map"
+        message="Create a copy of this map?"
+        confirmLabel="Duplicate"
+        onConfirm={handleDuplicateConfirm}
+        onCancel={() => setDuplicateTarget(null)}
+      />
+      <DeleteConfirmDialog
+        open={deleteTarget !== null}
+        title="Delete map"
+        message={deleteTarget ? `Delete "${deleteTarget.name}"? This cannot be undone.` : ""}
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteTarget(null)}
+      />
+      <AlertDialog
+        open={alertState !== null}
+        title={alertState?.title ?? ""}
+        message={alertState?.message ?? ""}
+        onClose={() => setAlertState(null)}
+      />
     </div>
   );
 }

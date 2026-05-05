@@ -46,6 +46,7 @@ export function Header() {
           onClick={cycle}
           className="p-1.5 rounded text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors"
           title={`Theme: ${theme}`}
+          aria-label={`Theme: ${theme}`}
         >
           {theme === "dark" && (
             <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
