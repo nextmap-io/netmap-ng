@@ -182,13 +182,14 @@ async def get_traffic_history_by_port(
         if not ps.get("show_graph", False):
             raise HTTPException(403, "Traffic history is not available for this map")
 
-    # Resolve hostname and port_identifier from Observium
+    # Resolve hostname and ifIndex from Observium.
+    # Observium names port RRD files `port-{ifIndex}.rrd` per device.
     port_info = await observium.get_port_rrd_info(port_id)
     if not port_info:
         return {"timestamps": [], "in_bps": [], "out_bps": []}
 
     hostname = port_info["hostname"]
-    port_identifier = str(port_info["port_id"])
+    port_identifier = str(port_info.get("ifIndex") or port_info["port_id"])
 
     data = rrd.fetch_history(hostname, port_identifier, start, end, resolution)
     return data

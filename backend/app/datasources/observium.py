@@ -114,12 +114,16 @@ async def get_neighbours(
 
 
 async def get_port_rrd_info(port_id: int) -> dict[str, Any] | None:
-    """Resolve hostname and port_id for RRD path construction from a port ID."""
+    """Resolve hostname and ifIndex for RRD path construction from a port ID.
+
+    Observium names port RRD files as `port-{ifIndex}.rrd` per device, not
+    `port-{port_id}.rrd` (port_id is the global Observium identifier).
+    """
     async with get_observium_db() as conn:
         async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
                 """
-                SELECT d.hostname, p.port_id
+                SELECT d.hostname, p.port_id, p.ifIndex
                 FROM ports p
                 JOIN devices d ON d.device_id = p.device_id
                 WHERE p.port_id = %s
