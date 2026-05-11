@@ -4,6 +4,14 @@ Provides topology discovery (CDP/LLDP neighbours), device info, port rates.
 
 Compatible with Observium CE where rate columns are in the `ports` table
 directly (no separate `ports-state` table).
+
+Security note: CVE-2025-65896 (CVSS 9.3) reports a SQL injection in
+asyncmy's `escape_dict` reachable when a dict is passed as the params
+argument of `cursor.execute`. As of asyncmy 0.2.11 (current latest on
+PyPI) no patched release exists; the fix lives only on master. Our usage
+passes either tuple or list params, never a dict, so the vulnerable code
+path is not reached. The `_safe_params` helper below enforces this
+invariant at call sites to prevent a future regression.
 """
 
 from contextlib import asynccontextmanager
@@ -11,6 +19,13 @@ from typing import Any
 
 import asyncmy
 from app.config import get_settings
+
+
+def _safe_params(params: Any) -> tuple[Any, ...] | list[Any]:
+    """Reject dict params to avoid the vulnerable asyncmy escape_dict path."""
+    if isinstance(params, dict):
+        raise TypeError("dict params are forbidden (CVE-2025-65896); use a list/tuple")
+    return params
 
 
 @asynccontextmanager
@@ -44,7 +59,7 @@ async def get_devices(device_ids: list[int] | None = None) -> list[dict[str, Any
                 placeholders = ",".join(["%s"] * len(device_ids))
                 sql += f" AND device_id IN ({placeholders})"
                 params = device_ids
-            await cur.execute(sql, params)
+            await cur.execute(sql, _safe_params(params))
             return await cur.fetchall()
 
 
@@ -109,7 +124,7 @@ async def get_neighbours(
                 placeholders = ",".join(["%s"] * len(device_ids))
                 sql += f" AND d.device_id IN ({placeholders})"
                 params = device_ids
-            await cur.execute(sql, params)
+            await cur.execute(sql, _safe_params(params))
             return await cur.fetchall()
 
 
