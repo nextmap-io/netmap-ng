@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { MapNode, NodeType } from "@/types";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { DevicePicker } from "./DevicePicker";
+import { FormField } from "./FormField";
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "router", label: "Router" },
@@ -51,40 +52,44 @@ export function NodeProperties({
         <div className={labelClass}>Identity</div>
         <div className="h-px bg-noc-border/50 mb-3" />
         <div className="space-y-2">
-          <div>
-            <label className={labelClass}>Name</label>
-            <input
-              type="text"
-              value={node.name}
-              onChange={(e) => onUpdate({ name: e.target.value })}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Label</label>
-            <input
-              type="text"
-              value={node.label}
-              onChange={(e) => onUpdate({ label: e.target.value })}
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Type</label>
-            <select
-              value={node.node_type}
-              onChange={(e) =>
-                onUpdate({ node_type: e.target.value as NodeType })
-              }
-              className={inputClass}
-            >
-              {NODE_TYPES.map((nt) => (
-                <option key={nt.value} value={nt.value}>
-                  {nt.label}
-                </option>
-              ))}
-            </select>
-          </div>
+          <FormField label="Name" labelClassName={labelClass}>
+            {(id) => (
+              <input
+                id={id}
+                type="text"
+                value={node.name}
+                onChange={(e) => onUpdate({ name: e.target.value })}
+                className={inputClass}
+              />
+            )}
+          </FormField>
+          <FormField label="Label" labelClassName={labelClass}>
+            {(id) => (
+              <input
+                id={id}
+                type="text"
+                value={node.label}
+                onChange={(e) => onUpdate({ label: e.target.value })}
+                className={inputClass}
+              />
+            )}
+          </FormField>
+          <FormField label="Type" labelClassName={labelClass}>
+            {(id) => (
+              <select
+                id={id}
+                value={node.node_type}
+                onChange={(e) => onUpdate({ node_type: e.target.value as NodeType })}
+                className={inputClass}
+              >
+                {NODE_TYPES.map((nt) => (
+                  <option key={nt.value} value={nt.value}>
+                    {nt.label}
+                  </option>
+                ))}
+              </select>
+            )}
+          </FormField>
         </div>
       </section>
 
@@ -93,31 +98,35 @@ export function NodeProperties({
         <div className={labelClass}>Dimensions</div>
         <div className="h-px bg-noc-border/50 mb-3" />
         <div className="grid grid-cols-2 gap-2">
-          <div>
-            <label className={labelClass}>Width</label>
-            <input
-              type="number"
-              value={node.width ?? ""}
-              placeholder="auto"
-              onChange={(e) =>
-                onUpdate({ width: e.target.value ? parseInt(e.target.value, 10) : null })
-              }
-              className={inputClass}
-            />
-          </div>
-          <div>
-            <label className={labelClass}>Height</label>
-            <input
-              type="number"
-              value={node.height ?? ""}
-              placeholder="auto"
-              onChange={(e) =>
-                onUpdate({ height: e.target.value ? parseInt(e.target.value, 10) : null })
-              }
-              className={inputClass}
-            />
-            </div>
-          </div>
+          <FormField label="Width" labelClassName={labelClass}>
+            {(id) => (
+              <input
+                id={id}
+                type="number"
+                value={node.width ?? ""}
+                placeholder="auto"
+                onChange={(e) =>
+                  onUpdate({ width: e.target.value ? parseInt(e.target.value, 10) : null })
+                }
+                className={inputClass}
+              />
+            )}
+          </FormField>
+          <FormField label="Height" labelClassName={labelClass}>
+            {(id) => (
+              <input
+                id={id}
+                type="number"
+                value={node.height ?? ""}
+                placeholder="auto"
+                onChange={(e) =>
+                  onUpdate({ height: e.target.value ? parseInt(e.target.value, 10) : null })
+                }
+                className={inputClass}
+              />
+            )}
+          </FormField>
+        </div>
       </section>
 
       {/* BEHAVIOR */}
@@ -125,13 +134,14 @@ export function NodeProperties({
         <div className={labelClass}>Behavior</div>
         <div className="h-px bg-noc-border/50 mb-3" />
         <div className="flex items-center justify-between">
-          <label className="text-2xs text-noc-text-muted uppercase tracking-wider">
+          <span id="node-locked-label" className="text-2xs text-noc-text-muted uppercase tracking-wider">
             Locked
-          </label>
+          </span>
           <button
             type="button"
             role="switch"
             aria-checked={node.locked || !!node.style?.locked}
+            aria-labelledby="node-locked-label"
             onClick={() => {
               const isLocked = node.locked || !!node.style?.locked;
               onUpdate({ locked: !isLocked, style: { ...node.style, locked: undefined } });
@@ -149,11 +159,12 @@ export function NodeProperties({
         </div>
         {node.node_type === "group" && (
           <div className="flex items-center justify-between mt-2">
-            <label className="text-2xs text-noc-text-muted uppercase tracking-wider">
+            <label htmlFor="node-bg-color" className="text-2xs text-noc-text-muted uppercase tracking-wider">
               Background Color
             </label>
             <div className="flex items-center gap-1.5">
               <input
+                id="node-bg-color"
                 type="color"
                 value={String(node.style?.bg_color || "#1a1f2e")}
                 onChange={(e) => onUpdate({ style: { ...node.style, bg_color: e.target.value } })}
@@ -171,13 +182,14 @@ export function NodeProperties({
           </div>
         )}
         <div className="flex items-center justify-between mt-2">
-          <label className="text-2xs text-noc-text-muted uppercase tracking-wider">
+          <span id="node-orthogonal-label" className="text-2xs text-noc-text-muted uppercase tracking-wider">
             Orthogonal Links
-          </label>
+          </span>
           <button
             type="button"
             role="switch"
             aria-checked={!!node.style?.straight_links}
+            aria-labelledby="node-orthogonal-label"
             onClick={() => onUpdate({ style: { ...node.style, straight_links: !node.style?.straight_links } })}
             className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
               node.style?.straight_links ? "bg-accent" : "bg-noc-border"
@@ -198,20 +210,25 @@ export function NodeProperties({
           <div className={labelClass}>Text Format</div>
           <div className="h-px bg-noc-border/50 mb-3" />
           <div className="space-y-2">
-            <div>
-              <label className="text-2xs text-noc-text-muted uppercase tracking-wider mb-1 block">Font Size</label>
-              <select
-                value={String(node.style?.font_size || "12")}
-                onChange={(e) => onUpdate({ style: { ...node.style, font_size: e.target.value } })}
-                className={inputClass}
-              >
-                <option value="9">9px — Small</option>
-                <option value="11">11px — Default</option>
-                <option value="14">14px — Medium</option>
-                <option value="18">18px — Large</option>
-                <option value="24">24px — Title</option>
-              </select>
-            </div>
+            <FormField
+              label="Font Size"
+              labelClassName="text-2xs text-noc-text-muted uppercase tracking-wider mb-1 block"
+            >
+              {(id) => (
+                <select
+                  id={id}
+                  value={String(node.style?.font_size || "12")}
+                  onChange={(e) => onUpdate({ style: { ...node.style, font_size: e.target.value } })}
+                  className={inputClass}
+                >
+                  <option value="9">9px — Small</option>
+                  <option value="11">11px — Default</option>
+                  <option value="14">14px — Medium</option>
+                  <option value="18">18px — Large</option>
+                  <option value="24">24px — Title</option>
+                </select>
+              )}
+            </FormField>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onUpdate({ style: { ...node.style, bold: !node.style?.bold } })}
@@ -243,25 +260,30 @@ export function NodeProperties({
                 <option value="right">Right</option>
               </select>
             </div>
-            <div>
-              <label className="text-2xs text-noc-text-muted uppercase tracking-wider mb-1 block">Color</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={String(node.style?.color || "#888888")}
-                  onChange={(e) => onUpdate({ style: { ...node.style, color: e.target.value } })}
-                  className="w-8 h-6 rounded border border-noc-border bg-noc-bg cursor-pointer"
-                />
-                {!!node.style?.color && (
-                  <button
-                    onClick={() => onUpdate({ style: { ...node.style, color: undefined } })}
-                    className="text-2xs text-noc-text-dim hover:text-noc-text"
-                  >
-                    Reset
-                  </button>
-                )}
-              </div>
-            </div>
+            <FormField
+              label="Color"
+              labelClassName="text-2xs text-noc-text-muted uppercase tracking-wider mb-1 block"
+            >
+              {(id) => (
+                <div className="flex items-center gap-2">
+                  <input
+                    id={id}
+                    type="color"
+                    value={String(node.style?.color || "#888888")}
+                    onChange={(e) => onUpdate({ style: { ...node.style, color: e.target.value } })}
+                    className="w-8 h-6 rounded border border-noc-border bg-noc-bg cursor-pointer"
+                  />
+                  {!!node.style?.color && (
+                    <button
+                      onClick={() => onUpdate({ style: { ...node.style, color: undefined } })}
+                      className="text-2xs text-noc-text-dim hover:text-noc-text"
+                    >
+                      Reset
+                    </button>
+                  )}
+                </div>
+              )}
+            </FormField>
           </div>
         </section>
       )}
@@ -270,30 +292,30 @@ export function NodeProperties({
       <section>
         <div className={labelClass}>Parent</div>
         <div className="h-px bg-noc-border/50 mb-3" />
-        <div>
-          <label className={labelClass}>Parent</label>
-          <select
-            value={node.parent_id ?? ""}
-            onChange={(e) =>
-              onUpdate({ parent_id: e.target.value || null })
-            }
-            className={inputClass}
-          >
-            <option value="">None</option>
-            {groupNodes.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.label || g.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <FormField label="Parent" labelClassName={labelClass}>
+          {(id) => (
+            <select
+              id={id}
+              value={node.parent_id ?? ""}
+              onChange={(e) => onUpdate({ parent_id: e.target.value || null })}
+              className={inputClass}
+            >
+              <option value="">None</option>
+              {groupNodes.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.label || g.name}
+                </option>
+              ))}
+            </select>
+          )}
+        </FormField>
       </section>
 
       {/* DATASOURCE */}
       <section>
         <div className={labelClass}>Datasource</div>
         <div className="h-px bg-noc-border/50 mb-3" />
-        <label className={labelClass}>Observium Device</label>
+        <div className={labelClass}>Observium Device</div>
         <DevicePicker
           value={node.observium_device_id}
           onChange={(deviceId) => onUpdate({ observium_device_id: deviceId })}
@@ -304,18 +326,18 @@ export function NodeProperties({
       <section>
         <div className={labelClass}>URL</div>
         <div className="h-px bg-noc-border/50 mb-3" />
-        <div>
-          <label className={labelClass}>Info URL</label>
-          <input
-            type="text"
-            value={node.info_url ?? ""}
-            onChange={(e) =>
-              onUpdate({ info_url: e.target.value || null })
-            }
-            className={inputClass}
-            placeholder="https://..."
-          />
-        </div>
+        <FormField label="Info URL" labelClassName={labelClass}>
+          {(id) => (
+            <input
+              id={id}
+              type="text"
+              value={node.info_url ?? ""}
+              onChange={(e) => onUpdate({ info_url: e.target.value || null })}
+              className={inputClass}
+              placeholder="https://..."
+            />
+          )}
+        </FormField>
       </section>
 
       {/* DELETE */}

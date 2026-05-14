@@ -10,7 +10,7 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
 
   if (!scales.length) return null;
 
-  const sorted = [...scales].sort((a, b) => a.min - b.min);
+  const sorted = scales.toSorted((a, b) => a.min - b.min);
 
   if (collapsed) {
     return (
@@ -41,8 +41,8 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
         </button>
       </div>
       <div className="flex flex-col gap-1 sm:gap-1.5">
-        {sorted.map((band, i) => (
-          <div key={i} className="flex items-center gap-1.5 sm:gap-2">
+        {sorted.map((band) => (
+          <div key={`${band.min}-${band.max}`} className="flex items-center gap-1.5 sm:gap-2">
             <div
               className="w-4 sm:w-5 h-2 sm:h-2.5 rounded-sm"
               style={{ backgroundColor: band.color }}

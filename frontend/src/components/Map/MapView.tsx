@@ -211,7 +211,7 @@ function getScaleColor(pct: number, scales: ScaleBand[], gradient = false): stri
   }
 
   // Gradient mode: interpolate between band colors based on pct
-  const sorted = [...scales].sort((a, b) => a.min - b.min);
+  const sorted = scales.toSorted((a, b) => a.min - b.min);
   if (sorted.length === 0) return "hsl(220 10% 46%)";
 
   // Clamp pct
@@ -323,21 +323,22 @@ function MapViewInner() {
         if (!currentMap || selectedNodeIds.length === 0) return;
         const selectedNodes = currentMap.nodes.filter(n => selectedNodeIds.includes(n.id));
         (async () => {
-          const newIds: string[] = [];
-          for (const n of selectedNodes) {
-            const result = await api.createNode(currentMap.id, {
-              name: `${n.name}-copy`,
-              label: `${n.label || n.name} (copy)`,
-              node_type: n.node_type,
-              x: n.x + 30,
-              y: n.y + 30,
-              width: n.width,
-              height: n.height,
-              parent_id: n.parent_id,
-              style: n.style,
-            });
-            newIds.push(result.id);
-          }
+          const results = await Promise.all(
+            selectedNodes.map((n) =>
+              api.createNode(currentMap.id, {
+                name: `${n.name}-copy`,
+                label: `${n.label || n.name} (copy)`,
+                node_type: n.node_type,
+                x: n.x + 30,
+                y: n.y + 30,
+                width: n.width,
+                height: n.height,
+                parent_id: n.parent_id,
+                style: n.style,
+              }),
+            ),
+          );
+          const newIds = results.map((r) => r.id);
           await useMapStore.getState().loadMap(currentMap.id);
           useMapStore.getState().selectNodes(newIds);
         })();

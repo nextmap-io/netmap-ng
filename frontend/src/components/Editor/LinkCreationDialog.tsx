@@ -58,17 +58,6 @@ export function LinkCreationDialog({
     [availableNodes, sourceId],
   );
 
-  // Auto-fill name when source and target change
-  useEffect(() => {
-    if (sourceId && targetId) {
-      const sourceNode = availableNodes.find((n) => n.id === sourceId);
-      const targetNode = availableNodes.find((n) => n.id === targetId);
-      if (sourceNode && targetNode) {
-        setName(`${sourceNode.label || sourceNode.name} - ${targetNode.label || targetNode.name}`);
-      }
-    }
-  }, [sourceId, targetId, availableNodes]);
-
   // Reset form when dialog opens
   useEffect(() => {
     if (open) {
@@ -81,10 +70,28 @@ export function LinkCreationDialog({
     }
   }, [open]);
 
-  // Clear target if it matches new source
-  useEffect(() => {
-    if (targetId === sourceId) setTargetId("");
-  }, [sourceId, targetId]);
+  const autoName = (sId: string, tId: string) => {
+    if (!sId || !tId) return "";
+    const s = availableNodes.find((n) => n.id === sId);
+    const t = availableNodes.find((n) => n.id === tId);
+    return s && t
+      ? `${s.label || s.name} - ${t.label || t.name}`
+      : "";
+  };
+
+  const handleSourceChange = (next: string) => {
+    setSourceId(next);
+    const nextTarget = targetId === next ? "" : targetId;
+    if (nextTarget !== targetId) setTargetId(nextTarget);
+    const fill = autoName(next, nextTarget);
+    if (fill) setName(fill);
+  };
+
+  const handleTargetChange = (next: string) => {
+    setTargetId(next);
+    const fill = autoName(sourceId, next);
+    if (fill) setName(fill);
+  };
 
   if (!open) return null;
 
@@ -128,7 +135,7 @@ export function LinkCreationDialog({
             <select
               className={selectClass}
               value={sourceId}
-              onChange={(e) => setSourceId(e.target.value)}
+              onChange={(e) => handleSourceChange(e.target.value)}
             >
               <option value="">Select source node...</option>
               {availableNodes.map((n) => (
@@ -145,7 +152,7 @@ export function LinkCreationDialog({
             <select
               className={selectClass}
               value={targetId}
-              onChange={(e) => setTargetId(e.target.value)}
+              onChange={(e) => handleTargetChange(e.target.value)}
             >
               <option value="">Select target node...</option>
               {targetNodes.map((n) => (

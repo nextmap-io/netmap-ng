@@ -2,11 +2,17 @@ import { useState, useEffect } from "react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
 import type { ScaleBand } from "@/types";
+import { FormField } from "./FormField";
 
 interface MapSettingsDialogProps {
   open: boolean;
   onClose: () => void;
 }
+
+type LocalBand = ScaleBand & { _key: string };
+
+let bandKeyCounter = 0;
+const nextBandKey = () => `band-${++bandKeyCounter}`;
 
 export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const { map, loadMap } = useMapStore();
@@ -16,7 +22,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const [width, setWidth] = useState(1920);
   const [height, setHeight] = useState(1080);
   const [refreshInterval, setRefreshInterval] = useState(30);
-  const [bands, setBands] = useState<ScaleBand[]>([]);
+  const [bands, setBands] = useState<LocalBand[]>([]);
   const [scaleMode, setScaleMode] = useState<"steps" | "gradient">("steps");
   const [visibility, setVisibility] = useState<"private" | "internal" | "public">("internal");
   const [publicToken, setPublicToken] = useState<string | null>(null);
@@ -65,7 +71,9 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
       setShowBandwidth(ps.show_bandwidth ?? true);
       setShowPercentage(ps.show_percentage ?? true);
       setShowGraph(ps.show_graph ?? false);
-      setBands(map.scales.default?.map((b) => ({ ...b })) ?? []);
+      setBands(
+        map.scales.default?.map((b) => ({ ...b, _key: nextBandKey() })) ?? [],
+      );
     }
   }, [open, map]);
 
@@ -84,7 +92,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
     const lastMax = bands.length > 0 ? bands[bands.length - 1].max : 0;
     setBands((prev) => [
       ...prev,
-      { min: lastMax, max: lastMax + 10, color: "#00bcd4", label: "" },
+      { min: lastMax, max: lastMax + 10, color: "#00bcd4", label: "", _key: nextBandKey() },
     ]);
   };
 
@@ -109,7 +117,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
         public_settings: { show_bps: showBps, show_bandwidth: showBandwidth, show_percentage: showPercentage, show_graph: showGraph },
         scales: {
           ...map.scales,
-          default: bands,
+          default: bands.map(({ _key: _unused, ...rest }) => rest),
         },
       });
       await loadMap(map.id);
@@ -142,120 +150,138 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
 
         <div className="space-y-3">
           {/* Map Name */}
-          <div>
-            <label className="noc-label mb-1 block">Map Name</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={inputClass}
-            />
-          </div>
+          <FormField label="Map Name">
+            {(id) => (
+              <input
+                id={id}
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={inputClass}
+              />
+            )}
+          </FormField>
 
           {/* Description */}
-          <div>
-            <label className="noc-label mb-1 block">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className={`${inputClass} resize-none`}
-            />
-          </div>
+          <FormField label="Description">
+            {(id) => (
+              <textarea
+                id={id}
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={2}
+                className={`${inputClass} resize-none`}
+              />
+            )}
+          </FormField>
 
           {/* Width / Height */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="noc-label mb-1 block">Width</label>
-              <input
-                type="number"
-                value={width}
-                onChange={(e) => setWidth(Number(e.target.value))}
-                className={inputClass}
-              />
-            </div>
-            <div>
-              <label className="noc-label mb-1 block">Height</label>
-              <input
-                type="number"
-                value={height}
-                onChange={(e) => setHeight(Number(e.target.value))}
-                className={inputClass}
-              />
-            </div>
+            <FormField label="Width">
+              {(id) => (
+                <input
+                  id={id}
+                  type="number"
+                  value={width}
+                  onChange={(e) => setWidth(Number(e.target.value))}
+                  className={inputClass}
+                />
+              )}
+            </FormField>
+            <FormField label="Height">
+              {(id) => (
+                <input
+                  id={id}
+                  type="number"
+                  value={height}
+                  onChange={(e) => setHeight(Number(e.target.value))}
+                  className={inputClass}
+                />
+              )}
+            </FormField>
           </div>
 
           {/* Refresh Interval */}
-          <div>
-            <label className="noc-label mb-1 block">Refresh Interval (seconds)</label>
-            <input
-              type="number"
-              value={refreshInterval}
-              onChange={(e) => setRefreshInterval(Number(e.target.value))}
-              min={5}
-              className={inputClass}
-            />
-          </div>
+          <FormField label="Refresh Interval (seconds)">
+            {(id) => (
+              <input
+                id={id}
+                type="number"
+                value={refreshInterval}
+                onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                min={5}
+                className={inputClass}
+              />
+            )}
+          </FormField>
 
           {/* Separator */}
           <div className="h-px bg-noc-border/50 my-2" />
 
           {/* Scale Mode */}
-          <div>
-            <label className="noc-label mb-1 block">Scale Mode</label>
-            <select
-              value={scaleMode}
-              onChange={(e) => setScaleMode(e.target.value as "steps" | "gradient")}
-              className={inputClass}
-            >
-              <option value="steps">Steps (fixed color per band)</option>
-              <option value="gradient">Gradient (smooth interpolation)</option>
-            </select>
-          </div>
+          <FormField label="Scale Mode">
+            {(id) => (
+              <select
+                id={id}
+                value={scaleMode}
+                onChange={(e) => setScaleMode(e.target.value as "steps" | "gradient")}
+                className={inputClass}
+              >
+                <option value="steps">Steps (fixed color per band)</option>
+                <option value="gradient">Gradient (smooth interpolation)</option>
+              </select>
+            )}
+          </FormField>
 
           {/* Visibility & Sharing */}
           <div className="space-y-2">
-            <label className="noc-label mb-1 block">Visibility</label>
-            <select
-              value={visibility}
-              onChange={async (e) => {
-                const v = e.target.value as "private" | "internal" | "public";
-                setVisibility(v);
-                if (v === "public" && !publicToken) {
-                  const result = await api.shareMap(map.id);
-                  setPublicToken(result.public_token);
-                } else if (v !== "public" && publicToken) {
-                  await api.unshareMap(map.id);
-                  setPublicToken(null);
-                }
-              }}
-              className={inputClass}
-            >
-              <option value="private">Private (owner only)</option>
-              <option value="internal">Internal (any authenticated user)</option>
-              <option value="public">Public (anyone with share link)</option>
-            </select>
+            <FormField label="Visibility">
+              {(id) => (
+                <select
+                  id={id}
+                  value={visibility}
+                  onChange={async (e) => {
+                    const v = e.target.value as "private" | "internal" | "public";
+                    setVisibility(v);
+                    if (v === "public" && !publicToken) {
+                      const result = await api.shareMap(map.id);
+                      setPublicToken(result.public_token);
+                    } else if (v !== "public" && publicToken) {
+                      await api.unshareMap(map.id);
+                      setPublicToken(null);
+                    }
+                  }}
+                  className={inputClass}
+                >
+                  <option value="private">Private (owner only)</option>
+                  <option value="internal">Internal (any authenticated user)</option>
+                  <option value="public">Public (anyone with share link)</option>
+                </select>
+              )}
+            </FormField>
             {visibility === "public" && publicToken && (
               <div className="space-y-2">
-                <div>
-                  <label className="noc-label mb-1 block">Share Link</label>
-                  <div className="flex items-center gap-1">
-                    <input
-                      type="text"
-                      readOnly
-                      value={`${window.location.origin}/public/${publicToken}`}
-                      className={inputClass + " text-2xs"}
-                      onClick={(e) => (e.target as HTMLInputElement).select()}
-                    />
-                    <button
-                      onClick={() => copyToClipboard(`${window.location.origin}/public/${publicToken}`)}
-                      className="px-2 py-1 text-2xs bg-accent/10 text-accent border border-accent/20 rounded hover:bg-accent/20 transition-colors shrink-0"
-                    >
-                      {copied ? "Copied!" : "Copy"}
-                    </button>
-                  </div>
-                </div>
-                <label className="noc-label mb-1 block">Public Data Visibility</label>
+                <FormField label="Share Link">
+                  {(id) => (
+                    <div className="flex items-center gap-1">
+                      <input
+                        id={id}
+                        type="text"
+                        readOnly
+                        value={`${window.location.origin}/public/${publicToken}`}
+                        className={inputClass + " text-2xs"}
+                        onClick={(e) => (e.target as HTMLInputElement).select()}
+                      />
+                      <button
+                        onClick={() => copyToClipboard(`${window.location.origin}/public/${publicToken}`)}
+                        className="px-2 py-1 text-2xs bg-accent/10 text-accent border border-accent/20 rounded hover:bg-accent/20 transition-colors shrink-0"
+                      >
+                        {copied ? "Copied!" : "Copy"}
+                      </button>
+                    </div>
+                  )}
+                </FormField>
+                <div className="noc-label mb-1">Public Data Visibility</div>
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-2 text-xs text-noc-text">
                     <input type="checkbox" checked={showPercentage} onChange={(e) => setShowPercentage(e.target.checked)} className="accent-accent" />
@@ -280,10 +306,10 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
 
           {/* Color Scale Editor */}
           <div>
-            <label className="noc-label mb-2 block">Color Scale</label>
+            <div className="noc-label mb-2">Color Scale</div>
             <div className="space-y-1.5">
               {bands.map((band, idx) => (
-                <div key={idx} className="flex items-center gap-2">
+                <div key={band._key} className="flex items-center gap-2">
                   <input
                     type="color"
                     value={band.color}
