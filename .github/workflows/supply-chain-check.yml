@@ -2,17 +2,41 @@ name: Supply Chain Check
 
 # Verify dependencies are not too recent (>7 days old) to mitigate
 # supply chain attacks via compromised fresh packages.
+#
+# - npm: checks resolved versions from package-lock.json.
+# - pip: checks the version floor (>=, ==, ~=) declared in requirements.txt,
+#        not the latest on PyPI (which would fail unrelated PRs whenever any
+#        listed package publishes a fresh release).
+#
+# Each sub-check is gated on whether its lockfile/requirements file changed,
+# so an npm-only PR does not fail on pip and vice versa.
 
 on:
   pull_request:
     branches: [main]
-    paths:
-      - "frontend/package-lock.json"
-      - "backend/requirements.txt"
 
 jobs:
+  detect-changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      npm: ${{ steps.filter.outputs.npm }}
+      pip: ${{ steps.filter.outputs.pip }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            npm:
+              - 'frontend/package-lock.json'
+            pip:
+              - 'backend/requirements.txt'
+
   check-npm-package-age:
     name: Check npm package age
+    needs: detect-changes
+    if: needs.detect-changes.outputs.npm == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -26,15 +50,9 @@ jobs:
           MIN_AGE_DAYS=7
           FAILED=0
 
-          # Extract all packages from package-lock.json
+          # Extract direct deps from package-lock.json
           node -e "
             const lock = require('./package-lock.json');
-            const deps = lock.packages || {};
-            const names = Object.keys(deps)
-              .filter(k => k.startsWith('node_modules/'))
-              .map(k => k.replace('node_modules/', ''))
-              .filter(k => !k.includes('node_modules/'));
-            // Only check direct dependencies and their first-level deps
             const directDeps = Object.keys({
               ...(lock.packages?.['']?.dependencies || {}),
               ...(lock.packages?.['']?.devDependencies || {})
@@ -43,7 +61,6 @@ jobs:
           " | while read -r pkg; do
             if [ -z "$pkg" ]; then continue; fi
 
-            # Get the installed version from package-lock.json
             VERSION=$(node -e "
               const lock = require('./package-lock.json');
               const entry = lock.packages?.['node_modules/$pkg'];
@@ -52,7 +69,6 @@ jobs:
 
             if [ -z "$VERSION" ]; then continue; fi
 
-            # Query npm registry for publish date
             PUBLISH_DATE=$(npm view "$pkg@$VERSION" time --json 2>/dev/null | node -e "
               let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{
                 try {
@@ -64,7 +80,6 @@ jobs:
 
             if [ -z "$PUBLISH_DATE" ]; then continue; fi
 
-            # Calculate age in days
             PUBLISH_TS=$(date -d "$PUBLISH_DATE" +%s 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%S" "${PUBLISH_DATE%%.*}" +%s 2>/dev/null || echo 0)
             NOW_TS=$(date +%s)
             AGE_DAYS=$(( (NOW_TS - PUBLISH_TS) / 86400 ))
@@ -86,6 +101,8 @@ jobs:
 
   check-pip-package-age:
     name: Check pip package age
+    needs: detect-changes
+    if: needs.detect-changes.outputs.pip == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -95,29 +112,36 @@ jobs:
 
       - name: Check for packages published less than 7 days ago
         run: |
-          echo "Checking pip package publication dates..."
+          echo "Checking pip package publication dates (against version floor in requirements.txt)..."
           MIN_AGE_DAYS=7
           FAILED=0
 
           while IFS= read -r line; do
-            # Skip comments and empty lines
             [[ "$line" =~ ^#.*$ ]] && continue
             [[ -z "$line" ]] && continue
 
-            # Extract package name (before >=, ==, etc.)
-            PKG=$(echo "$line" | sed 's/[><=!].*//' | sed 's/\[.*\]//' | tr -d '[:space:]')
+            parsed=$(LINE="$line" python3 - <<'PY' 2>/dev/null
+          import os, re
+          line = os.environ.get("LINE", "").strip()
+          line = re.sub(r"\[.*?\]", "", line)
+          m = re.match(r"^([A-Za-z0-9_.-]+)\s*(?:>=|==|~=)\s*([0-9][A-Za-z0-9_.+-]*)", line)
+          if m:
+              print(m.group(1), m.group(2))
+          PY
+          )
+            PKG=$(echo "$parsed" | awk '{print $1}')
+            VERSION=$(echo "$parsed" | awk '{print $2}')
             [ -z "$PKG" ] && continue
+            [ -z "$VERSION" ] && continue
 
-            # Get latest version info from PyPI
-            UPLOAD_DATE=$(curl -s "https://pypi.org/pypi/$PKG/json" 2>/dev/null | python3 -c "
+            UPLOAD_DATE=$(curl -s "https://pypi.org/pypi/$PKG/$VERSION/json" 2>/dev/null | python3 -c "
           import json, sys
           try:
               data = json.load(sys.stdin)
-              version = data['info']['version']
-              files = data['releases'].get(version, [])
-              if files:
-                  print(files[0]['upload_time'][:10])
-          except:
+              urls = data.get('urls', [])
+              if urls:
+                  print(urls[0]['upload_time'][:10])
+          except Exception:
               pass
           " 2>/dev/null)
 
@@ -128,15 +152,16 @@ jobs:
             AGE_DAYS=$(( (NOW_TS - UPLOAD_TS) / 86400 ))
 
             if [ "$AGE_DAYS" -lt "$MIN_AGE_DAYS" ] && [ "$AGE_DAYS" -ge 0 ]; then
-              echo "::error::SUPPLY CHAIN WARNING: $PKG latest version was published only $AGE_DAYS days ago (minimum: $MIN_AGE_DAYS)"
+              echo "::error::SUPPLY CHAIN WARNING: $PKG $VERSION was published only $AGE_DAYS days ago (minimum: $MIN_AGE_DAYS)"
               FAILED=1
             fi
           done < backend/requirements.txt
 
           if [ "$FAILED" = "1" ]; then
             echo ""
-            echo "::error::One or more packages were published less than $MIN_AGE_DAYS days ago."
+            echo "::error::One or more pinned versions were published less than $MIN_AGE_DAYS days ago."
+            echo "This could indicate a supply chain attack. Please wait or investigate."
             exit 1
           fi
 
-          echo "✓ All pip dependencies are older than $MIN_AGE_DAYS days"
+          echo "✓ All pinned versions are older than $MIN_AGE_DAYS days"
