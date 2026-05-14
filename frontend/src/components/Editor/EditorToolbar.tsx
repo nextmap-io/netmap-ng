@@ -3,6 +3,8 @@ import { useMapStore } from "@/hooks/useMapStore";
 import { LinkCreationDialog } from "./LinkCreationDialog";
 import { MapSettingsDialog } from "./MapSettingsDialog";
 
+const SEPARATOR = <div className="h-4 w-px bg-noc-border/50" />;
+
 export function EditorToolbar() {
   const {
     editMode,
@@ -60,8 +62,6 @@ export function EditorToolbar() {
     );
   }
 
-  const sep = <div className="h-4 w-px bg-noc-border/50" />;
-
   return (
     <>
       <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 noc-glass rounded flex items-center gap-0.5 px-1.5 py-1">
@@ -69,33 +69,33 @@ export function EditorToolbar() {
         {btn(canAlign, () => alignNodes("left"), <IconAlignLeft />, "Align Left")}
         {btn(canAlign, () => alignNodes("center"), <IconAlignCenterH />, "Align Center Horizontal")}
         {btn(canAlign, () => alignNodes("right"), <IconAlignRight />, "Align Right")}
-        {sep}
+        {SEPARATOR}
         {btn(canAlign, () => alignNodes("top"), <IconAlignTop />, "Align Top")}
         {btn(canAlign, () => alignNodes("middle"), <IconAlignMiddleV />, "Align Middle Vertical")}
         {btn(canAlign, () => alignNodes("bottom"), <IconAlignBottom />, "Align Bottom")}
 
         {/* Group 2 - Distribution */}
-        {sep}
+        {SEPARATOR}
         {btn(canDistribute, () => distributeNodes("horizontal"), <IconDistributeH />, "Distribute Horizontal")}
         {btn(canDistribute, () => distributeNodes("vertical"), <IconDistributeV />, "Distribute Vertical")}
 
         {/* Group 3 - Flip / Mirror */}
-        {sep}
+        {SEPARATOR}
         {btn(canAlign, () => flipNodes("horizontal"), <IconFlipH />, "Flip Horizontal")}
         {btn(canAlign, () => flipNodes("vertical"), <IconFlipV />, "Flip Vertical")}
 
         {/* Group 4 - Bind */}
-        {sep}
+        {SEPARATOR}
         {btn(canBind, () => bindSelectedNodes(), <IconBind />, "Bind (move together)")}
         {btn(isBound, () => unbindSelectedNodes(), <IconUnbind />, "Unbind")}
 
         {/* Group 5 - Undo/Redo */}
-        {sep}
+        {SEPARATOR}
         {btn(canUndo, () => undo(), <IconUndo />, "Undo (Ctrl+Z)")}
         {btn(canRedo, () => redo(), <IconRedo />, "Redo (Ctrl+Shift+Z)")}
 
         {/* Group 6 - Canvas */}
-        {sep}
+        {SEPARATOR}
         {btn(true, toggleSelectMode, <IconSelect />, "Select Mode (drag to select)", selectMode)}
         {btn(true, toggleSnapToGrid, <IconGrid />, "Snap to Grid", snapToGrid)}
         {btn(true, () => setShowSettings(true), <IconSettings />, "Map Settings")}

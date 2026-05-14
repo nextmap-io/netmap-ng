@@ -3,6 +3,8 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import type { MapSummary } from "@/types";
 
+const SKELETON_PLACEHOLDERS = ["skel-a", "skel-b", "skel-c"] as const;
+
 export function MapList() {
   const [maps, setMaps] = useState<MapSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -73,8 +75,8 @@ export function MapList() {
           <div className="h-3 w-32 bg-noc-surface rounded animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, hsl(220 15% 20%) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="noc-card p-4 h-28 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, hsl(220 15% 14%) 50%, transparent 100%)", backgroundSize: "200% 100%", animationDelay: `${i * 0.15}s` }} />
+          {SKELETON_PLACEHOLDERS.map((slot, i) => (
+            <div key={slot} className="noc-card p-4 h-28 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, hsl(220 15% 14%) 50%, transparent 100%)", backgroundSize: "200% 100%", animationDelay: `${i * 0.15}s` }} />
           ))}
         </div>
       </div>

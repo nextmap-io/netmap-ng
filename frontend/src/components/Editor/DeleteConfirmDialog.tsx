@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useRef } from "react";
 
 interface DeleteConfirmDialogProps {
   open: boolean;
@@ -15,28 +15,47 @@ export function DeleteConfirmDialog({
   onConfirm,
   onCancel,
 }: DeleteConfirmDialogProps) {
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-      if (e.key === "Enter") onConfirm();
-    },
-    [onCancel, onConfirm],
-  );
+  // Latest handler refs — keep the keydown listener stable across renders.
+  const onCancelRef = useRef(onCancel);
+  const onConfirmRef = useRef(onConfirm);
+  useEffect(() => {
+    onCancelRef.current = onCancel;
+    onConfirmRef.current = onConfirm;
+  });
+
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, handleKeyDown]);
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancelRef.current();
+      else if (e.key === "Enter") onConfirmRef.current();
+    };
+    window.addEventListener("keydown", handler);
+    confirmButtonRef.current?.focus();
+    return () => window.removeEventListener("keydown", handler);
+  }, [open]);
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onCancel}>
-      <div className="noc-card rounded-lg shadow-lg w-80 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+    <div
+      role="presentation"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-confirm-title"
+        className="noc-card rounded-lg shadow-lg w-80 animate-fade-in"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="px-4 pt-4 pb-2">
-          <h3 className="text-xs font-semibold text-noc-text">{title}</h3>
+          <h3 id="delete-confirm-title" className="text-xs font-semibold text-noc-text">
+            {title}
+          </h3>
         </div>
 
         {/* Body */}
@@ -53,8 +72,8 @@ export function DeleteConfirmDialog({
             Cancel
           </button>
           <button
+            ref={confirmButtonRef}
             onClick={onConfirm}
-            autoFocus
             className="px-3 py-1.5 text-2xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors"
           >
             Delete

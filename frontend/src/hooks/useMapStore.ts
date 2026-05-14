@@ -326,8 +326,8 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     const nw = (n: MapNode) => n.width || 100;
     const nh = (n: MapNode) => n.height || 28;
-    const refByY = [...selectedNodes].sort((a, b) => a.y - b.y)[0];
-    const refByX = [...selectedNodes].sort((a, b) => a.x - b.x)[0];
+    const refByY = selectedNodes.reduce((min, n) => (n.y < min.y ? n : min));
+    const refByX = selectedNodes.reduce((min, n) => (n.x < min.x ? n : min));
 
     switch (direction) {
       case "left": {
@@ -345,7 +345,9 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "right": {
-        const refRight = [...selectedNodes].sort((a, b) => (a.x + nw(a)) - (b.x + nw(b))).pop()!;
+        const refRight = selectedNodes.reduce((max, n) =>
+          n.x + nw(n) > max.x + nw(max) ? n : max,
+        );
         const rightEdge = refRight.x + nw(refRight);
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, x: rightEdge - nw(n) } : n
@@ -367,7 +369,9 @@ export const useMapStore = create<MapStore>((set, get) => ({
         break;
       }
       case "bottom": {
-        const refBot = [...selectedNodes].sort((a, b) => (a.y + nh(a)) - (b.y + nh(b))).pop()!;
+        const refBot = selectedNodes.reduce((max, n) =>
+          n.y + nh(n) > max.y + nh(max) ? n : max,
+        );
         const bottomEdge = refBot.y + nh(refBot);
         updatedNodes = map.nodes.map((n: MapNode) =>
           selectedNodeIds.includes(n.id) ? { ...n, y: bottomEdge - nh(n) } : n
@@ -401,7 +405,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     if (axis === "horizontal") {
       const nw = (n: MapNode) => n.width || 100;
-      const sorted = [...selectedNodes].sort((a, b) => (a.x + nw(a)/2) - (b.x + nw(b)/2));
+      const sorted = selectedNodes.toSorted((a, b) => (a.x + nw(a)/2) - (b.x + nw(b)/2));
       const firstCenter = sorted[0].x + nw(sorted[0]) / 2;
       const lastCenter = sorted[sorted.length - 1].x + nw(sorted[sorted.length - 1]) / 2;
       const step = (lastCenter - firstCenter) / (sorted.length - 1);
@@ -417,7 +421,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
       );
     } else {
       const nh = (n: MapNode) => n.height || 28;
-      const sorted = [...selectedNodes].sort((a, b) => (a.y + nh(a)/2) - (b.y + nh(b)/2));
+      const sorted = selectedNodes.toSorted((a, b) => (a.y + nh(a)/2) - (b.y + nh(b)/2));
       const firstCenter = sorted[0].y + nh(sorted[0]) / 2;
       const lastCenter = sorted[sorted.length - 1].y + nh(sorted[sorted.length - 1]) / 2;
       const step = (lastCenter - firstCenter) / (sorted.length - 1);

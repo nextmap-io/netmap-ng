@@ -32,3 +32,6 @@ Thumbs.db
 
 # Docker
 docker-compose.override.yml
+
+# Claude Code (local skills/settings installed by tools)
+**/.claude/skills/
