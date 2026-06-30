@@ -396,7 +396,7 @@ function MapViewInner() {
   );
 
   const handleNodeDragStart = useCallback(
-    (_event: React.MouseEvent, node: Node) => {
+    (_event: MouseEvent | TouchEvent, node: Node) => {
       if (!editMode) return;
       pushUndo();
       // Capture positions of all nodes for bound-group delta calculation
