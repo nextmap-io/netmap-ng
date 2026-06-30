@@ -53,7 +53,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=cors_origins,
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
@@ -78,7 +78,7 @@ async def security_headers(request: Request, call_next):
 async def audit_log(request: Request, call_next):
     response = await call_next(request)
     # Log write operations
-    if request.method in ("POST", "PUT", "DELETE"):
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
         user = request.session.get("user", {}) if hasattr(request, "session") else {}
         email = user.get("email", "anonymous")
         logger.info(

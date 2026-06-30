@@ -120,29 +120,44 @@ async def get_public_traffic(token: str, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Link).where(Link.map_id == m.id))
     links = result.scalars().all()
 
-    traffic_data = {}
+    # Collect every port id needed (primary A + fallback B) and fetch in one
+    # batched query instead of one round-trip per link (avoids N+1).
+    port_ids: list[int] = []
     for link in links:
         if link.observium_port_id_a:
-            port_data = await observium.get_port_traffic(link.observium_port_id_a)
-            if port_data:
-                in_rate = port_data.get("ifInOctets_rate", 0) or 0
-                out_rate = port_data.get("ifOutOctets_rate", 0) or 0
-                in_bps = float(in_rate) * 8
-                out_bps = float(out_rate) * 8
-                bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
-                in_pct = min(100.0, (in_bps / bw) * 100)
-                out_pct = min(100.0, (out_bps / bw) * 100)
+            port_ids.append(link.observium_port_id_a)
+        if link.observium_port_id_b:
+            port_ids.append(link.observium_port_id_b)
+    ports_traffic = await observium.get_ports_traffic(port_ids)
 
-                entry = {"in_pct": round(in_pct, 1), "out_pct": round(out_pct, 1)}
-                if ps.get("show_bps", False):
-                    entry["in_bps"] = in_bps
-                    entry["out_bps"] = out_bps
-                traffic_data[link.id] = entry
-        if link.id not in traffic_data:
+    show_bps = ps.get("show_bps", False)
+    traffic_data: dict[str, dict[str, float]] = {}
+    for link in links:
+        entry: dict[str, float] | None = None
+        # Primary side A wins; only fall back to side B when A yields no data.
+        for port_id in (link.observium_port_id_a, link.observium_port_id_b):
+            if not port_id:
+                continue
+            port_data = ports_traffic.get(port_id)
+            if not port_data:
+                continue
+            in_rate = port_data.get("ifInOctets_rate", 0) or 0
+            out_rate = port_data.get("ifOutOctets_rate", 0) or 0
+            in_bps = float(in_rate) * 8
+            out_bps = float(out_rate) * 8
+            bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
+            in_pct = min(100.0, (in_bps / bw) * 100)
+            out_pct = min(100.0, (out_bps / bw) * 100)
+            entry = {"in_pct": round(in_pct, 1), "out_pct": round(out_pct, 1)}
+            if show_bps:
+                entry["in_bps"] = in_bps
+                entry["out_bps"] = out_bps
+            break
+        if entry is None:
             entry = {"in_pct": 0, "out_pct": 0}
-            if ps.get("show_bps", False):
+            if show_bps:
                 entry["in_bps"] = 0
                 entry["out_bps"] = 0
-            traffic_data[link.id] = entry
+        traffic_data[link.id] = entry
 
     return traffic_data
