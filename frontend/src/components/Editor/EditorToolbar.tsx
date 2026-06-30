@@ -1,9 +1,23 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useReactFlow } from "@xyflow/react";
+import type { MapNode } from "@/types";
 import { useMapStore } from "@/hooks/useMapStore";
+import { useTheme } from "@/hooks/useTheme";
+import { computeAutoLayout, type LayoutAlgorithm } from "@/utils/autoLayout";
+import { exportMapToPng } from "@/utils/exportImage";
 import { LinkCreationDialog } from "./LinkCreationDialog";
 import { MapSettingsDialog } from "./MapSettingsDialog";
 
 const SEPARATOR = <div className="h-4 w-px bg-noc-border/50" />;
+
+function exportBgColor(theme: string): string {
+  if (theme === "light") return "#f4f1ec";
+  if (theme === "scada") return "#0a0a0a";
+  if (theme === "system") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "#0b0e14" : "#f4f1ec";
+  }
+  return "#0b0e14";
+}
 
 export function EditorToolbar() {
   const {
@@ -25,10 +39,67 @@ export function EditorToolbar() {
     bindSelectedNodes,
     unbindSelectedNodes,
     getBoundGroup,
+    applyNodePositions,
   } = useMapStore();
+  const { theme } = useTheme();
+  const flow = useReactFlow();
 
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [layoutMenuOpen, setLayoutMenuOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const layoutMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!layoutMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      if (layoutMenuRef.current && !layoutMenuRef.current.contains(e.target as Node)) {
+        setLayoutMenuOpen(false);
+      }
+    };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
+  }, [layoutMenuOpen]);
+
+  async function runAutoLayout(algorithm: LayoutAlgorithm) {
+    setLayoutMenuOpen(false);
+    if (!map || busy) return;
+    setBusy(true);
+    try {
+      // Targets: current selection if any, else all nodes; locked nodes excluded.
+      const locked = (n: MapNode) => n.locked || !!n.style?.locked;
+      const targetIds = new Set(
+        (selectedNodeIds.length > 0
+          ? map.nodes.filter((n) => selectedNodeIds.includes(n.id))
+          : map.nodes
+        )
+          .filter((n) => !locked(n))
+          .map((n) => n.id),
+      );
+      if (targetIds.size === 0) return;
+      // Lay out the full graph (keeps group hierarchy correct), apply only targets.
+      const positions = await computeAutoLayout(map.nodes, map.links, algorithm);
+      const toApply = positions.filter((p) => targetIds.has(p.id));
+      await applyNodePositions(toApply);
+      flow.fitView({ duration: 500, padding: 0.12 });
+    } catch (err) {
+      console.error("Auto-layout failed:", err);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleExport() {
+    if (!map || busy) return;
+    setBusy(true);
+    try {
+      await exportMapToPng(flow.getNodes(), map.name, exportBgColor(theme));
+    } catch (err) {
+      console.error("PNG export failed:", err);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   if (!editMode) return null;
 
@@ -94,7 +165,36 @@ export function EditorToolbar() {
         {btn(canUndo, () => undo(), <IconUndo />, "Undo (Ctrl+Z)")}
         {btn(canRedo, () => redo(), <IconRedo />, "Redo (Ctrl+Shift+Z)")}
 
-        {/* Group 6 - Canvas */}
+        {/* Group 6 - Auto-layout & Export */}
+        {SEPARATOR}
+        <div className="relative" ref={layoutMenuRef}>
+          {btn(
+            !busy,
+            () => setLayoutMenuOpen((o) => !o),
+            <IconLayout />,
+            "Auto-layout",
+            layoutMenuOpen,
+          )}
+          {layoutMenuOpen && (
+            <div className="absolute top-9 left-0 z-30 noc-glass rounded py-1 min-w-[140px]">
+              <button
+                className="w-full text-left px-3 py-1.5 text-2xs text-noc-text hover:bg-noc-surface transition-colors"
+                onClick={() => runAutoLayout("force")}
+              >
+                Organique
+              </button>
+              <button
+                className="w-full text-left px-3 py-1.5 text-2xs text-noc-text hover:bg-noc-surface transition-colors"
+                onClick={() => runAutoLayout("layered")}
+              >
+                Hiérarchique
+              </button>
+            </div>
+          )}
+        </div>
+        {btn(!busy, handleExport, <IconExport />, "Export PNG")}
+
+        {/* Group 7 - Canvas */}
         {SEPARATOR}
         {btn(true, toggleSelectMode, <IconSelect />, "Select Mode (drag to select)", selectMode)}
         {btn(true, toggleSnapToGrid, <IconGrid />, "Snap to Grid", snapToGrid)}
@@ -281,6 +381,26 @@ function IconAddLink() {
       <line x1={4} y1={12} x2={12} y2={4} />
       <circle cx={3} cy={13} r={2} />
       <circle cx={13} cy={3} r={2} />
+    </svg>
+  );
+}
+
+function IconLayout() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx={8} cy={3} r={1.8} />
+      <circle cx={3.5} cy={12} r={1.8} />
+      <circle cx={12.5} cy={12} r={1.8} />
+      <path d="M8 4.8v2.4M7 8l-2.5 2.4M9 8l2.5 2.4" />
+    </svg>
+  );
+}
+
+function IconExport() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M8 10V2M5 5l3-3 3 3" />
+      <path d="M2.5 9.5v3a1 1 0 001 1h9a1 1 0 001-1v-3" />
     </svg>
   );
 }
