@@ -74,8 +74,8 @@ class LinkUpdate(BaseModel):
 
 
 class LinkBatchFields(BaseModel):
-    type: LinkType | None = None
-    color_override: str | None = Field(None, max_length=50)
+    link_type: LinkType | None = None
+    extra: dict | None = None
     width: int | None = Field(None, ge=1, le=50)
 
 
@@ -143,12 +143,12 @@ async def batch_update_links(
     links = result.scalars().all()
     f = data.fields
     for link in links:
-        if f.type is not None:
-            link.link_type = f.type
+        if f.link_type is not None:
+            link.link_type = f.link_type
         if f.width is not None:
             link.width = f.width
-        if f.color_override is not None:
-            link.extra = {**(link.extra or {}), "color_override": f.color_override}
+        if f.extra is not None:
+            link.extra = {**(link.extra or {}), **f.extra}
     await db.commit()
     for link in links:
         await db.refresh(link)

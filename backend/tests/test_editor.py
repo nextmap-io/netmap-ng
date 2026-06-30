@@ -113,7 +113,7 @@ async def test_batch_update_nodes(client: AsyncClient):
         f"/api/maps/{map_id}/nodes/batch",
         json={
             "node_ids": [n1, n2, "ghost"],  # ghost is ignored
-            "fields": {"type": "firewall", "locked": True, "width": 120},
+            "fields": {"node_type": "firewall", "locked": True, "width": 120},
         },
     )
     assert resp.status_code == 200
@@ -136,7 +136,7 @@ async def test_batch_update_nodes_rejects_bad_enum(client: AsyncClient):
     n1 = await _make_node(client, map_id, "n1")
     resp = await client.patch(
         f"/api/maps/{map_id}/nodes/batch",
-        json={"node_ids": [n1], "fields": {"type": "not-a-type"}},
+        json={"node_ids": [n1], "fields": {"node_type": "not-a-type"}},
     )
     assert resp.status_code == 422
 
@@ -159,7 +159,11 @@ async def test_batch_update_links(client: AsyncClient):
         f"/api/maps/{map_id}/links/batch",
         json={
             "link_ids": [link_id, "ghost"],
-            "fields": {"type": "transit", "width": 8, "color_override": "#ff0000"},
+            "fields": {
+                "link_type": "transit",
+                "width": 8,
+                "extra": {"color_override": "#ff0000"},
+            },
         },
     )
     assert resp.status_code == 200

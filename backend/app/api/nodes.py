@@ -54,7 +54,7 @@ class NodeBatchMove(BaseModel):
 
 
 class NodeBatchFields(BaseModel):
-    type: NodeType | None = None
+    node_type: NodeType | None = None
     style: dict | None = None
     width: int | None = Field(None, ge=1, le=10000)
     height: int | None = Field(None, ge=1, le=10000)
@@ -140,8 +140,8 @@ async def batch_update_nodes(
     nodes = result.scalars().all()
     f = data.fields
     for node in nodes:
-        if f.type is not None:
-            node.node_type = f.type
+        if f.node_type is not None:
+            node.node_type = f.node_type
         if f.style is not None:
             node.style = {**(node.style or {}), **f.style}
         if f.width is not None:
