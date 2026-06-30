@@ -149,3 +149,29 @@ async def get_port_traffic(port_id: int) -> dict[str, Any] | None:
                 (port_id,),
             )
             return await cur.fetchone()
+
+
+async def get_ports_traffic(port_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Get current traffic rates for many ports in a single query.
+
+    Avoids the N+1 pattern of calling ``get_port_traffic`` per link. Returns a
+    mapping of ``port_id -> row``. Port ids with no matching Observium row are
+    simply absent from the result. Duplicate ids are de-duplicated.
+    """
+    unique_ids = list({pid for pid in port_ids if pid})
+    if not unique_ids:
+        return {}
+    async with get_observium_db() as conn:
+        async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
+            placeholders = ",".join(["%s"] * len(unique_ids))
+            sql = (
+                "SELECT port_id, ifName, ifSpeed, "
+                "ifInOctets_rate, ifOutOctets_rate, "
+                "ifInOctets_perc, ifOutOctets_perc, "
+                "ifInErrors_rate, ifOutErrors_rate "
+                "FROM ports "
+                f"WHERE port_id IN ({placeholders})"
+            )
+            await cur.execute(sql, unique_ids)
+            rows = await cur.fetchall()
+            return {row["port_id"]: row for row in rows}

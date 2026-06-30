@@ -7,6 +7,7 @@ from app.models import Node, get_db
 from app.models.node import NodeType
 from app.auth.oauth import get_current_user
 from app.auth.guards import require_map_owner
+from app.api.maps import _serialize_node
 
 router = APIRouter(prefix="/api/maps/{map_id}/nodes", tags=["nodes"])
 
@@ -50,6 +51,19 @@ class NodeMove(BaseModel):
 
 class NodeBatchMove(BaseModel):
     moves: list[NodeMove] = Field(..., max_length=500)
+
+
+class NodeBatchFields(BaseModel):
+    node_type: NodeType | None = None
+    style: dict | None = None
+    width: int | None = Field(None, ge=1, le=10000)
+    height: int | None = Field(None, ge=1, le=10000)
+    locked: bool | None = None
+
+
+class NodeBatchUpdate(BaseModel):
+    node_ids: list[str] = Field(..., max_length=1000)
+    fields: NodeBatchFields
 
 
 @router.post("")
@@ -105,6 +119,41 @@ async def delete_node(
     await db.delete(node)
     await db.commit()
     return {"ok": True}
+
+
+@router.patch("/batch")
+async def batch_update_nodes(
+    map_id: str,
+    data: NodeBatchUpdate,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Apply the same whitelisted fields to many nodes at once (bulk edit).
+
+    Ids not belonging to this map are silently ignored. Returns the nodes that
+    were updated.
+    """
+    await require_map_owner(map_id, user, db)
+    result = await db.execute(
+        select(Node).where(Node.id.in_(data.node_ids), Node.map_id == map_id)
+    )
+    nodes = result.scalars().all()
+    f = data.fields
+    for node in nodes:
+        if f.node_type is not None:
+            node.node_type = f.node_type
+        if f.style is not None:
+            node.style = {**(node.style or {}), **f.style}
+        if f.width is not None:
+            node.width = f.width
+        if f.height is not None:
+            node.height = f.height
+        if f.locked is not None:
+            node.locked = f.locked
+    await db.commit()
+    for node in nodes:
+        await db.refresh(node)
+    return {"nodes": [_serialize_node(n) for n in nodes]}
 
 
 @router.post("/batch-move")
