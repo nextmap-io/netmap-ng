@@ -1,4 +1,4 @@
-import type { MapSummary, NetmapData, TrafficData, TrafficHistory } from "@/types";
+import type { MapSummary, MapNode, MapLink, NetmapData, TrafficData, TrafficHistory } from "@/types";
 
 const BASE = import.meta.env.VITE_API_URL || "";
 
@@ -76,6 +76,11 @@ export const api = {
     request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(mapId)}/nodes/${encodeURIComponent(nodeId)}`, { method: "DELETE" }),
   batchMoveNodes: (mapId: string, moves: Array<{ id: string; x: number; y: number }>) =>
     request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(mapId)}/nodes/batch-move`, { method: "POST", body: JSON.stringify({ moves }) }),
+  batchUpdateNodes: (mapId: string, ids: string[], fields: Record<string, unknown>) =>
+    request<MapNode[]>(`/api/maps/${encodeURIComponent(mapId)}/nodes/batch`, {
+      method: "PATCH",
+      body: JSON.stringify({ node_ids: ids, fields }),
+    }),
 
   // Links
   createLink: (mapId: string, data: Record<string, unknown>) =>
@@ -84,6 +89,11 @@ export const api = {
     request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(mapId)}/links/${encodeURIComponent(linkId)}`, { method: "PUT", body: JSON.stringify(data) }),
   deleteLink: (mapId: string, linkId: string) =>
     request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(mapId)}/links/${encodeURIComponent(linkId)}`, { method: "DELETE" }),
+  batchUpdateLinks: (mapId: string, ids: string[], fields: Record<string, unknown>) =>
+    request<MapLink[]>(`/api/maps/${encodeURIComponent(mapId)}/links/batch`, {
+      method: "PATCH",
+      body: JSON.stringify({ link_ids: ids, fields }),
+    }),
 
   // Datasources
   getObserviumDevices: () => request<Record<string, unknown>[]>("/api/datasources/observium/devices"),
@@ -92,8 +102,8 @@ export const api = {
     const query = deviceIds ? `?${qs({ device_ids: deviceIds.join(",") })}` : "";
     return request<Record<string, unknown>[]>(`/api/datasources/observium/neighbours${query}`);
   },
-  getLiveTraffic: (mapId: string) =>
-    request<TrafficData>(`/api/datasources/traffic/live?${qs({ map_id: mapId })}`),
+  getLiveTraffic: (mapId: string, signal?: AbortSignal) =>
+    request<TrafficData>(`/api/datasources/traffic/live?${qs({ map_id: mapId })}`, { signal }),
   getTrafficHistory: (hostname: string, portId: string, mapId: string, start?: string, end?: string) =>
     request<TrafficHistory>(`/api/datasources/traffic/history?${qs({ hostname, port_identifier: portId, map_id: mapId, start: start || "-24h", end: end || "now" })}`),
   getTrafficHistoryByPort: (portId: number, mapId: string, start?: string, end?: string) =>

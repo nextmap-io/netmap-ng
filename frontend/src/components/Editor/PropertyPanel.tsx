@@ -2,20 +2,32 @@ import { useCallback } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
 import { NodeProperties } from "./NodeProperties";
 import { LinkProperties } from "./LinkProperties";
+import { BulkNodeProperties, BulkLinkProperties } from "./BulkProperties";
 
 export function PropertyPanel() {
-  const { map, editMode, selectedNodeId, selectedLinkId, clearSelection, updateNodeField, updateLinkField, deleteNode, deleteLink, saving, lastSaved } =
+  const { map, editMode, selectedNodeId, selectedLinkId, selectedNodeIds, selectedLinkIds, clearSelection, updateNodeField, updateLinkField, bulkUpdateNodes, bulkUpdateLinks, deleteNode, deleteLink, saving, lastSaved } =
     useMapStore();
 
+  const multiNodes = selectedNodeIds.length >= 2;
+  const multiLinks = selectedLinkIds.length >= 2;
 
-
-  const isOpen = editMode && (selectedNodeId !== null || selectedLinkId !== null);
+  const isOpen =
+    editMode && (selectedNodeId !== null || selectedLinkId !== null || multiNodes || multiLinks);
 
   const selectedNode =
     selectedNodeId && map ? map.nodes.find((n) => n.id === selectedNodeId) ?? null : null;
 
   const selectedLink =
     selectedLinkId && map ? map.links.find((l) => l.id === selectedLinkId) ?? null : null;
+
+  const handleBulkNodes = useCallback(
+    (fields: Record<string, unknown>) => bulkUpdateNodes(selectedNodeIds, fields),
+    [bulkUpdateNodes, selectedNodeIds],
+  );
+  const handleBulkLinks = useCallback(
+    (fields: Record<string, unknown>) => bulkUpdateLinks(selectedLinkIds, fields),
+    [bulkUpdateLinks, selectedLinkIds],
+  );
 
   const handleNodeUpdate = useCallback(
     async (fields: Record<string, unknown>) => {
@@ -68,11 +80,15 @@ export function PropertyPanel() {
             <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
           </svg>
           <span className="noc-label">
-            {selectedNode
-              ? "Node Properties"
-              : selectedLink
-                ? "Link Properties"
-                : "Properties"}
+            {multiNodes
+              ? `${selectedNodeIds.length} Nodes`
+              : multiLinks
+                ? `${selectedLinkIds.length} Links`
+                : selectedNode
+                  ? "Node Properties"
+                  : selectedLink
+                    ? "Link Properties"
+                    : "Properties"}
           </span>
         </div>
         <button
@@ -94,7 +110,15 @@ export function PropertyPanel() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-3">
-        {selectedNode && map && (
+        {multiNodes && (
+          <BulkNodeProperties count={selectedNodeIds.length} onApply={handleBulkNodes} />
+        )}
+
+        {multiLinks && !multiNodes && (
+          <BulkLinkProperties count={selectedLinkIds.length} onApply={handleBulkLinks} />
+        )}
+
+        {!multiNodes && !multiLinks && selectedNode && map && (
           <NodeProperties
             node={selectedNode}
             allNodes={map.nodes}
@@ -103,7 +127,7 @@ export function PropertyPanel() {
           />
         )}
 
-        {selectedLink && !selectedNode && map && (
+        {!multiNodes && !multiLinks && selectedLink && !selectedNode && map && (
           <LinkProperties
             link={selectedLink}
             nodes={map.nodes}

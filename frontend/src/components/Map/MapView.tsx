@@ -23,6 +23,7 @@ import { GroupNode } from "./GroupNode";
 import { LabelNode } from "./LabelNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
+import { CanvasSearch } from "./CanvasSearch";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { EditorToolbox } from "../Editor/EditorToolbox";
 import { EditorToolbar } from "../Editor/EditorToolbar";
@@ -41,10 +42,17 @@ const edgeTypes = {
   traffic: TrafficEdge,
 };
 
-function mapNodeToFlow(n: MapNode, editMode: boolean): Node {
+function mapNodeToFlow(n: MapNode, editMode: boolean, dimmed = false): Node {
   const isGroup = n.node_type === "group";
   const isLabel = n.node_type === "label";
   const flowType = isGroup ? "group" : isLabel ? "label" : "network";
+  const baseStyle: React.CSSProperties = isGroup
+    ? { width: n.width || 400, height: n.height || 300 }
+    : {};
+  if (dimmed) {
+    baseStyle.opacity = 0.18;
+    baseStyle.transition = "opacity 150ms ease";
+  }
   return {
     id: n.id,
     type: flowType,
@@ -62,9 +70,7 @@ function mapNodeToFlow(n: MapNode, editMode: boolean): Node {
       bgColor: n.style?.bg_color,
       style: n.style,
     },
-    style: isGroup
-      ? { width: n.width || 400, height: n.height || 300 }
-      : undefined,
+    style: Object.keys(baseStyle).length > 0 ? baseStyle : undefined,
     zIndex: isGroup ? -1 : (n.z_order || 0),
     draggable: editMode && !n.locked && !n.style?.locked,
   };
@@ -110,25 +116,31 @@ function buildEdges(
   traffic: TrafficData,
   useGradientScale = false,
 ): Edge[] {
-  // Build absolute position map (accounting for parent offsets)
+  // Build absolute position map (accounting for the FULL parent chain, so
+  // deeply nested groups compute correct absolute positions).
   const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
-  const parentPos = new Map<string, { x: number; y: number }>();
+  const byId = new Map<string, Node>();
+  for (const n of flowNodes) byId.set(n.id, n);
 
-  // First pass: get parent positions
-  for (const n of flowNodes) {
-    if (n.type === "group") {
-      parentPos.set(n.id, { x: n.position.x, y: n.position.y });
+  // Walk the entire ancestor chain, summing each parent's relative offset.
+  // Guarded against cycles via a visited set.
+  const absOffset = (node: Node): { x: number; y: number } => {
+    let x = 0;
+    let y = 0;
+    const seen = new Set<string>();
+    let current: Node | undefined = node;
+    while (current) {
+      if (seen.has(current.id)) break;
+      seen.add(current.id);
+      x += current.position.x;
+      y += current.position.y;
+      current = current.parentId ? byId.get(current.parentId) : undefined;
     }
-  }
+    return { x, y };
+  };
 
-  // Second pass: compute absolute positions
   for (const n of flowNodes) {
-    let absX = n.position.x;
-    let absY = n.position.y;
-    if (n.parentId) {
-      const pp = parentPos.get(n.parentId);
-      if (pp) { absX += pp.x; absY += pp.y; }
-    }
+    const { x: absX, y: absY } = absOffset(n);
     const w = Number(n.data?.width) || 80;
     const h = Number(n.data?.height) || 30;
     nodePos.set(n.id, { x: absX + w / 2, y: absY + h / 2, w, h });
@@ -259,7 +271,7 @@ function isInputFocused(): boolean {
 
 function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
-  const { map, traffic, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, selectMode, createLink, pushUndo, undo, redo } =
+  const { map, traffic, trafficError, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, selectMode, createLink, pushUndo, undo, redo, searchQuery, activeTypeFilters, matchedNodeIds } =
     useMapStore();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const { theme } = useTheme();
@@ -351,10 +363,14 @@ function MapViewInner() {
 
   const initialNodes = useMemo(() => {
     if (!map) return [];
-    const groups = map.nodes.filter((n: MapNode) => n.node_type === "group").map((n) => mapNodeToFlow(n, editMode));
-    const others = map.nodes.filter((n: MapNode) => n.node_type !== "group").map((n) => mapNodeToFlow(n, editMode));
+    const isFiltering = searchQuery.trim().length > 0 || activeTypeFilters.length > 0;
+    const matched = new Set(matchedNodeIds);
+    const isDimmed = (n: MapNode) =>
+      isFiltering && n.node_type !== "group" && !matched.has(n.id);
+    const groups = map.nodes.filter((n: MapNode) => n.node_type === "group").map((n) => mapNodeToFlow(n, editMode, false));
+    const others = map.nodes.filter((n: MapNode) => n.node_type !== "group").map((n) => mapNodeToFlow(n, editMode, isDimmed(n)));
     return [...groups, ...others];
-  }, [map, editMode]);
+  }, [map, editMode, searchQuery, activeTypeFilters, matchedNodeIds]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -626,6 +642,14 @@ function MapViewInner() {
           />
         </ReactFlow>
         <TrafficLegend scales={scales} />
+        <CanvasSearch />
+
+        {trafficError && (
+          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1.5 noc-glass rounded px-2 py-1">
+            <span className="w-1.5 h-1.5 rounded-full bg-node-firewall animate-pulse" />
+            <span className="text-2xs text-noc-text-muted">Données live indisponibles</span>
+          </div>
+        )}
 
         <EditorToolbox />
         <EditorToolbar />
