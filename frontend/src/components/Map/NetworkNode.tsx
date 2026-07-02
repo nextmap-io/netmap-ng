@@ -109,7 +109,7 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={clsx(
-        "rounded bg-noc-card border transition-all duration-150 flex items-center justify-center",
+        "relative rounded bg-noc-card border transition-all duration-150 flex items-center justify-center",
         NODE_BORDER[nodeType] || NODE_BORDER.custom,
         selected && "ring-1 ring-accent/50 border-accent/40",
         isBound && !selected && "ring-1 ring-accent/20",
