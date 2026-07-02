@@ -30,7 +30,9 @@ import { EditorToolbar } from "../Editor/EditorToolbar";
 import { PropertyPanel } from "../Editor/PropertyPanel";
 import { useTheme } from "@/hooks/useTheme";
 import { NotFound } from "../Layout/NotFound";
+import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
+import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from "@/types";
 
 const nodeTypes = {
   network: NetworkNode,
@@ -42,7 +44,13 @@ const edgeTypes = {
   traffic: TrafficEdge,
 };
 
-function mapNodeToFlow(n: MapNode, editMode: boolean, dimmed = false): Node {
+function mapNodeToFlow(
+  n: MapNode,
+  editMode: boolean,
+  dimmed = false,
+  usedHandles: string[] = [],
+  isBound = false,
+): Node {
   const isGroup = n.node_type === "group";
   const isLabel = n.node_type === "label";
   const flowType = isGroup ? "group" : isLabel ? "label" : "network";
@@ -53,6 +61,7 @@ function mapNodeToFlow(n: MapNode, editMode: boolean, dimmed = false): Node {
     baseStyle.opacity = 0.18;
     baseStyle.transition = "opacity 150ms ease";
   }
+  const locked = !!(n.locked || n.style?.locked);
   return {
     id: n.id,
     type: flowType,
@@ -69,11 +78,66 @@ function mapNodeToFlow(n: MapNode, editMode: boolean, dimmed = false): Node {
       height: n.height,
       bgColor: n.style?.bg_color,
       style: n.style,
+      locked,
+      isBound,
+      usedHandles,
     },
     style: Object.keys(baseStyle).length > 0 ? baseStyle : undefined,
     zIndex: isGroup ? -1 : (n.z_order || 0),
-    draggable: editMode && !n.locked && !n.style?.locked,
+    draggable: editMode && !locked,
   };
+}
+
+/**
+ * Compute, per node, the set of handle ids actually referenced by connected
+ * links (explicit anchors + auto-computed anchors). The custom node uses this
+ * to render only the fine-grained percentage handles that are in use, instead
+ * of ~150 handles per node, without breaking edge anchoring.
+ */
+function computeUsedHandles(nodes: MapNode[], links: MapLink[]): Map<string, string[]> {
+  const pos = new Map<string, { x: number; y: number; w: number; h: number }>();
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const absOffset = (n: MapNode): { x: number; y: number } => {
+    let x = 0, y = 0;
+    const seen = new Set<string>();
+    let cur: MapNode | undefined = n;
+    while (cur) {
+      if (seen.has(cur.id)) break;
+      seen.add(cur.id);
+      x += cur.x;
+      y += cur.y;
+      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
+    }
+    return { x, y };
+  };
+  for (const n of nodes) {
+    const { x, y } = absOffset(n);
+    const w = n.width || DEFAULT_NODE_WIDTH;
+    const h = n.height || DEFAULT_NODE_HEIGHT;
+    pos.set(n.id, { x: x + w / 2, y: y + h / 2, w, h });
+  }
+  const used = new Map<string, Set<string>>();
+  const add = (id: string, handle: string) => {
+    let s = used.get(id);
+    if (!s) { s = new Set(); used.set(id, s); }
+    s.add(handle);
+  };
+  for (const l of links) {
+    const sp = pos.get(l.source_id);
+    const tp = pos.get(l.target_id);
+    let srcHandle: string | undefined;
+    let tgtHandle: string | undefined;
+    if (l.source_anchor && l.target_anchor) {
+      srcHandle = l.source_anchor;
+      tgtHandle = `${l.target_anchor}-t`;
+    } else if (sp && tp) {
+      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
+      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
+    }
+    if (srcHandle) add(l.source_id, srcHandle);
+    if (tgtHandle) add(l.target_id, tgtHandle);
+  }
+  return new Map([...used].map(([k, v]) => [k, [...v]]));
 }
 
 /**
@@ -141,8 +205,8 @@ function buildEdges(
 
   for (const n of flowNodes) {
     const { x: absX, y: absY } = absOffset(n);
-    const w = Number(n.data?.width) || 80;
-    const h = Number(n.data?.height) || 30;
+    const w = Number(n.data?.width) || DEFAULT_NODE_WIDTH;
+    const h = Number(n.data?.height) || DEFAULT_NODE_HEIGHT;
     nodePos.set(n.id, { x: absX + w / 2, y: absY + h / 2, w, h });
   }
 
@@ -184,6 +248,9 @@ function buildEdges(
         outBps: t?.out_bps ?? 0,
         inPct, outPct, inColor, outColor,
         extra: l.extra,
+        viaPoints: l.via_points ?? [],
+        viaStyle: l.via_style,
+        arrowStyle: l.arrow_style,
       },
       zIndex: l.z_order,
     } satisfies Edge;
@@ -215,9 +282,16 @@ function lerpColor(c1: string, c2: string, t: number): string {
 
 function getScaleColor(pct: number, scales: ScaleBand[], gradient = false): string {
   if (!gradient) {
-    // Steps mode: return the fixed color for the matching band
-    for (const band of scales) {
-      if (pct >= band.min && pct <= band.max) return band.color;
+    // Steps mode: half-open bands [min, max) so shared endpoints (10/50/90)
+    // resolve unambiguously to the upper band; the final band is inclusive so
+    // 100% still matches.
+    const sortedSteps = scales.toSorted((a, b) => a.min - b.min);
+    for (let i = 0; i < sortedSteps.length; i++) {
+      const band = sortedSteps[i];
+      const isLast = i === sortedSteps.length - 1;
+      if (pct >= band.min && (pct < band.max || (isLast && pct <= band.max))) {
+        return band.color;
+      }
     }
     return "hsl(220 10% 46%)";
   }
@@ -274,9 +348,12 @@ function MapViewInner() {
   const { map, traffic, trafficError, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, selectMode, createLink, pushUndo, undo, redo, searchQuery, activeTypeFilters, matchedNodeIds } =
     useMapStore();
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
-  const { theme } = useTheme();
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const { resolvedTheme } = useTheme();
   const flow = useReactFlow();
   const dragStartPos = useRef<Map<string, { x: number; y: number }>>(new Map());
+  const showShortcutsRef = useRef(false);
+  useEffect(() => { showShortcutsRef.current = showShortcuts; }, [showShortcuts]);
 
   useEffect(() => {
     if (mapId) loadMap(mapId);
@@ -296,9 +373,18 @@ function MapViewInner() {
         for (const id of selectedLinkIds) deleteLink(id);
         for (const id of selectedNodeIds) deleteNode(id);
       }
-      // Escape to deselect
+      // "?" toggles the keyboard shortcuts help overlay
+      if (e.key === "?" && !isInputFocused()) {
+        e.preventDefault();
+        setShowShortcuts((s) => !s);
+      }
+      // Escape closes the shortcuts overlay first, otherwise deselects
       if (e.key === "Escape") {
-        clearSelection();
+        if (showShortcutsRef.current) {
+          setShowShortcuts(false);
+        } else {
+          clearSelection();
+        }
       }
       // Ctrl+A to select all non-group nodes
       if (e.key === "a" && (e.metaKey || e.ctrlKey)) {
@@ -367,8 +453,15 @@ function MapViewInner() {
     const matched = new Set(matchedNodeIds);
     const isDimmed = (n: MapNode) =>
       isFiltering && n.node_type !== "group" && !matched.has(n.id);
-    const groups = map.nodes.filter((n: MapNode) => n.node_type === "group").map((n) => mapNodeToFlow(n, editMode, false));
-    const others = map.nodes.filter((n: MapNode) => n.node_type !== "group").map((n) => mapNodeToFlow(n, editMode, isDimmed(n)));
+    const usedHandles = computeUsedHandles(map.nodes, map.links);
+    const boundIds = new Set<string>();
+    for (const g of map.settings?.bound_groups ?? []) for (const id of g) boundIds.add(id);
+    const groups = map.nodes
+      .filter((n: MapNode) => n.node_type === "group")
+      .map((n) => mapNodeToFlow(n, editMode, false, usedHandles.get(n.id), boundIds.has(n.id)));
+    const others = map.nodes
+      .filter((n: MapNode) => n.node_type !== "group")
+      .map((n) => mapNodeToFlow(n, editMode, isDimmed(n), usedHandles.get(n.id), boundIds.has(n.id)));
     return [...groups, ...others];
   }, [map, editMode, searchQuery, activeTypeFilters, matchedNodeIds]);
 
@@ -400,39 +493,58 @@ function MapViewInner() {
       // never through ReactFlow's internal reconciliation (which can cause ghost removals)
       const safe = changes.filter((c) => c.type !== "remove");
       onNodesChange(safe);
-      if (editMode) {
-        for (const change of safe) {
-          if (change.type === "position" && change.position && change.id) {
-            updateNodePosition(change.id, change.position.x, change.position.y);
-          }
+      if (!editMode) return;
+
+      const posChanges = safe.filter(
+        (c): c is Extract<NodeChange, { type: "position" }> =>
+          c.type === "position" && !!c.position && !!c.id,
+      );
+      if (posChanges.length === 0) return;
+
+      const changedIds = new Set(posChanges.map((c) => c.id));
+      const { getBoundGroup } = useMapStore.getState();
+      const startPos = dragStartPos.current;
+      const extraChanges: NodeChange[] = [];
+      const movedMembers = new Set<string>();
+
+      for (const c of posChanges) {
+        updateNodePosition(c.id, c.position!.x, c.position!.y);
+
+        // Bound-group "move together": on the FIRST drag the other members are
+        // not RF-selected yet, so apply the lead node's delta to them directly
+        // from the positions captured at drag start (dead machinery, now used).
+        const group = getBoundGroup(c.id);
+        const start = startPos.get(c.id);
+        if (!group || !start) continue;
+        const dx = c.position!.x - start.x;
+        const dy = c.position!.y - start.y;
+        for (const memberId of group) {
+          if (changedIds.has(memberId) || movedMembers.has(memberId)) continue;
+          const ms = startPos.get(memberId);
+          if (!ms) continue;
+          movedMembers.add(memberId);
+          const nx = ms.x + dx;
+          const ny = ms.y + dy;
+          extraChanges.push({ type: "position", id: memberId, position: { x: nx, y: ny }, dragging: true });
+          updateNodePosition(memberId, nx, ny);
         }
       }
+
+      if (extraChanges.length > 0) onNodesChange(extraChanges);
     },
     [editMode, onNodesChange, updateNodePosition],
   );
 
   const handleNodeDragStart = useCallback(
-    (_event: MouseEvent | TouchEvent, node: Node) => {
+    (_event: MouseEvent | TouchEvent, _node: Node) => {
       if (!editMode) return;
       pushUndo();
-      // Capture positions of all nodes for bound-group delta calculation
+      // Capture positions of ALL nodes so handleNodesChange can apply the
+      // dragged node's delta to bound-group members on the very first drag.
       const allNodes = flow.getNodes();
       const posMap = new Map<string, { x: number; y: number }>();
       for (const n of allNodes) posMap.set(n.id, { ...n.position });
       dragStartPos.current = posMap;
-
-      // Auto-select all members of bound group so they move together
-      const { getBoundGroup, selectNodes: sel } = useMapStore.getState();
-      const group = getBoundGroup(node.id);
-      if (group) {
-        const { selectedNodeIds } = useMapStore.getState();
-        const allSelected = new Set(selectedNodeIds);
-        let changed = false;
-        for (const id of group) {
-          if (!allSelected.has(id)) { allSelected.add(id); changed = true; }
-        }
-        if (changed) sel([...allSelected]);
-      }
     },
     [editMode, pushUndo, flow],
   );
@@ -609,9 +721,9 @@ function MapViewInner() {
           maxZoom={3}
         >
           <Background gap={24} size={snapToGrid ? 1.5 : 0.5} color={
-            theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
+            resolvedTheme === "light"
               ? snapToGrid ? "hsl(30 6% 65%)" : "hsl(30 6% 78%)"
-              : theme === "scada"
+              : resolvedTheme === "scada"
                 ? snapToGrid ? "#2a5a2a" : "#1a3a1a"
                 : snapToGrid ? "hsl(220 15% 22%)" : "hsl(220 15% 12%)"
           } />
@@ -625,17 +737,21 @@ function MapViewInner() {
               if (type === "switch_l3") return "hsl(270 60% 60%)";
               if (type === "switch_l2") return "hsl(210 80% 55%)";
               if (type === "server") return "hsl(152 60% 44%)";
+              if (type === "firewall") return "hsl(0 72% 50%)";
               if (type === "ix") return "hsl(280 60% 55%)";
               if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
               if (type === "pni") return "hsl(160 60% 45%)";
+              // provider shares the cloud palette entry in the node badges
               if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
               if (type === "customer") return "hsl(45 85% 50%)";
+              if (type === "group") return "hsl(220 15% 24%)";
+              if (type === "label") return "hsl(215 12% 40%)";
               return "hsl(220 10% 46%)";
             }}
             maskColor={
-              theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
+              resolvedTheme === "light"
                 ? "hsl(38 12% 95% / 0.75)"
-                : theme === "scada"
+                : resolvedTheme === "scada"
                   ? "rgba(10, 10, 10, 0.8)"
                   : "hsl(220 20% 7% / 0.8)"
             }
@@ -653,6 +769,9 @@ function MapViewInner() {
 
         <EditorToolbox />
         <EditorToolbar />
+        {editMode && (
+          <ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
+        )}
 
         {selectedLink && (
           <TrafficGraphPanel

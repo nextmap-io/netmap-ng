@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ScaleBand } from "@/types";
+import { useMapStore } from "@/hooks/useMapStore";
 
 interface TrafficLegendProps {
   scales: ScaleBand[];
@@ -7,6 +8,15 @@ interface TrafficLegendProps {
 
 export function TrafficLegend({ scales }: TrafficLegendProps) {
   const [collapsed, setCollapsed] = useState(false);
+  // The PropertyPanel (w-72, fixed right-0) slides in when something is
+  // selected in edit mode — shift the legend left by its width to avoid overlap.
+  const panelOpen = useMapStore(
+    (s) =>
+      s.editMode &&
+      (s.selectedNodeIds.length > 0 || s.selectedLinkIds.length > 0),
+  );
+  // top-16 keeps clear of the header; right offset dodges the property panel.
+  const posClass = panelOpen ? "fixed top-16 right-[19rem] z-40" : "fixed top-16 right-3 z-40";
 
   if (!scales.length) return null;
 
@@ -16,7 +26,7 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
     return (
       <button
         onClick={() => setCollapsed(false)}
-        className="fixed top-16 right-3 z-40 noc-glass rounded p-1.5 hover:bg-noc-surface/50 transition-colors"
+        className={`${posClass} noc-glass rounded p-1.5 hover:bg-noc-surface/50 transition-colors`}
         title="Show legend"
       >
         <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-noc-text-muted" fill="none" stroke="currentColor" strokeWidth={2}>
@@ -27,7 +37,7 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
   }
 
   return (
-    <div className="fixed top-16 right-3 z-40 noc-glass rounded p-2 sm:p-3">
+    <div className={`${posClass} noc-glass rounded p-2 sm:p-3`}>
       <div className="flex items-center justify-between mb-1.5 sm:mb-2.5">
         <div className="noc-label text-[8px] sm:text-[10px]">Traffic Load</div>
         <button

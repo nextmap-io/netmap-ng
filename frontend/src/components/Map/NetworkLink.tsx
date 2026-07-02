@@ -1,12 +1,38 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useRef, useState, useLayoutEffect } from "react";
 import {
   getSmoothStepPath,
   getStraightPath,
   getBezierPath,
+  useStore,
   type EdgeProps,
   EdgeLabelRenderer,
 } from "@xyflow/react";
 import { formatBps } from "./MapView";
+
+type Pt = { x: number; y: number };
+
+/** Build a straight-segment (angled) path through source → waypoints → target. */
+function angledPath(pts: Pt[]): string {
+  return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`).join(" ");
+}
+
+/** Build a smooth path that passes through every waypoint (Q segments meeting at edge midpoints). */
+function curvedPath(pts: Pt[]): string {
+  if (pts.length < 3) return angledPath(pts);
+  let d = `M ${pts[0].x},${pts[0].y}`;
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mid = { x: (pts[i].x + pts[i + 1].x) / 2, y: (pts[i].y + pts[i + 1].y) / 2 };
+    d += ` Q ${pts[i].x},${pts[i].y} ${mid.x},${mid.y}`;
+  }
+  const last = pts[pts.length - 1];
+  d += ` L ${last.x},${last.y}`;
+  return d;
+}
+
+// Below this zoom the 10px bps labels collapse into an unreadable smear.
+const MIN_BPS_LABEL_ZOOM = 0.5;
+// Minimum on-screen (pixel) length before bps labels are worth showing.
+const MIN_LABEL_SCREEN_DIST = 80;
 
 function TrafficEdgeComponent({
   id,
@@ -34,6 +60,18 @@ function TrafficEdgeComponent({
   const colorOverride = extra?.color_override ? String(extra.color_override) : null;
   const routing = String(extra?.routing || "auto");
 
+  // Waypoint routing (via_points / via_style) overrides the auto/step/bezier path.
+  const viaPoints = useMemo(
+    () => (Array.isArray(data?.viaPoints) ? (data.viaPoints as Pt[]) : []),
+    [data?.viaPoints],
+  );
+  const viaStyle = String(data?.viaStyle || "curved");
+  const arrowStyle = String(data?.arrowStyle || "");
+  const showArrows = arrowStyle !== "none";
+
+  // Live canvas zoom — used to cull/scale labels that would otherwise smear.
+  const zoom = useStore((s) => s.transform[2]);
+
   const dashArray = lineStyle === "dashed" ? "6 3"
     : lineStyle === "dotted" ? "2 3"
     : lineStyle === "auto" && linkType === "transit" ? "6 3"
@@ -42,6 +80,12 @@ function TrafficEdgeComponent({
   const isHorizontal = Math.abs(sourceY - targetY) < 15;
 
   const [edgePath, labelX, labelY] = useMemo(() => {
+    if (viaPoints.length > 0) {
+      const pts: Pt[] = [{ x: sourceX, y: sourceY }, ...viaPoints, { x: targetX, y: targetY }];
+      const d = viaStyle === "angled" ? angledPath(pts) : curvedPath(pts);
+      const midPt = pts[Math.floor(pts.length / 2)];
+      return [d, midPt.x, midPt.y] as [string, number, number];
+    }
     if (routing === "step") {
       return getSmoothStepPath({
         sourceX, sourceY, targetX, targetY,
@@ -58,10 +102,41 @@ function TrafficEdgeComponent({
       sourcePosition, targetPosition, borderRadius: 6, offset: 15,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceX, sourceY, targetX, targetY, routing, isHorizontal, sourcePosition, targetPosition]);
+  }, [sourceX, sourceY, targetX, targetY, routing, isHorizontal, sourcePosition, targetPosition, viaPoints, viaStyle]);
 
-  const dist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
-  const showBpsLabels = dist > 80;
+  // Derive label/arrow anchor points from the ACTUAL rendered path so labels
+  // follow step/bezier/waypoint routing instead of the straight source→target
+  // chord. Falls back to chord interpolation before the first measure.
+  const pathRef = useRef<SVGPathElement>(null);
+  const [anchors, setAnchors] = useState<{ out: Pt; mid: Pt; in: Pt } | null>(null);
+  useLayoutEffect(() => {
+    const p = pathRef.current;
+    if (!p) return;
+    let len = 0;
+    try {
+      len = p.getTotalLength();
+    } catch {
+      return;
+    }
+    if (!len) return;
+    const at = (frac: number): Pt => {
+      const pt = p.getPointAtLength(len * frac);
+      return { x: pt.x, y: pt.y };
+    };
+    setAnchors({ out: at(0.25), mid: at(0.5), in: at(0.75) });
+  }, [edgePath]);
+
+  const baseOutX = anchors?.out.x ?? sourceX * 0.75 + targetX * 0.25;
+  const baseOutY = anchors?.out.y ?? sourceY * 0.75 + targetY * 0.25;
+  const baseInX = anchors?.in.x ?? sourceX * 0.25 + targetX * 0.75;
+  const baseInY = anchors?.in.y ?? sourceY * 0.25 + targetY * 0.75;
+  const midX = anchors?.mid.x ?? labelX;
+  const midY = anchors?.mid.y ?? labelY;
+
+  // Screen-space length gate: flow-unit distance scaled by the live zoom.
+  const flowDist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
+  const showBpsLabels =
+    zoom >= MIN_BPS_LABEL_ZOOM && flowDist * zoom > MIN_LABEL_SCREEN_DIST;
 
   // Unique gradient ID for this edge (out color first half, in color second half)
   const gradId = `grad-${id}`;
@@ -70,12 +145,6 @@ function TrafficEdgeComponent({
 
   // Label position override: "above" (default), "below", "left", "right"
   const labelPos = String(extra?.label_position || "above");
-
-  // Base label positions at 25% (out) and 75% (in) - spread away from midpoint arrows
-  const baseOutX = sourceX * 0.75 + targetX * 0.25;
-  const baseOutY = sourceY * 0.75 + targetY * 0.25;
-  const baseInX = sourceX * 0.25 + targetX * 0.75;
-  const baseInY = sourceY * 0.25 + targetY * 0.75;
 
   // Offset based on label_position
   const labelOffset = 8;
@@ -97,10 +166,6 @@ function TrafficEdgeComponent({
     linkType === "peering_ix" ? "IX" :
     linkType === "peering_pni" ? "PNI" :
     linkType === "customer" ? "CX" : "";
-
-  // Midpoint: use labelX/labelY from path computation (follows the actual path)
-  const midX = labelX;
-  const midY = labelY;
 
   // Arrow direction: always use source→target direction (works for straight, step, bezier)
   const rawDx = targetX - sourceX;
@@ -127,6 +192,7 @@ function TrafficEdgeComponent({
 
       {/* Single path with gradient */}
       <path
+        ref={pathRef}
         id={`${id}-path`}
         d={edgePath}
         fill="none"
@@ -139,7 +205,7 @@ function TrafficEdgeComponent({
       />
 
       {/* Midpoint: two triangles ►◄ pointing inward, tips 2px apart */}
-      {(() => {
+      {showArrows && (() => {
         // Unit vectors along and perpendicular to the link
         const ux = dx / len; // along: source → target
         const uy = dy / len;
@@ -207,7 +273,7 @@ function TrafficEdgeComponent({
         {(bandwidthLabel || typeLabel) && (
           <div className="nodrag nopan" style={{
             position: "absolute",
-            transform: `${labelTranslate} translate(${labelX + offX}px, ${labelY + offY}px)`,
+            transform: `${labelTranslate} translate(${midX + offX}px, ${midY + offY}px)`,
           }}>
             <div className="flex items-center gap-0.5 whitespace-nowrap opacity-40" style={{ fontSize: "8px" }}>
               {typeLabel && <span className="font-semibold tracking-wider">{typeLabel}</span>}

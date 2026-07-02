@@ -17,22 +17,21 @@ export function DeleteConfirmDialog({
 }: DeleteConfirmDialogProps) {
   // Latest handler refs — keep the keydown listener stable across renders.
   const onCancelRef = useRef(onCancel);
-  const onConfirmRef = useRef(onConfirm);
   useEffect(() => {
     onCancelRef.current = onCancel;
-    onConfirmRef.current = onConfirm;
   });
 
-  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
+    // Only Escape is bound to a keyboard action — a stray Enter must NOT trigger
+    // the destructive (and cascading) delete. Focus the non-destructive Cancel.
     const handler = (e: KeyboardEvent) => {
       if (e.key === "Escape") onCancelRef.current();
-      else if (e.key === "Enter") onConfirmRef.current();
     };
     window.addEventListener("keydown", handler);
-    confirmButtonRef.current?.focus();
+    cancelButtonRef.current?.focus();
     return () => window.removeEventListener("keydown", handler);
   }, [open]);
 
@@ -66,13 +65,13 @@ export function DeleteConfirmDialog({
         {/* Actions */}
         <div className="flex items-center justify-end gap-2 px-4 pb-4">
           <button
+            ref={cancelButtonRef}
             onClick={onCancel}
             className="px-3 py-1.5 text-2xs font-medium text-noc-text-muted bg-noc-bg border border-noc-border rounded hover:bg-noc-surface transition-colors"
           >
             Cancel
           </button>
           <button
-            ref={confirmButtonRef}
             onClick={onConfirm}
             className="px-3 py-1.5 text-2xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors"
           >

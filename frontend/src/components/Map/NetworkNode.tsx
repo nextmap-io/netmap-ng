@@ -1,4 +1,4 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import clsx from "clsx";
 import type { NodeType } from "@/types";
@@ -44,56 +44,110 @@ const NODE_BADGE_BG: Record<NodeType, string> = {
 
 const hStyle = "!bg-transparent !border-0 !w-[3px] !h-[3px] !min-w-0 !min-h-0";
 
-function AllHandles() {
-  const handles = useMemo(() => {
-    const positions = [
-      { pos: Position.Top, prefix: "N", styleProp: "left" as const },
-      { pos: Position.Bottom, prefix: "S", styleProp: "left" as const },
-      { pos: Position.Left, prefix: "W", styleProp: "top" as const },
-      { pos: Position.Right, prefix: "E", styleProp: "top" as const },
-    ];
-    const result: Array<{ pos: Position; id: string; style: React.CSSProperties; type: "source" | "target" }> = [];
-    for (const { pos, prefix, styleProp } of positions) {
+const HANDLE_SIDES = [
+  { pos: Position.Top, prefix: "N", styleProp: "left" as const },
+  { pos: Position.Bottom, prefix: "S", styleProp: "left" as const },
+  { pos: Position.Left, prefix: "W", styleProp: "top" as const },
+  { pos: Position.Right, prefix: "E", styleProp: "top" as const },
+];
+
+interface HandleDef {
+  pos: Position;
+  id: string;
+  style: React.CSSProperties;
+  type: "source" | "target";
+}
+
+/**
+ * Handles for a node. To avoid rendering ~150 handles per node, the fine
+ * per-percentage handles are only mounted when the node is active
+ * (selected/hovered) OR when a connected edge actually references them
+ * (`usedHandles`). The 8 coarse side anchors are always mounted so anchoring
+ * and new-link dragging keep working.
+ */
+function AllHandles({ showAll, usedHandles }: { showAll: boolean; usedHandles: Set<string> }) {
+  const handles = useMemo<HandleDef[]>(() => {
+    const result: HandleDef[] = [];
+    for (const { pos, prefix, styleProp } of HANDLE_SIDES) {
+      // Coarse anchors (always mounted).
       result.push({ pos, id: prefix, style: {}, type: "source" });
       result.push({ pos, id: `${prefix}-t`, style: {}, type: "target" });
       for (let pct = 5; pct <= 95; pct += 5) {
         if (pct === 50) continue;
-        const s = { [styleProp]: `${pct}%` };
-        result.push({ pos, id: `${prefix}:${pct}`, style: s, type: "source" });
-        result.push({ pos, id: `${prefix}:${pct}-t`, style: s, type: "target" });
+        const srcId = `${prefix}:${pct}`;
+        const tgtId = `${prefix}:${pct}-t`;
+        const style = { [styleProp]: `${pct}%` };
+        if (showAll || usedHandles.has(srcId)) {
+          result.push({ pos, id: srcId, style, type: "source" });
+        }
+        if (showAll || usedHandles.has(tgtId)) {
+          result.push({ pos, id: tgtId, style, type: "target" });
+        }
       }
     }
     return result;
-  }, []);
+  }, [showAll, usedHandles]);
   return <>{handles.map((h) => <Handle key={h.id} type={h.type} position={h.pos} id={h.id} style={h.style} className={hStyle} />)}</>;
 }
 
 function NetworkNodeComponent({ data, selected }: NodeProps) {
+  const [hovered, setHovered] = useState(false);
   const nodeType = (data.nodeType as NodeType) || "custom";
   const label = (data.label as string) || "";
   const nodeWidth = Number(data.width) || 0;
   const nodeHeight = Number(data.height) || 0;
   const isLarge = nodeWidth > 0 && nodeHeight > 0;
+  const locked = !!data.locked;
+  const isBound = !!data.isBound;
+  const usedHandles = useMemo(
+    () => new Set(Array.isArray(data.usedHandles) ? (data.usedHandles as string[]) : []),
+    [data.usedHandles],
+  );
 
   return (
     <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
       className={clsx(
-        "rounded bg-noc-card border transition-all duration-150 flex items-center justify-center",
+        "relative rounded bg-noc-card border transition-all duration-150 flex items-center justify-center",
         NODE_BORDER[nodeType] || NODE_BORDER.custom,
         selected && "ring-1 ring-accent/50 border-accent/40",
+        isBound && !selected && "ring-1 ring-accent/20",
         isLarge ? "flex-col gap-1 p-2" : "px-2.5 py-1.5 min-w-[72px]",
       )}
       style={isLarge ? { width: nodeWidth, height: nodeHeight } : undefined}
     >
-      <AllHandles />
+      <AllHandles showAll={!!selected || hovered} usedHandles={usedHandles} />
+
+      {/* Status glyphs: locked / bound-group member */}
+      {(locked || isBound) && (
+        <div className="absolute -top-1.5 -right-1.5 flex items-center gap-0.5">
+          {locked && (
+            <span title="Locked" className="text-noc-text-dim bg-noc-card rounded-full p-px">
+              <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                <rect x="5" y="11" width="14" height="10" rx="2" />
+                <path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              </svg>
+            </span>
+          )}
+          {isBound && (
+            <span title="Bound group (moves together)" className="text-accent/70 bg-noc-card rounded-full p-px">
+              <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                <path d="M9 12H7a3 3 0 0 1 0-6h2M15 6h2a3 3 0 0 1 0 6h-2M8 9h8" />
+              </svg>
+            </span>
+          )}
+        </div>
+      )}
+
       <div className="flex items-center gap-1.5">
-        <span className={clsx("text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider", NODE_BADGE_BG[nodeType] || NODE_BADGE_BG.custom)}>
+        <span className={clsx("node-badge text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider", NODE_BADGE_BG[nodeType] || NODE_BADGE_BG.custom)}>
           {NODE_ICONS[nodeType] || "---"}
         </span>
-        <span className="text-2xs font-medium text-noc-text truncate max-w-[110px]">{label}</span>
+        <span title={label} className="text-2xs font-medium text-noc-text truncate max-w-[110px]">{label}</span>
       </div>
       {data.bandwidthLabel ? (
-        <div className="text-2xs text-noc-text-dim mt-0.5 tracking-wide">{String(data.bandwidthLabel)}</div>
+        <div title={String(data.bandwidthLabel)} className="text-2xs text-noc-text-dim mt-0.5 tracking-wide">{String(data.bandwidthLabel)}</div>
       ) : null}
     </div>
   );

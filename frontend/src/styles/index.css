@@ -324,6 +324,13 @@ html.light .react-flow__edge.selected path {
 /* ── Accent: deeper teal for readability ── */
 html.light .text-accent { color: hsl(185 65% 30%) !important; }
 
+/* ── Node type badges: bright type colors on near-white are low-contrast.
+   Darken text + deepen the tint uniformly (works for every hue, including the
+   arbitrary hsl() badges), matching the deeper-accent treatment above. ── */
+html.light .node-badge {
+  filter: brightness(0.72) saturate(1.35);
+}
+
 /* ── Inputs & selects ── */
 html.light input, html.light select, html.light textarea {
   background: #ffffff !important;
@@ -469,13 +476,16 @@ html.scada .react-flow__node span[class*="bg-node-"] {
   border: 1px solid #00aa55;
 }
 
-/* Links: phosphor green for low, amber for medium, red for high */
+/* Links: remap the blue/amber load scale onto a phosphor green→amber ramp so
+   edges read against the green synoptic canvas instead of clashing. The
+   grayscale→sepia→hue-rotate chain tints arbitrary scale colors toward green
+   while preserving the low→high luminance ordering (dim = light load). */
 html.scada .react-flow__edge path {
-  filter: saturate(1.2) !important;
+  filter: grayscale(0.5) sepia(0.6) hue-rotate(58deg) saturate(2.4) brightness(1.05) !important;
   opacity: 0.9 !important;
 }
 html.scada .react-flow__edge polygon {
-  filter: brightness(1.2) !important;
+  filter: grayscale(0.5) sepia(0.6) hue-rotate(58deg) saturate(2.4) brightness(1.15) !important;
 }
 
 /* Link labels */

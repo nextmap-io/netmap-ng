@@ -32,6 +32,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const [showGraph, setShowGraph] = useState(false);
   const [saving, setSaving] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -102,7 +103,18 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
 
   const handleSave = async () => {
     setSaving(true);
+    setError(null);
     try {
+      // Reconcile share state here (staged like every other field) rather than
+      // firing on the select's onChange — so Cancel reverts cleanly.
+      if (visibility === "public" && !publicToken) {
+        const result = await api.shareMap(map.id);
+        setPublicToken(result.public_token);
+      } else if (visibility !== "public" && publicToken) {
+        await api.unshareMap(map.id);
+        setPublicToken(null);
+      }
+
       await api.updateMap(map.id, {
         name,
         description,
@@ -124,6 +136,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
       onClose();
     } catch (e) {
       console.error("Failed to save map settings:", e);
+      setError("Failed to save settings. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -240,16 +253,10 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
                 <select
                   id={id}
                   value={visibility}
-                  onChange={async (e) => {
-                    const v = e.target.value as "private" | "internal" | "public";
-                    setVisibility(v);
-                    if (v === "public" && !publicToken) {
-                      const result = await api.shareMap(map.id);
-                      setPublicToken(result.public_token);
-                    } else if (v !== "public" && publicToken) {
-                      await api.unshareMap(map.id);
-                      setPublicToken(null);
-                    }
+                  onChange={(e) => {
+                    // Staged only — the actual share/unshare happens on Save so
+                    // Cancel discards the change like every other field.
+                    setVisibility(e.target.value as "private" | "internal" | "public");
                   }}
                   className={inputClass}
                 >
@@ -259,28 +266,32 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
                 </select>
               )}
             </FormField>
-            {visibility === "public" && publicToken && (
+            {visibility === "public" && (
               <div className="space-y-2">
-                <FormField label="Share Link">
-                  {(id) => (
-                    <div className="flex items-center gap-1">
-                      <input
-                        id={id}
-                        type="text"
-                        readOnly
-                        value={`${window.location.origin}/public/${publicToken}`}
-                        className={inputClass + " text-2xs"}
-                        onClick={(e) => (e.target as HTMLInputElement).select()}
-                      />
-                      <button
-                        onClick={() => copyToClipboard(`${window.location.origin}/public/${publicToken}`)}
-                        className="px-2 py-1 text-2xs bg-accent/10 text-accent border border-accent/20 rounded hover:bg-accent/20 transition-colors shrink-0"
-                      >
-                        {copied ? "Copied!" : "Copy"}
-                      </button>
-                    </div>
-                  )}
-                </FormField>
+                {publicToken ? (
+                  <FormField label="Share Link">
+                    {(id) => (
+                      <div className="flex items-center gap-1">
+                        <input
+                          id={id}
+                          type="text"
+                          readOnly
+                          value={`${window.location.origin}/public/${publicToken}`}
+                          className={inputClass + " text-2xs"}
+                          onClick={(e) => (e.target as HTMLInputElement).select()}
+                        />
+                        <button
+                          onClick={() => copyToClipboard(`${window.location.origin}/public/${publicToken}`)}
+                          className="px-2 py-1 text-2xs bg-accent/10 text-accent border border-accent/20 rounded hover:bg-accent/20 transition-colors shrink-0"
+                        >
+                          {copied ? "Copied!" : "Copy"}
+                        </button>
+                      </div>
+                    )}
+                  </FormField>
+                ) : (
+                  <p className="text-2xs text-noc-text-dim">Save to generate the public share link.</p>
+                )}
                 <div className="noc-label mb-1">Public Data Visibility</div>
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-2 text-xs text-noc-text">
@@ -360,6 +371,9 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
         </div>
 
         {/* Footer buttons */}
+        {error && (
+          <p className="mt-4 text-2xs text-node-firewall">{error}</p>
+        )}
         <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-noc-border/50">
           <button
             onClick={onClose}

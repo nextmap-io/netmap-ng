@@ -26,7 +26,9 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
   const [ports, setPorts] = useState<ObserviumPort[]>([]);
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
   const blurTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   // Fetch ports when deviceId changes
@@ -61,15 +63,30 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
     }
   }, [selectedPort, open]);
 
+  // Debounce filtering text.
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 150);
+    return () => clearTimeout(t);
+  }, [query]);
+
   const filtered = useMemo(() => {
-    if (!query) return ports;
-    const q = query.toLowerCase();
+    if (!debouncedQuery) return ports;
+    const q = debouncedQuery.toLowerCase();
     return ports.filter(
       (p) =>
         p.ifName.toLowerCase().includes(q) ||
         (p.ifAlias && p.ifAlias.toLowerCase().includes(q)),
     );
-  }, [ports, query]);
+  }, [ports, debouncedQuery]);
+
+  useEffect(() => {
+    setActiveIndex((i) => Math.min(i, Math.max(0, filtered.length - 1)));
+  }, [filtered]);
+
+  // A stored port id that isn't in the fetched port list means the underlying
+  // device was rebound and the binding is stale (still used for traffic).
+  const staleBinding =
+    value != null && !loading && ports.length > 0 && !selectedPort;
 
   const handleFocus = () => {
     setOpen(true);
@@ -93,6 +110,30 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
     onChange(null);
   };
 
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Escape") {
+      setOpen(false);
+      return;
+    }
+    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) {
+      setOpen(true);
+      return;
+    }
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => Math.max(i - 1, 0));
+    } else if (e.key === "Enter") {
+      const p = filtered[activeIndex];
+      if (p) {
+        e.preventDefault();
+        handleSelect(p.port_id, p.ifName);
+      }
+    }
+  };
+
   const disabled = deviceId == null;
 
   return (
@@ -109,7 +150,11 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
             }}
             onFocus={handleFocus}
             onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
             disabled={disabled}
+            role="combobox"
+            aria-expanded={open}
+            aria-autocomplete="list"
             placeholder={
               disabled
                 ? "Select device first"
@@ -131,13 +176,16 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
         </div>
 
         {open && !disabled && filtered.length > 0 && (
-          <div className="absolute left-0 right-0 top-full mt-1 bg-noc-card border border-noc-border rounded max-h-48 overflow-y-auto z-50">
-            {filtered.map((port) => (
+          <div role="listbox" className="absolute left-0 right-0 top-full mt-1 bg-noc-card border border-noc-border rounded max-h-48 overflow-y-auto z-50">
+            {filtered.map((port, idx) => (
               <button
                 key={port.port_id}
                 type="button"
+                role="option"
+                aria-selected={idx === activeIndex}
+                onMouseEnter={() => setActiveIndex(idx)}
                 onMouseDown={() => handleSelect(port.port_id, port.ifName)}
-                className="w-full text-left px-2 py-1.5 hover:bg-noc-bg/60 transition-colors"
+                className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIndex ? "bg-noc-bg/60" : "hover:bg-noc-bg/60"}`}
               >
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-noc-text">{port.ifName}</span>
@@ -161,6 +209,11 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
           </div>
         )}
       </div>
+      {staleBinding && (
+        <p className="mt-1 text-2xs text-node-firewall">
+          Binding no longer valid for this device — pick a new port or clear it.
+        </p>
+      )}
     </div>
   );
 }

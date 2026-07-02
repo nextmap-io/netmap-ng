@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useMapStore } from "@/hooks/useMapStore";
 import { NodeProperties } from "./NodeProperties";
 import { LinkProperties } from "./LinkProperties";
@@ -57,9 +57,17 @@ export function PropertyPanel() {
     await deleteLink(selectedLinkId);
   }, [selectedLinkId, clearSelection, deleteLink]);
 
-  const savedAgo = lastSaved
-    ? Math.max(0, Math.round((Date.now() - lastSaved) / 1000))
-    : null;
+  // Tick once a second so the "Saved Xs ago" label stays current instead of
+  // freezing at the value captured on the render that set lastSaved.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!lastSaved) return;
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [lastSaved]);
+
+  const savedAgo = lastSaved ? Math.max(0, Math.round((now - lastSaved) / 1000)) : null;
 
   return (
     <div

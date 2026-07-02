@@ -19,10 +19,16 @@ function applyTheme(theme: Theme) {
   }
 }
 
+/** The concrete theme actually painted (never "system"). */
+export type ResolvedTheme = "light" | "dark" | "scada";
+
 export function useTheme() {
   const [theme, setThemeState] = useState<Theme>(() => {
     return (localStorage.getItem("theme") as Theme) || "system";
   });
+  // Track the OS scheme in state so consumers re-render when it flips while
+  // theme === "system" (canvas/minimap colors depend on it).
+  const [systemDark, setSystemDark] = useState<boolean>(() => getSystemTheme() === "dark");
 
   const setTheme = useCallback((t: Theme) => {
     localStorage.setItem("theme", t);
@@ -34,6 +40,7 @@ export function useTheme() {
     applyTheme(theme);
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
     const handler = () => {
+      setSystemDark(mq.matches);
       if (theme === "system") applyTheme("system");
     };
     mq.addEventListener("change", handler);
@@ -46,5 +53,8 @@ export function useTheme() {
     setTheme(next);
   }, [theme, setTheme]);
 
-  return { theme, setTheme, cycle };
+  const resolvedTheme: ResolvedTheme =
+    theme === "scada" ? "scada" : theme === "system" ? (systemDark ? "dark" : "light") : theme;
+
+  return { theme, setTheme, cycle, resolvedTheme };
 }

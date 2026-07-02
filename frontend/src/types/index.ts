@@ -1,3 +1,11 @@
+/**
+ * Single source of truth for the rendered footprint of an unsized network
+ * node. Edge anchoring (buildEdges) and alignment/distribution math both use
+ * these so unsized nodes line up consistently.
+ */
+export const DEFAULT_NODE_WIDTH = 80;
+export const DEFAULT_NODE_HEIGHT = 30;
+
 export type NodeType =
   | "router"
   | "switch_l2"
