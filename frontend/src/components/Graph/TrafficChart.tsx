@@ -8,6 +8,7 @@ import {
   YAxis,
 } from "recharts";
 import { formatBps } from "../Map/MapView";
+import { useTheme } from "@/hooks/useTheme";
 
 interface ChartDatum {
   time: number;
@@ -19,7 +20,16 @@ interface TrafficChartProps {
   data: ChartDatum[];
 }
 
+/** Chart chrome colors resolved per theme so the grid/axes match the canvas. */
+const CHART_PALETTE = {
+  dark: { grid: "hsl(220 15% 16%)", axis: "hsl(215 15% 55%)", tooltipBg: "hsl(220 18% 10%)", tooltipText: "hsl(210 20% 88%)" },
+  light: { grid: "hsl(36 8% 82%)", axis: "hsl(30 6% 45%)", tooltipBg: "#ffffff", tooltipText: "hsl(30 8% 18%)" },
+  scada: { grid: "#1a3a1a", axis: "#00aa55", tooltipBg: "#0d1a0d", tooltipText: "#00ff88" },
+} as const;
+
 export default function TrafficChart({ data }: TrafficChartProps) {
+  const { resolvedTheme } = useTheme();
+  const c = CHART_PALETTE[resolvedTheme];
   return (
     <ResponsiveContainer width="100%" height={200}>
       <AreaChart data={data}>
@@ -35,7 +45,7 @@ export default function TrafficChart({ data }: TrafficChartProps) {
         </defs>
         <CartesianGrid
           strokeDasharray="3 3"
-          stroke="hsl(220 15% 16%)"
+          stroke={c.grid}
           strokeOpacity={0.5}
         />
         <XAxis
@@ -48,18 +58,18 @@ export default function TrafficChart({ data }: TrafficChartProps) {
               minute: "2-digit",
             })
           }
-          stroke="hsl(215 15% 55%)"
+          stroke={c.axis}
           fontSize={10}
           tickLine={false}
-          axisLine={{ stroke: "hsl(220 15% 16%)" }}
+          axisLine={{ stroke: c.grid }}
         />
         <YAxis
           tickFormatter={(v) => formatBps(Math.abs(v))}
-          stroke="hsl(215 15% 55%)"
+          stroke={c.axis}
           fontSize={10}
           width={56}
           tickLine={false}
-          axisLine={{ stroke: "hsl(220 15% 16%)" }}
+          axisLine={{ stroke: c.grid }}
         />
         <Tooltip
           labelFormatter={(ts) => new Date(ts as number).toLocaleString()}
@@ -68,18 +78,18 @@ export default function TrafficChart({ data }: TrafficChartProps) {
             value >= 0 ? "In" : "Out",
           ]}
           contentStyle={{
-            backgroundColor: "hsl(220 18% 10%)",
-            border: "1px solid hsl(220 15% 16%)",
+            backgroundColor: c.tooltipBg,
+            border: `1px solid ${c.grid}`,
             borderRadius: 6,
             fontFamily: "JetBrains Mono, monospace",
             fontSize: 11,
           }}
           labelStyle={{
-            color: "hsl(215 15% 55%)",
+            color: c.axis,
             fontSize: 10,
             marginBottom: 4,
           }}
-          itemStyle={{ color: "hsl(210 20% 88%)", padding: "1px 0" }}
+          itemStyle={{ color: c.tooltipText, padding: "1px 0" }}
         />
         <Area
           type="monotone"

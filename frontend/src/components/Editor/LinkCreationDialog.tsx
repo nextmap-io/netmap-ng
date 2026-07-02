@@ -1,9 +1,11 @@
 import { useState, useEffect, useMemo } from "react";
-import type { MapNode, LinkType } from "@/types";
+import type { MapNode, MapLink, LinkType } from "@/types";
+import { parseBandwidth } from "@/utils/bandwidth";
 
 interface LinkCreationDialogProps {
   open: boolean;
   nodes: MapNode[];
+  existingLinks?: MapLink[];
   onClose: () => void;
   onCreate: (data: Record<string, unknown>) => Promise<void>;
 }
@@ -19,23 +21,10 @@ const LINK_TYPES: LinkType[] = [
   "custom",
 ];
 
-function parseBandwidth(label: string): number {
-  const match = label.trim().match(/^([\d.]+)\s*(T|G|M|K)?$/i);
-  if (!match) return 1_000_000_000;
-  const value = parseFloat(match[1]);
-  const unit = (match[2] || "").toUpperCase();
-  switch (unit) {
-    case "T": return value * 1e12;
-    case "G": return value * 1e9;
-    case "M": return value * 1e6;
-    case "K": return value * 1e3;
-    default: return value;
-  }
-}
-
 export function LinkCreationDialog({
   open,
   nodes,
+  existingLinks = [],
   onClose,
   onCreate,
 }: LinkCreationDialogProps) {
@@ -45,6 +34,7 @@ export function LinkCreationDialog({
   const [linkType, setLinkType] = useState<LinkType>("internal");
   const [bandwidthLabel, setBandwidthLabel] = useState("1G");
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // Filter out group nodes
   const availableNodes = useMemo(
@@ -67,8 +57,19 @@ export function LinkCreationDialog({
       setLinkType("internal");
       setBandwidthLabel("1G");
       setCreating(false);
+      setError(null);
     }
   }, [open]);
+
+  // Warn if a link already connects this (unordered) pair of endpoints.
+  const isDuplicate = useMemo(() => {
+    if (!sourceId || !targetId) return false;
+    return existingLinks.some(
+      (l) =>
+        (l.source_id === sourceId && l.target_id === targetId) ||
+        (l.source_id === targetId && l.target_id === sourceId),
+    );
+  }, [existingLinks, sourceId, targetId]);
 
   const autoName = (sId: string, tId: string) => {
     if (!sId || !tId) return "";
@@ -100,6 +101,7 @@ export function LinkCreationDialog({
   const handleCreate = async () => {
     if (!canCreate) return;
     setCreating(true);
+    setError(null);
     try {
       await onCreate({
         name: name.trim(),
@@ -111,6 +113,7 @@ export function LinkCreationDialog({
       });
       onClose();
     } catch {
+      setError("Failed to create link. Please try again.");
       setCreating(false);
     }
   };
@@ -202,6 +205,12 @@ export function LinkCreationDialog({
               placeholder="1G"
             />
           </div>
+          {isDuplicate && (
+            <p className="text-2xs text-amber-400">
+              A link already connects these two nodes.
+            </p>
+          )}
+          {error && <p className="text-2xs text-node-firewall">{error}</p>}
         </div>
 
         {/* Actions */}

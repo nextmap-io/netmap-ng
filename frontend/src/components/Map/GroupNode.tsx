@@ -17,7 +17,7 @@ function GroupNodeComponent({ data }: NodeProps) {
           <rect x="3" y="14" width="7" height="7" rx="1" />
           <rect x="14" y="14" width="7" height="7" rx="1" />
         </svg>
-        {label}
+        <span title={label} className="truncate">{label}</span>
       </div>
     </div>
   );

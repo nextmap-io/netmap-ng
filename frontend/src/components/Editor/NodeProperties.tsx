@@ -322,6 +322,47 @@ export function NodeProperties({
         />
       </section>
 
+      {/* LAYERING */}
+      <section>
+        <div className={labelClass}>Layering</div>
+        <div className="h-px bg-noc-border/50 mb-3" />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              const maxZ = Math.max(0, ...allNodes.map((n) => n.z_order || 0));
+              onUpdate({ z_order: maxZ + 1 });
+            }}
+            className="flex-1 px-2 py-1 text-2xs text-noc-text-muted border border-noc-border rounded hover:bg-noc-surface hover:text-noc-text transition-colors"
+          >
+            Bring to Front
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const minZ = Math.min(0, ...allNodes.map((n) => n.z_order || 0));
+              onUpdate({ z_order: minZ - 1 });
+            }}
+            className="flex-1 px-2 py-1 text-2xs text-noc-text-muted border border-noc-border rounded hover:bg-noc-surface hover:text-noc-text transition-colors"
+          >
+            Send to Back
+          </button>
+        </div>
+        <p className="text-2xs text-noc-text-dim mt-1 tabular-nums">z-order: {node.z_order ?? 0}</p>
+        <FormField label="Icon" labelClassName={`${labelClass} mt-2`}>
+          {(id) => (
+            <input
+              id={id}
+              type="text"
+              value={node.icon ?? ""}
+              placeholder="icon name / short code"
+              onChange={(e) => onUpdate({ icon: e.target.value || null })}
+              className={inputClass}
+            />
+          )}
+        </FormField>
+      </section>
+
       {/* URL */}
       <section>
         <div className={labelClass}>URL</div>

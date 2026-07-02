@@ -64,6 +64,7 @@ class LinkUpdate(BaseModel):
     bandwidth_label: str | None = Field(None, max_length=20)
     via_points: list[dict] | None = None
     via_style: str | None = None
+    arrow_style: str | None = Field(None, max_length=20)
     width: int | None = Field(None, ge=1, le=50)
     datasource: dict | None = None
     observium_port_id_a: int | None = None

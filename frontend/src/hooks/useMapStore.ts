@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import type { NetmapData, TrafficData, MapNode, MapLink, NodeType, AlignDirection } from "@/types";
+import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from "@/types";
 import { api, ApiError } from "@/api/client";
+
+/** Rendered footprint of a node, falling back to the shared default size. */
+const nodeW = (n: MapNode) => n.width || DEFAULT_NODE_WIDTH;
+const nodeH = (n: MapNode) => n.height || DEFAULT_NODE_HEIGHT;
+/** A node is locked either via its own flag or a legacy style.locked flag. */
+const isNodeLocked = (n: MapNode) => n.locked || !!n.style?.locked;
 
 /**
  * Full editable snapshot of the map for undo/redo.
@@ -57,6 +64,25 @@ function cloneMap<T>(items: T[]): T[] {
 
 function takeSnapshot(map: NetmapData): EntitySnapshot {
   return { nodes: cloneMap(map.nodes), links: cloneMap(map.links) };
+}
+
+/**
+ * Push a pre-captured snapshot onto the undo stack. Called only AFTER a
+ * mutation is confirmed persisted so a failed/rolled-back edit never leaves a
+ * no-op undo entry (canUndo=true with nothing to revert).
+ */
+function commitUndoSnapshot(
+  set: (partial: Partial<MapStore>) => void,
+  get: () => MapStore,
+  snap: EntitySnapshot,
+): void {
+  const { _undoStack } = get();
+  set({
+    _undoStack: [..._undoStack, snap].slice(-MAX_UNDO),
+    _redoStack: [],
+    canUndo: true,
+    canRedo: false,
+  });
 }
 
 /**
@@ -173,6 +199,8 @@ interface MapStore {
 
   // Layout
   alignNodes: (direction: AlignDirection) => Promise<void>;
+  alignToCanvas: (axis: "horizontal" | "vertical") => Promise<void>;
+  matchNodeSize: (dim: "width" | "height") => Promise<void>;
   distributeNodes: (axis: "horizontal" | "vertical") => Promise<void>;
   flipNodes: (axis: "horizontal" | "vertical") => Promise<void>;
   toggleSnapToGrid: () => void;
@@ -331,10 +359,9 @@ export const useMapStore = create<MapStore>((set, get) => ({
     const { map } = get();
     if (!map) return;
 
-    // Capture full state for undo before mutating
-    get().pushUndo();
-
-    // Save current node state for rollback
+    // Snapshot BEFORE mutating, but only commit it to the undo stack once the
+    // write succeeds — a failed/rolled-back edit must not leave a no-op entry.
+    const snap = takeSnapshot(map);
     const previousNodes = map.nodes;
 
     // Optimistically update local state
@@ -349,6 +376,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     try {
       await api.updateNode(map.id, nodeId, fields);
+      commitUndoSnapshot(set, get, snap);
       set({ saving: false, lastSaved: Date.now() });
     } catch {
       // Revert to saved state
@@ -364,10 +392,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     const { map } = get();
     if (!map) return;
 
-    // Capture full state for undo before mutating
-    get().pushUndo();
-
-    // Save current link state for rollback
+    const snap = takeSnapshot(map);
     const previousLinks = map.links;
 
     // Optimistically update local state
@@ -383,6 +408,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     try {
       await api.updateLink(map.id, linkId, fields);
+      commitUndoSnapshot(set, get, snap);
       set({ saving: false, lastSaved: Date.now() });
     } catch {
       // Revert to saved state
@@ -398,7 +424,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     const { map } = get();
     if (!map || ids.length === 0) return;
 
-    get().pushUndo();
+    const snap = takeSnapshot(map);
     const previousNodes = map.nodes;
     const idSet = new Set(ids);
     const newNodes = map.nodes.map((n: MapNode) => {
@@ -417,6 +443,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     try {
       await api.batchUpdateNodes(map.id, ids, fields);
+      commitUndoSnapshot(set, get, snap);
       set({ saving: false, lastSaved: Date.now() });
     } catch {
       set({ map: { ...get().map!, nodes: previousNodes }, saving: false });
@@ -428,7 +455,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     const { map } = get();
     if (!map || ids.length === 0) return;
 
-    get().pushUndo();
+    const snap = takeSnapshot(map);
     const previousLinks = map.links;
     const idSet = new Set(ids);
     const newLinks = map.links.map((l: MapLink) => {
@@ -441,6 +468,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
 
     try {
       await api.batchUpdateLinks(map.id, ids, fields);
+      commitUndoSnapshot(set, get, snap);
       set({ saving: false, lastSaved: Date.now() });
     } catch {
       set({ map: { ...get().map!, links: previousLinks }, saving: false });
@@ -525,171 +553,173 @@ export const useMapStore = create<MapStore>((set, get) => ({
     await persistSnapshot(map.id, nextSnap, currentSnap);
   },
 
-  // Align selected nodes
+  // Align selected nodes to the selection bounding box (locked nodes skipped).
   alignNodes: async (direction) => {
     const { map, selectedNodeIds } = get();
-    if (!map || selectedNodeIds.length < 2) return;
+    if (!map) return;
 
-    // Push undo before aligning
+    const targets = map.nodes.filter(
+      (n: MapNode) => selectedNodeIds.includes(n.id) && !isNodeLocked(n),
+    );
+    if (targets.length < 2) return;
+
     get().pushUndo();
 
-    const selectedNodes = map.nodes.filter((n: MapNode) =>
-      selectedNodeIds.includes(n.id)
+    const ids = new Set(targets.map((n) => n.id));
+    const minLeft = Math.min(...targets.map((n) => n.x));
+    const maxRight = Math.max(...targets.map((n) => n.x + nodeW(n)));
+    const minTop = Math.min(...targets.map((n) => n.y));
+    const maxBot = Math.max(...targets.map((n) => n.y + nodeH(n)));
+    const centerX = (minLeft + maxRight) / 2;
+    const centerY = (minTop + maxBot) / 2;
+
+    const place = (n: MapNode): Partial<MapNode> => {
+      switch (direction) {
+        case "left": return { x: minLeft };
+        case "center": return { x: centerX - nodeW(n) / 2 };
+        case "right": return { x: maxRight - nodeW(n) };
+        case "top": return { y: minTop };
+        case "middle": return { y: centerY - nodeH(n) / 2 };
+        case "bottom": return { y: maxBot - nodeH(n) };
+        default: return {};
+      }
+    };
+
+    const updatedNodes = map.nodes.map((n: MapNode) =>
+      ids.has(n.id) ? { ...n, ...place(n) } : n,
     );
-    if (selectedNodes.length < 2) return;
-
-    let updatedNodes: MapNode[];
-
-    const nw = (n: MapNode) => n.width || 100;
-    const nh = (n: MapNode) => n.height || 28;
-    const refByY = selectedNodes.reduce((min, n) => (n.y < min.y ? n : min));
-    const refByX = selectedNodes.reduce((min, n) => (n.x < min.x ? n : min));
-
-    switch (direction) {
-      case "left": {
-        const refX = refByX.x;
-        updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: refX } : n
-        );
-        break;
-      }
-      case "center": {
-        const refCenterX = refByX.x + nw(refByX) / 2;
-        updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: refCenterX - nw(n) / 2 } : n
-        );
-        break;
-      }
-      case "right": {
-        const refRight = selectedNodes.reduce((max, n) =>
-          n.x + nw(n) > max.x + nw(max) ? n : max,
-        );
-        const rightEdge = refRight.x + nw(refRight);
-        updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, x: rightEdge - nw(n) } : n
-        );
-        break;
-      }
-      case "top": {
-        const refY = refByY.y;
-        updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: refY } : n
-        );
-        break;
-      }
-      case "middle": {
-        const refMiddleY = refByY.y + nh(refByY) / 2;
-        updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: refMiddleY - nh(n) / 2 } : n
-        );
-        break;
-      }
-      case "bottom": {
-        const refBot = selectedNodes.reduce((max, n) =>
-          n.y + nh(n) > max.y + nh(max) ? n : max,
-        );
-        const bottomEdge = refBot.y + nh(refBot);
-        updatedNodes = map.nodes.map((n: MapNode) =>
-          selectedNodeIds.includes(n.id) ? { ...n, y: bottomEdge - nh(n) } : n
-        );
-        break;
-      }
-    }
-
     set({ map: { ...map, nodes: updatedNodes } });
 
     const moves = updatedNodes
-      .filter((n: MapNode) => selectedNodeIds.includes(n.id))
+      .filter((n: MapNode) => ids.has(n.id))
       .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
     await api.batchMoveNodes(map.id, moves);
   },
 
-  // Distribute selected nodes with equal spacing
+  // Center the selection bounding box on the canvas along one axis.
+  alignToCanvas: async (axis) => {
+    const { map, selectedNodeIds } = get();
+    if (!map) return;
+    const targets = map.nodes.filter(
+      (n: MapNode) => selectedNodeIds.includes(n.id) && !isNodeLocked(n),
+    );
+    if (targets.length === 0) return;
+
+    get().pushUndo();
+    const ids = new Set(targets.map((n) => n.id));
+    const horiz = axis === "horizontal";
+    const size = horiz ? nodeW : nodeH;
+    const coord = (n: MapNode) => (horiz ? n.x : n.y);
+    const min = Math.min(...targets.map(coord));
+    const max = Math.max(...targets.map((n) => coord(n) + size(n)));
+    const canvasCenter = (horiz ? map.width : map.height) / 2;
+    const delta = canvasCenter - (min + max) / 2;
+
+    const updatedNodes = map.nodes.map((n: MapNode) =>
+      ids.has(n.id)
+        ? horiz
+          ? { ...n, x: n.x + delta }
+          : { ...n, y: n.y + delta }
+        : n,
+    );
+    set({ map: { ...map, nodes: updatedNodes } });
+    const moves = updatedNodes
+      .filter((n: MapNode) => ids.has(n.id))
+      .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
+    await api.batchMoveNodes(map.id, moves);
+  },
+
+  // Match the width or height of selected nodes to the largest in the set.
+  matchNodeSize: async (dim) => {
+    const { map, selectedNodeIds } = get();
+    if (!map) return;
+    const targets = map.nodes.filter(
+      (n: MapNode) =>
+        selectedNodeIds.includes(n.id) && !isNodeLocked(n) && n.node_type !== "group",
+    );
+    if (targets.length < 2) return;
+    const ref = Math.max(...targets.map((n) => (dim === "width" ? nodeW(n) : nodeH(n))));
+    // bulkUpdateNodes handles the (post-success) undo snapshot + persistence.
+    await get().bulkUpdateNodes(targets.map((n) => n.id), { [dim]: ref });
+  },
+
+  // Distribute selected nodes with equal EDGE gaps (locked nodes skipped).
   distributeNodes: async (axis) => {
     const { map, selectedNodeIds } = get();
-    if (!map || selectedNodeIds.length < 3) return;
+    if (!map) return;
 
-    // Push undo before distributing
+    const targets = map.nodes.filter(
+      (n: MapNode) => selectedNodeIds.includes(n.id) && !isNodeLocked(n),
+    );
+    if (targets.length < 3) return;
+
     get().pushUndo();
 
-    const selectedNodes = map.nodes.filter((n: MapNode) =>
-      selectedNodeIds.includes(n.id)
-    );
-    if (selectedNodes.length < 3) return;
+    const horiz = axis === "horizontal";
+    const size = horiz ? nodeW : nodeH;
+    const coord = (n: MapNode) => (horiz ? n.x : n.y);
+    const sorted = targets.toSorted((a, b) => coord(a) - coord(b));
+    const spanStart = coord(sorted[0]);
+    const last = sorted[sorted.length - 1];
+    const spanEnd = coord(last) + size(last);
+    const totalSize = sorted.reduce((s, n) => s + size(n), 0);
+    // Equal gap between adjacent edges keeps first/last fixed; even with mixed
+    // sizes the visible spacing between nodes is uniform.
+    const gap = (spanEnd - spanStart - totalSize) / (sorted.length - 1);
 
-    let updatedNodes: MapNode[];
-
-    if (axis === "horizontal") {
-      const nw = (n: MapNode) => n.width || 100;
-      const sorted = selectedNodes.toSorted((a, b) => (a.x + nw(a)/2) - (b.x + nw(b)/2));
-      const firstCenter = sorted[0].x + nw(sorted[0]) / 2;
-      const lastCenter = sorted[sorted.length - 1].x + nw(sorted[sorted.length - 1]) / 2;
-      const step = (lastCenter - firstCenter) / (sorted.length - 1);
-
-      const positionMap = new Map<string, number>();
-      sorted.forEach((n, i) => {
-        const newCenter = firstCenter + i * step;
-        positionMap.set(n.id, newCenter - nw(n) / 2);
-      });
-
-      updatedNodes = map.nodes.map((n: MapNode) =>
-        positionMap.has(n.id) ? { ...n, x: positionMap.get(n.id)! } : n
-      );
-    } else {
-      const nh = (n: MapNode) => n.height || 28;
-      const sorted = selectedNodes.toSorted((a, b) => (a.y + nh(a)/2) - (b.y + nh(b)/2));
-      const firstCenter = sorted[0].y + nh(sorted[0]) / 2;
-      const lastCenter = sorted[sorted.length - 1].y + nh(sorted[sorted.length - 1]) / 2;
-      const step = (lastCenter - firstCenter) / (sorted.length - 1);
-
-      const positionMap = new Map<string, number>();
-      sorted.forEach((n, i) => {
-        const newCenter = firstCenter + i * step;
-        positionMap.set(n.id, newCenter - nh(n) / 2);
-      });
-
-      updatedNodes = map.nodes.map((n: MapNode) =>
-        positionMap.has(n.id) ? { ...n, y: positionMap.get(n.id)! } : n
-      );
+    const positionMap = new Map<string, number>();
+    let cursor = spanStart;
+    for (const n of sorted) {
+      positionMap.set(n.id, cursor);
+      cursor += size(n) + gap;
     }
 
+    const updatedNodes = map.nodes.map((n: MapNode) =>
+      positionMap.has(n.id)
+        ? horiz
+          ? { ...n, x: positionMap.get(n.id)! }
+          : { ...n, y: positionMap.get(n.id)! }
+        : n,
+    );
     set({ map: { ...map, nodes: updatedNodes } });
 
     const moves = updatedNodes
-      .filter((n: MapNode) => selectedNodeIds.includes(n.id))
+      .filter((n: MapNode) => positionMap.has(n.id))
       .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
     await api.batchMoveNodes(map.id, moves);
   },
 
-  // Flip selected nodes (mirror positions)
+  // Flip selected nodes (mirror positions; locked nodes skipped).
   flipNodes: async (axis) => {
     const { map, selectedNodeIds } = get();
-    if (!map || selectedNodeIds.length < 2) return;
+    if (!map) return;
+
+    const targets = map.nodes.filter(
+      (n: MapNode) => selectedNodeIds.includes(n.id) && !isNodeLocked(n),
+    );
+    if (targets.length < 2) return;
 
     get().pushUndo();
 
-    const selected = map.nodes.filter((n: MapNode) => selectedNodeIds.includes(n.id));
-    const nw = (n: MapNode) => n.width || 100;
-    const nh = (n: MapNode) => n.height || 28;
-
+    const ids = new Set(targets.map((n) => n.id));
     let updatedNodes: MapNode[];
     if (axis === "horizontal") {
-      const centers = selected.map((n) => n.x + nw(n) / 2);
+      const centers = targets.map((n) => n.x + nodeW(n) / 2);
       const mid = (Math.min(...centers) + Math.max(...centers)) / 2;
       updatedNodes = map.nodes.map((n: MapNode) =>
-        selectedNodeIds.includes(n.id) ? { ...n, x: 2 * mid - n.x - nw(n) } : n
+        ids.has(n.id) ? { ...n, x: 2 * mid - n.x - nodeW(n) } : n
       );
     } else {
-      const centers = selected.map((n) => n.y + nh(n) / 2);
+      const centers = targets.map((n) => n.y + nodeH(n) / 2);
       const mid = (Math.min(...centers) + Math.max(...centers)) / 2;
       updatedNodes = map.nodes.map((n: MapNode) =>
-        selectedNodeIds.includes(n.id) ? { ...n, y: 2 * mid - n.y - nh(n) } : n
+        ids.has(n.id) ? { ...n, y: 2 * mid - n.y - nodeH(n) } : n
       );
     }
 
     set({ map: { ...map, nodes: updatedNodes } });
     const moves = updatedNodes
-      .filter((n: MapNode) => selectedNodeIds.includes(n.id))
+      .filter((n: MapNode) => ids.has(n.id))
       .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
     await api.batchMoveNodes(map.id, moves);
   },
@@ -763,16 +793,23 @@ export const useMapStore = create<MapStore>((set, get) => ({
     const { map, selectedNodeIds } = get();
     if (!map || selectedNodeIds.length === 0) return;
 
+    const ids = new Set(
+      map.nodes
+        .filter((n: MapNode) => selectedNodeIds.includes(n.id) && !isNodeLocked(n))
+        .map((n) => n.id),
+    );
+    if (ids.size === 0) return;
+
     get().pushUndo();
 
     const updatedNodes = map.nodes.map((n: MapNode) =>
-      selectedNodeIds.includes(n.id) ? { ...n, x: n.x + dx, y: n.y + dy } : n
+      ids.has(n.id) ? { ...n, x: n.x + dx, y: n.y + dy } : n
     );
 
     set({ map: { ...map, nodes: updatedNodes } });
 
     const moves = updatedNodes
-      .filter((n: MapNode) => selectedNodeIds.includes(n.id))
+      .filter((n: MapNode) => ids.has(n.id))
       .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
     await api.batchMoveNodes(map.id, moves);
   },

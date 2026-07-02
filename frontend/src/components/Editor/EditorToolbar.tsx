@@ -25,6 +25,8 @@ export function EditorToolbar() {
     map,
     selectedNodeIds,
     alignNodes,
+    alignToCanvas,
+    matchNodeSize,
     distributeNodes,
     flipNodes,
     toggleSnapToGrid,
@@ -68,6 +70,7 @@ export function EditorToolbar() {
     try {
       // Targets: current selection if any, else all nodes; locked nodes excluded.
       const locked = (n: MapNode) => n.locked || !!n.style?.locked;
+      const byId = new Map(map.nodes.map((n) => [n.id, n]));
       const targetIds = new Set(
         (selectedNodeIds.length > 0
           ? map.nodes.filter((n) => selectedNodeIds.includes(n.id))
@@ -76,6 +79,19 @@ export function EditorToolbar() {
           .filter((n) => !locked(n))
           .map((n) => n.id),
       );
+      if (targetIds.size === 0) return;
+      // ELK returns child coordinates relative to the parent group. Applying a
+      // selected child while its parent stays put misplaces it, so pull each
+      // selected child's (unlocked) parent group into the target set too; if the
+      // parent is locked, drop the child instead of misplacing it.
+      for (const id of [...targetIds]) {
+        const n = byId.get(id);
+        const parent = n?.parent_id ? byId.get(n.parent_id) : undefined;
+        if (parent && parent.node_type === "group") {
+          if (locked(parent)) targetIds.delete(id);
+          else targetIds.add(parent.id);
+        }
+      }
       if (targetIds.size === 0) return;
       // Lay out the full graph (keeps group hierarchy correct), apply only targets.
       const positions = await computeAutoLayout(map.nodes, map.links, algorithm);
@@ -104,6 +120,7 @@ export function EditorToolbar() {
   if (!editMode) return null;
 
   const canAlign = selectedNodeIds.length >= 2;
+  const canCanvas = selectedNodeIds.length >= 1;
   const canDistribute = selectedNodeIds.length >= 3;
   const canBind = selectedNodeIds.length >= 2;
   const isBound = selectedNodeIds.length > 0 && selectedNodeIds.some((id) => getBoundGroup(id));
@@ -147,10 +164,17 @@ export function EditorToolbar() {
 
         {/* Group 2 - Distribution */}
         {SEPARATOR}
-        {btn(canDistribute, () => distributeNodes("horizontal"), <IconDistributeH />, "Distribute Horizontal")}
-        {btn(canDistribute, () => distributeNodes("vertical"), <IconDistributeV />, "Distribute Vertical")}
+        {btn(canDistribute, () => distributeNodes("horizontal"), <IconDistributeH />, "Distribute Horizontal (equal edge gaps)")}
+        {btn(canDistribute, () => distributeNodes("vertical"), <IconDistributeV />, "Distribute Vertical (equal edge gaps)")}
 
-        {/* Group 3 - Flip / Mirror */}
+        {/* Group 3 - Canvas align & match size */}
+        {SEPARATOR}
+        {btn(canCanvas, () => alignToCanvas("horizontal"), <IconCanvasH />, "Center on canvas (horizontal)")}
+        {btn(canCanvas, () => alignToCanvas("vertical"), <IconCanvasV />, "Center on canvas (vertical)")}
+        {btn(canAlign, () => matchNodeSize("width"), <IconMatchW />, "Match width")}
+        {btn(canAlign, () => matchNodeSize("height"), <IconMatchH />, "Match height")}
+
+        {/* Group 4 - Flip / Mirror */}
         {SEPARATOR}
         {btn(canAlign, () => flipNodes("horizontal"), <IconFlipH />, "Flip Horizontal")}
         {btn(canAlign, () => flipNodes("vertical"), <IconFlipV />, "Flip Vertical")}
@@ -206,6 +230,7 @@ export function EditorToolbar() {
         <LinkCreationDialog
           open={showLinkDialog}
           nodes={map.nodes}
+          existingLinks={map.links}
           onClose={() => setShowLinkDialog(false)}
           onCreate={createLink}
         />
@@ -303,6 +328,46 @@ function IconDistributeV() {
       <rect x={5} y={3} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
       <rect x={5} y={7} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
       <rect x={5} y={11} width={6} height={2} rx={0.5} fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconCanvasH() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <rect x={1.5} y={2} width={13} height={12} rx={1} strokeOpacity={0.4} />
+      <line x1={8} y1={2} x2={8} y2={14} strokeDasharray="1.5 1.5" strokeOpacity={0.6} />
+      <rect x={5} y={6} width={6} height={4} rx={0.5} fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconCanvasV() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5}>
+      <rect x={2} y={1.5} width={12} height={13} rx={1} strokeOpacity={0.4} />
+      <line x1={2} y1={8} x2={14} y2={8} strokeDasharray="1.5 1.5" strokeOpacity={0.6} />
+      <rect x={6} y={5} width={4} height={6} rx={0.5} fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
+function IconMatchW() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+      <rect x={2} y={3} width={12} height={3} rx={0.5} fill="currentColor" stroke="none" />
+      <rect x={2} y={10} width={12} height={3} rx={0.5} fill="currentColor" stroke="none" opacity={0.5} />
+      <path d="M1 8h14M2.5 6.5L1 8l1.5 1.5M13.5 6.5L15 8l-1.5 1.5" />
+    </svg>
+  );
+}
+
+function IconMatchH() {
+  return (
+    <svg width={16} height={16} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
+      <rect x={3} y={2} width={3} height={12} rx={0.5} fill="currentColor" stroke="none" />
+      <rect x={10} y={2} width={3} height={12} rx={0.5} fill="currentColor" stroke="none" opacity={0.5} />
+      <path d="M8 1v14M6.5 2.5L8 1l1.5 1.5M6.5 13.5L8 15l1.5-1.5" />
     </svg>
   );
 }
