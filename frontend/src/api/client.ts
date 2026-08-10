@@ -77,7 +77,7 @@ export const api = {
   batchMoveNodes: (mapId: string, moves: Array<{ id: string; x: number; y: number }>) =>
     request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(mapId)}/nodes/batch-move`, { method: "POST", body: JSON.stringify({ moves }) }),
   batchUpdateNodes: (mapId: string, ids: string[], fields: Record<string, unknown>) =>
-    request<MapNode[]>(`/api/maps/${encodeURIComponent(mapId)}/nodes/batch`, {
+    request<{ nodes: MapNode[] }>(`/api/maps/${encodeURIComponent(mapId)}/nodes/batch`, {
       method: "PATCH",
       body: JSON.stringify({ node_ids: ids, fields }),
     }),
@@ -90,7 +90,7 @@ export const api = {
   deleteLink: (mapId: string, linkId: string) =>
     request<{ ok: boolean }>(`/api/maps/${encodeURIComponent(mapId)}/links/${encodeURIComponent(linkId)}`, { method: "DELETE" }),
   batchUpdateLinks: (mapId: string, ids: string[], fields: Record<string, unknown>) =>
-    request<MapLink[]>(`/api/maps/${encodeURIComponent(mapId)}/links/batch`, {
+    request<{ links: MapLink[] }>(`/api/maps/${encodeURIComponent(mapId)}/links/batch`, {
       method: "PATCH",
       body: JSON.stringify({ link_ids: ids, fields }),
     }),
@@ -108,10 +108,6 @@ export const api = {
     request<TrafficHistory>(`/api/datasources/traffic/history?${qs({ hostname, port_identifier: portId, map_id: mapId, start: start || "-24h", end: end || "now" })}`),
   getTrafficHistoryByPort: (portId: number, mapId: string, start?: string, end?: string) =>
     request<TrafficHistory>(`/api/datasources/traffic/history/by-port?${qs({ port_id: String(portId), map_id: mapId, start: start || "-24h", end: end || "now" })}`),
-
-  // AI
-  generateMap: (data: { device_ids: number[]; instructions: string; map_id?: string }) =>
-    request<Record<string, unknown>>("/api/ai/generate-map", { method: "POST", body: JSON.stringify(data) }),
 
   // Auth
   getUser: () => request<{ sub: string; name: string; email: string }>("/auth/me"),

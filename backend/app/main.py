@@ -1,8 +1,10 @@
 import logging
 from contextlib import asynccontextmanager
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
@@ -58,6 +60,31 @@ app.add_middleware(
 )
 
 
+def _origin(value: str) -> str:
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+        return ""
+    return f"{parsed.scheme.lower()}://{parsed.netloc.lower()}"
+
+
+trusted_origins = {_origin(origin) for origin in cors_origins}
+trusted_origins.add(_origin(settings.app_base_url))
+trusted_origins.discard("")
+
+
+@app.middleware("http")
+async def enforce_trusted_origin(request: Request, call_next):
+    """Reject cross-origin writes that could ride an authenticated session."""
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+        origin = request.headers.get("origin")
+        if origin and _origin(origin) not in trusted_origins:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Untrusted request origin"},
+            )
+    return await call_next(request)
+
+
 # Security headers middleware
 @app.middleware("http")
 async def security_headers(request: Request, call_next):
@@ -79,7 +106,8 @@ async def audit_log(request: Request, call_next):
     response = await call_next(request)
     # Log write operations
     if request.method in ("POST", "PUT", "PATCH", "DELETE"):
-        user = request.session.get("user", {}) if hasattr(request, "session") else {}
+        session = request.scope.get("session", {})
+        user = session.get("user", {})
         email = user.get("email", "anonymous")
         logger.info(
             "AUDIT %s %s %s -> %s",

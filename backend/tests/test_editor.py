@@ -293,3 +293,212 @@ async def test_live_traffic_zero_when_no_data(client: AsyncClient, monkeypatch):
     resp = await client.get(f"/api/datasources/traffic/live?map_id={map_id}")
     data = resp.json()
     assert data[link_id] == {"in_bps": 0, "out_bps": 0, "in_pct": 0, "out_pct": 0}
+
+
+# ── Editor integrity and persistence regressions ───────────────────────
+
+
+@pytest.mark.anyio
+async def test_node_nullable_and_layer_fields_persist(client: AsyncClient):
+    map_id = await _make_map(client)
+    resp = await client.post(
+        f"/api/maps/{map_id}/nodes",
+        json={
+            "name": "editable",
+            "node_type": "router",
+            "width": 120,
+            "observium_device_id": 42,
+            "info_url": "https://example.net/device/42",
+        },
+    )
+    node_id = resp.json()["id"]
+
+    resp = await client.put(
+        f"/api/maps/{map_id}/nodes/{node_id}",
+        json={
+            "locked": True,
+            "z_order": 999,
+            "icon": "RTR",
+            "width": None,
+            "observium_device_id": None,
+            "info_url": None,
+        },
+    )
+    assert resp.status_code == 200
+
+    data = (await client.get(f"/api/maps/{map_id}")).json()
+    node = next(node for node in data["nodes"] if node["id"] == node_id)
+    assert node["locked"] is True
+    assert node["z_order"] == 999
+    assert node["icon"] == "RTR"
+    assert node["width"] is None
+    assert node["observium_device_id"] is None
+    assert node["info_url"] is None
+
+
+@pytest.mark.anyio
+async def test_link_nullable_and_visual_fields_persist(client: AsyncClient):
+    map_id = await _make_map(client)
+    node_a = await _make_node(client, map_id, "A")
+    node_b = await _make_node(client, map_id, "B")
+    resp = await client.post(
+        f"/api/maps/{map_id}/links",
+        json={
+            "name": "editable",
+            "source_id": node_a,
+            "target_id": node_b,
+            "source_anchor": "E",
+            "observium_port_id_a": 100,
+            "info_url_in": "https://example.net/graph",
+        },
+    )
+    link_id = resp.json()["id"]
+
+    resp = await client.put(
+        f"/api/maps/{map_id}/links/{link_id}",
+        json={
+            "source_anchor": None,
+            "observium_port_id_a": None,
+            "info_url_in": None,
+            "duplex": "half",
+            "z_order": 777,
+            "arrow_style": "none",
+            "via_style": "angled",
+            "via_points": [{"x": 10, "y": 20}],
+        },
+    )
+    assert resp.status_code == 200
+
+    data = (await client.get(f"/api/maps/{map_id}")).json()
+    link = next(link for link in data["links"] if link["id"] == link_id)
+    assert link["source_anchor"] is None
+    assert link["observium_port_id_a"] is None
+    assert link["info_url_in"] is None
+    assert link["duplex"] == "half"
+    assert link["z_order"] == 777
+    assert link["arrow_style"] == "none"
+    assert link["via_style"] == "angled"
+    assert link["via_points"] == [{"x": 10, "y": 20}]
+
+
+@pytest.mark.anyio
+async def test_editor_urls_reject_unsafe_schemes(client: AsyncClient):
+    map_id = await _make_map(client)
+    resp = await client.post(
+        f"/api/maps/{map_id}/nodes",
+        json={"name": "unsafe", "info_url": "javascript:alert(1)"},
+    )
+    assert resp.status_code == 422
+
+    node_a = await _make_node(client, map_id, "A")
+    node_b = await _make_node(client, map_id, "B")
+    resp = await client.post(
+        f"/api/maps/{map_id}/links",
+        json={
+            "name": "unsafe",
+            "source_id": node_a,
+            "target_id": node_b,
+            "info_url_out": "data:text/html,unsafe",
+        },
+    )
+    assert resp.status_code == 422
+
+    resp = await client.post(
+        f"/api/maps/{map_id}/links",
+        json={
+            "name": "bad point",
+            "source_id": node_a,
+            "target_id": node_b,
+            "via_points": [{"x": 10}],
+        },
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_parent_must_be_group_in_same_map_and_acyclic(client: AsyncClient):
+    map_a = await _make_map(client)
+    map_b = await _make_map(client)
+    child = await _make_node(client, map_a, "child")
+    non_group = await _make_node(client, map_a, "router")
+    foreign_group_resp = await client.post(
+        f"/api/maps/{map_b}/nodes",
+        json={"name": "foreign", "node_type": "group"},
+    )
+    foreign_group = foreign_group_resp.json()["id"]
+
+    resp = await client.put(
+        f"/api/maps/{map_a}/nodes/{child}", json={"parent_id": non_group}
+    )
+    assert resp.status_code == 422
+    resp = await client.put(
+        f"/api/maps/{map_a}/nodes/{child}", json={"parent_id": foreign_group}
+    )
+    assert resp.status_code == 422
+
+    group_1_resp = await client.post(
+        f"/api/maps/{map_a}/nodes", json={"name": "g1", "node_type": "group"}
+    )
+    group_2_resp = await client.post(
+        f"/api/maps/{map_a}/nodes", json={"name": "g2", "node_type": "group"}
+    )
+    group_1 = group_1_resp.json()["id"]
+    group_2 = group_2_resp.json()["id"]
+
+    resp = await client.put(
+        f"/api/maps/{map_a}/nodes/{group_2}", json={"parent_id": group_1}
+    )
+    assert resp.status_code == 200
+    resp = await client.put(
+        f"/api/maps/{map_a}/nodes/{group_1}", json={"parent_id": group_2}
+    )
+    assert resp.status_code == 422
+    assert "cycle" in resp.json()["detail"].lower()
+
+    resp = await client.put(
+        f"/api/maps/{map_a}/nodes/{group_1}", json={"node_type": "router"}
+    )
+    assert resp.status_code == 422
+    resp = await client.patch(
+        f"/api/maps/{map_a}/nodes/batch",
+        json={"node_ids": [group_1], "fields": {"node_type": "router"}},
+    )
+    assert resp.status_code == 422
+
+    resp = await client.put(
+        f"/api/maps/{map_a}/nodes/{child}", json={"parent_id": group_1}
+    )
+    assert resp.status_code == 200
+    resp = await client.put(
+        f"/api/maps/{map_a}/nodes/{child}", json={"parent_id": None}
+    )
+    assert resp.status_code == 200
+    data = (await client.get(f"/api/maps/{map_a}")).json()
+    saved_child = next(node for node in data["nodes"] if node["id"] == child)
+    assert saved_child["parent_id"] is None
+
+
+@pytest.mark.anyio
+async def test_delete_node_removes_links_and_detaches_children(client: AsyncClient):
+    map_id = await _make_map(client)
+    group_resp = await client.post(
+        f"/api/maps/{map_id}/nodes", json={"name": "group", "node_type": "group"}
+    )
+    group_id = group_resp.json()["id"]
+    child_resp = await client.post(
+        f"/api/maps/{map_id}/nodes",
+        json={"name": "child", "node_type": "router", "parent_id": group_id},
+    )
+    child_id = child_resp.json()["id"]
+    link_resp = await client.post(
+        f"/api/maps/{map_id}/links",
+        json={"name": "link", "source_id": group_id, "target_id": child_id},
+    )
+    assert link_resp.status_code == 200
+
+    resp = await client.delete(f"/api/maps/{map_id}/nodes/{group_id}")
+    assert resp.status_code == 200
+    data = (await client.get(f"/api/maps/{map_id}")).json()
+    saved_child = next(node for node in data["nodes"] if node["id"] == child_id)
+    assert saved_child["parent_id"] is None
+    assert data["links"] == []
