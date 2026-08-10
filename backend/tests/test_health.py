@@ -17,6 +17,7 @@ def anyio_backend():
 async def client():
     from app.main import app
     from app.models.database import init_db
+
     await init_db()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as c:
@@ -62,3 +63,21 @@ async def test_maps_crud(client: AsyncClient):
     # Verify deleted
     resp = await client.get(f"/api/maps/{map_id}")
     assert resp.status_code == 404
+
+
+@pytest.mark.anyio
+async def test_write_requests_reject_untrusted_origins(client: AsyncClient):
+    resp = await client.post(
+        "/api/maps",
+        headers={"Origin": "https://attacker.example"},
+        json={"name": "Should not exist"},
+    )
+    assert resp.status_code == 403
+    assert resp.json()["detail"] == "Untrusted request origin"
+
+    resp = await client.post(
+        "/api/maps",
+        headers={"Origin": "http://localhost:5173"},
+        json={"name": "Allowed origin"},
+    )
+    assert resp.status_code == 200

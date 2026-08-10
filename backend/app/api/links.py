@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +10,7 @@ from app.models.link import LinkType
 from app.auth.oauth import get_current_user
 from app.auth.guards import require_map_owner
 from app.api.maps import _serialize_link
+from app.api.validation import SafeHttpUrl
 
 router = APIRouter(prefix="/api/maps/{map_id}/links", tags=["links"])
 
@@ -33,45 +36,58 @@ async def _validate_endpoints(
         raise HTTPException(422, "target_id does not reference a node in this map")
 
 
+class ViaPoint(BaseModel):
+    x: float = Field(..., ge=-10_000_000, le=10_000_000, allow_inf_nan=False)
+    y: float = Field(..., ge=-10_000_000, le=10_000_000, allow_inf_nan=False)
+
+
 class LinkCreate(BaseModel):
-    name: str = Field(..., max_length=255)
+    name: str = Field(..., min_length=1, max_length=255)
     link_type: LinkType = LinkType.INTERNAL
     source_id: str
     target_id: str
     source_anchor: str | None = Field(None, max_length=50)
     target_anchor: str | None = Field(None, max_length=50)
-    bandwidth: float = 1_000_000_000
+    bandwidth: float = Field(
+        1_000_000_000, gt=0, le=1_000_000_000_000_000, allow_inf_nan=False
+    )
     bandwidth_label: str = Field("1G", max_length=20)
-    via_points: list[dict] = Field(default_factory=list)
-    via_style: str = "curved"
+    via_points: list[ViaPoint] = Field(default_factory=list, max_length=100)
+    via_style: Literal["curved", "angled"] = "curved"
     width: int = Field(4, ge=1, le=50)
+    arrow_style: Literal["classic", "standard", "none"] = "classic"
+    duplex: Literal["full", "half"] = "full"
     datasource: dict = Field(
         default_factory=lambda: {"type": "static", "in": 0, "out": 0}
     )
     observium_port_id_a: int | None = None
     observium_port_id_b: int | None = None
-    info_url_in: str | None = Field(None, max_length=512)
-    info_url_out: str | None = Field(None, max_length=512)
+    info_url_in: SafeHttpUrl | None = Field(None, max_length=512)
+    info_url_out: SafeHttpUrl | None = Field(None, max_length=512)
     extra: dict = Field(default_factory=dict)
 
 
 class LinkUpdate(BaseModel):
-    name: str | None = Field(None, max_length=255)
+    name: str | None = Field(None, min_length=1, max_length=255)
     link_type: LinkType | None = None
     source_anchor: str | None = Field(None, max_length=50)
     target_anchor: str | None = Field(None, max_length=50)
-    bandwidth: float | None = None
+    bandwidth: float | None = Field(
+        None, gt=0, le=1_000_000_000_000_000, allow_inf_nan=False
+    )
     bandwidth_label: str | None = Field(None, max_length=20)
-    via_points: list[dict] | None = None
-    via_style: str | None = None
-    arrow_style: str | None = Field(None, max_length=20)
+    via_points: list[ViaPoint] | None = Field(None, max_length=100)
+    via_style: Literal["curved", "angled"] | None = None
+    arrow_style: Literal["classic", "standard", "none"] | None = None
+    duplex: Literal["full", "half"] | None = None
     width: int | None = Field(None, ge=1, le=50)
     datasource: dict | None = None
     observium_port_id_a: int | None = None
     observium_port_id_b: int | None = None
-    info_url_in: str | None = Field(None, max_length=512)
-    info_url_out: str | None = Field(None, max_length=512)
+    info_url_in: SafeHttpUrl | None = Field(None, max_length=512)
+    info_url_out: SafeHttpUrl | None = Field(None, max_length=512)
     extra: dict | None = None
+    z_order: int | None = Field(None, ge=-100_000, le=100_000)
 
 
 class LinkBatchFields(BaseModel):
@@ -83,6 +99,24 @@ class LinkBatchFields(BaseModel):
 class LinkBatchUpdate(BaseModel):
     link_ids: list[str] = Field(..., max_length=1000)
     fields: LinkBatchFields
+
+
+_NULLABLE_UPDATE_FIELDS = {
+    "source_anchor",
+    "target_anchor",
+    "observium_port_id_a",
+    "observium_port_id_b",
+    "info_url_in",
+    "info_url_out",
+}
+
+
+def _link_updates(data: LinkUpdate) -> dict:
+    """Keep explicit nulls for nullable columns while ignoring nulls elsewhere."""
+    updates = data.model_dump(exclude_none=True)
+    for field in data.model_fields_set & _NULLABLE_UPDATE_FIELDS:
+        updates[field] = getattr(data, field)
+    return updates
 
 
 @router.post("")
@@ -119,7 +153,7 @@ async def update_link(
     # Endpoints are not mutable via LinkUpdate; validate the effective endpoints
     # to guarantee the link stays consistent (both ends in this map, no self-link).
     await _validate_endpoints(db, map_id, link.source_id, link.target_id)
-    for field, value in data.model_dump(exclude_none=True).items():
+    for field, value in _link_updates(data).items():
         setattr(link, field, value)
     await db.commit()
     return {"ok": True}

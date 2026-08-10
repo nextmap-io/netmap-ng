@@ -112,10 +112,20 @@ async def callback(request: Request):
     if not roles:
         roles = _extract_roles(id_token_claims, settings.oauth_roles_claim)
 
+    subject = str(userinfo.get("sub") or "").strip()
+    email = str(
+        userinfo.get("email") or userinfo.get("preferred_username") or ""
+    ).strip()
+    if not subject or not email:
+        logger.warning("OAuth identity is missing a subject or email")
+        raise HTTPException(
+            401, "Identity provider response is missing required claims"
+        )
+
     request.session["user"] = {
-        "sub": userinfo.get("sub", ""),
+        "sub": subject,
         "name": userinfo.get("name", ""),
-        "email": userinfo.get("email", ""),
+        "email": email,
         "roles": roles,
     }
     return RedirectResponse(url="/")

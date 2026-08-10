@@ -293,6 +293,7 @@ def _serialize_node(n: Node) -> dict:
         "style": n.style,
         "info_url": n.info_url,
         "extra": n.extra,
+        "locked": bool(n.locked),
     }
 
 
