@@ -90,7 +90,7 @@ def _serialize_public_node(node: Node) -> dict:
 def _serialize_public_link(link: Link, settings: dict) -> dict:
     """Build a link payload containing only explicitly public fields."""
     extra = link.extra or {}
-    payload = {
+    payload: dict[str, object] = {
         "id": link.id,
         "name": link.name,
         "link_type": link.link_type.value,
