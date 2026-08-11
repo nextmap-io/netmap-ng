@@ -5,8 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models import Map, Link, get_db
-from app.api.maps import _serialize_node, _serialize_link
+from app.models import Map, Link, Node, get_db
 from app.datasources import observium
 
 from app.config import get_settings
@@ -57,36 +56,63 @@ async def _get_public_map(token: str, db: AsyncSession) -> Map:
     return m
 
 
-def _filter_node(node_dict: dict) -> dict:
-    """Remove sensitive fields from node for public view."""
-    for key in ["observium_device_id", "extra", "info_url"]:
-        node_dict.pop(key, None)
-    # Filter style: keep visual settings only
-    style = node_dict.get("style") or {}
-    safe_style_keys = {"bg_color", "locked"}
-    node_dict["style"] = {k: v for k, v in style.items() if k in safe_style_keys}
-    return node_dict
+_PUBLIC_NODE_STYLE_KEYS = {"bg_color", "locked"}
+_PUBLIC_LINK_EXTRA_KEYS = {
+    "routing",
+    "line_style",
+    "color_override",
+    "label_position",
+}
 
 
-def _filter_link(link_dict: dict, settings: dict) -> dict:
-    """Remove sensitive fields from link based on public_settings."""
-    # Always remove internal bindings
-    for key in [
-        "observium_port_id_a",
-        "observium_port_id_b",
-        "datasource",
-        "info_url_in",
-        "info_url_out",
-    ]:
-        link_dict.pop(key, None)
-    # Filter extra: keep visual settings, remove sensitive data (RRD paths)
-    extra = link_dict.get("extra") or {}
-    safe_keys = {"routing", "line_style", "color_override", "label_position"}
-    link_dict["extra"] = {k: v for k, v in extra.items() if k in safe_keys}
+def _serialize_public_node(node: Node) -> dict:
+    """Build a node payload containing only explicitly public fields."""
+    style = node.style or {}
+    return {
+        "id": node.id,
+        "name": node.name,
+        "label": node.label,
+        "node_type": node.node_type.value,
+        "x": node.x,
+        "y": node.y,
+        "z_order": node.z_order,
+        "parent_id": node.parent_id,
+        "width": node.width,
+        "height": node.height,
+        "icon": node.icon,
+        "style": {
+            key: value for key, value in style.items() if key in _PUBLIC_NODE_STYLE_KEYS
+        },
+        "locked": bool(node.locked),
+    }
+
+
+def _serialize_public_link(link: Link, settings: dict) -> dict:
+    """Build a link payload containing only explicitly public fields."""
+    extra = link.extra or {}
+    payload = {
+        "id": link.id,
+        "name": link.name,
+        "link_type": link.link_type.value,
+        "source_id": link.source_id,
+        "target_id": link.target_id,
+        "source_anchor": link.source_anchor,
+        "target_anchor": link.target_anchor,
+        "via_points": link.via_points,
+        "via_style": link.via_style,
+        "width": link.width,
+        "arrow_style": link.arrow_style,
+        "duplex": link.duplex,
+        "extra": {
+            key: value for key, value in extra.items() if key in _PUBLIC_LINK_EXTRA_KEYS
+        },
+        "z_order": link.z_order,
+    }
     if not settings.get("show_bandwidth", True):
-        link_dict.pop("bandwidth", None)
-        link_dict.pop("bandwidth_label", None)
-    return link_dict
+        return payload
+    payload["bandwidth"] = link.bandwidth
+    payload["bandwidth_label"] = link.bandwidth_label
+    return payload
 
 
 @router.get("/maps/{token}")
@@ -106,8 +132,8 @@ async def get_public_map(token: str, db: AsyncSession = Depends(get_db)):
             "default_link_width": m.settings.get("default_link_width", 4),
             "scale_mode": m.settings.get("scale_mode"),
         },
-        "nodes": [_filter_node(_serialize_node(n)) for n in m.nodes],
-        "links": [_filter_link(_serialize_link(lnk), ps) for lnk in m.links],
+        "nodes": [_serialize_public_node(node) for node in m.nodes],
+        "links": [_serialize_public_link(link, ps) for link in m.links],
     }
 
 
