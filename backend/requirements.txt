@@ -1,16 +1,16 @@
-fastapi>=0.140.7
-uvicorn[standard]>=0.51.0
+fastapi>=0.141.1
+uvicorn[standard]>=0.52.1
 sqlalchemy[asyncio]>=2.0.51
 aiosqlite>=0.22.1
-asyncmy>=0.2.11
+asyncmy>=0.2.13
 python-dotenv>=1.2.2
 authlib>=1.7.2
 httpx>=0.28.1
 itsdangerous>=2.2.0
 python-multipart>=0.0.32
 pydantic>=2.13.4
-pydantic-settings>=2.14.2
-redis>=8.0.1
-websockets>=16.1.1
+pydantic-settings>=2.15.0
+redis>=8.1.0
+websockets>=17.0.1
 # rrdtool requires librrd-dev system package — installed in Docker only
 # pip install rrdtool  (optional, falls back to subprocess)
