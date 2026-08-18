@@ -22,16 +22,10 @@ import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { NotFound } from "../Layout/NotFound";
 import type { NetmapData, MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
+import { getScaleColor } from "@/utils/scaleColor";
 
 const nodeTypes = { network: NetworkNode, group: GroupNode, label: LabelNode };
 const edgeTypes = { traffic: TrafficEdge };
-
-function getScaleColor(pct: number, scales: ScaleBand[]): string {
-  for (const band of scales) {
-    if (pct >= band.min && pct <= band.max) return band.color;
-  }
-  return "hsl(220 10% 46%)";
-}
 
 function computeAnchor(
   fromX: number, fromY: number, fromW: number, fromH: number,
