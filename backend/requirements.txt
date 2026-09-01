@@ -1,9 +1,9 @@
 fastapi>=0.141.1
-uvicorn[standard]>=0.52.1
-sqlalchemy[asyncio]>=2.0.51
+uvicorn[standard]>=0.52.4
+sqlalchemy[asyncio]>=2.0.52
 aiosqlite>=0.22.1
-asyncmy>=0.2.13
-python-dotenv>=1.2.2
+asyncmy>=0.2.14
+python-dotenv>=1.2.3
 authlib>=1.7.2
 httpx>=0.28.1
 itsdangerous>=2.2.0
