@@ -112,19 +112,29 @@ export interface MapSettings {
   bound_groups?: string[][];
 }
 
+export type LinkStatus = "ok" | "down" | "admin_down" | "nodata" | "unbound" | "stale";
+
+export type NodeStatus = "up" | "down" | "unknown";
+
 export interface TrafficData {
   [linkId: string]: {
     in_bps: number;
     out_bps: number;
     in_pct: number;
     out_pct: number;
+    status?: LinkStatus;
+    updated_at?: number | null;
   };
+}
+
+export interface NodeStatusData {
+  [nodeId: string]: { status: NodeStatus };
 }
 
 export interface TrafficHistory {
   timestamps: number[];
-  in_bps: number[];
-  out_bps: number[];
+  in_bps: (number | null)[];
+  out_bps: (number | null)[];
 }
 
 export interface MapSummary {

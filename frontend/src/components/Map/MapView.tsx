@@ -13,10 +13,13 @@ import {
   type Node,
   type Edge,
   type NodeChange,
+  type OnNodeDrag,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { useShallow } from "zustand/react/shallow";
 
 import { useMapStore } from "@/hooks/useMapStore";
+import { toast } from "@/hooks/useToast";
 import { api } from "@/api/client";
 import { NetworkNode } from "./NetworkNode";
 import { GroupNode } from "./GroupNode";
@@ -24,16 +27,18 @@ import { LabelNode } from "./LabelNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { CanvasSearch } from "./CanvasSearch";
+import { UpdatedIndicator } from "./UpdatedIndicator";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { EditorToolbox } from "../Editor/EditorToolbox";
 import { EditorToolbar } from "../Editor/EditorToolbar";
 import { PropertyPanel } from "../Editor/PropertyPanel";
+import { DeleteConfirmDialog } from "../Editor/DeleteConfirmDialog";
+import { ToastViewport } from "../Layout/Toast";
 import { useTheme } from "@/hooks/useTheme";
 import { NotFound } from "../Layout/NotFound";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
-import type { MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
-import { getScaleColor } from "@/utils/scaleColor";
-import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from "@/types";
+import type { MapNode, MapLink, NodeType } from "@/types";
+import { buildEdges, computeLinkHandles, computeUsedHandles } from "@/utils/buildEdges";
 
 const nodeTypes = {
   network: NetworkNode,
@@ -89,175 +94,6 @@ function mapNodeToFlow(
   };
 }
 
-/**
- * Compute, per node, the set of handle ids actually referenced by connected
- * links (explicit anchors + auto-computed anchors). The custom node uses this
- * to render only the fine-grained percentage handles that are in use, instead
- * of ~150 handles per node, without breaking edge anchoring.
- */
-function computeUsedHandles(nodes: MapNode[], links: MapLink[]): Map<string, string[]> {
-  const pos = new Map<string, { x: number; y: number; w: number; h: number }>();
-  const byId = new Map(nodes.map((n) => [n.id, n]));
-  const absOffset = (n: MapNode): { x: number; y: number } => {
-    let x = 0, y = 0;
-    const seen = new Set<string>();
-    let cur: MapNode | undefined = n;
-    while (cur) {
-      if (seen.has(cur.id)) break;
-      seen.add(cur.id);
-      x += cur.x;
-      y += cur.y;
-      cur = cur.parent_id ? byId.get(cur.parent_id) : undefined;
-    }
-    return { x, y };
-  };
-  for (const n of nodes) {
-    const { x, y } = absOffset(n);
-    const w = n.width || DEFAULT_NODE_WIDTH;
-    const h = n.height || DEFAULT_NODE_HEIGHT;
-    pos.set(n.id, { x: x + w / 2, y: y + h / 2, w, h });
-  }
-  const used = new Map<string, Set<string>>();
-  const add = (id: string, handle: string) => {
-    let s = used.get(id);
-    if (!s) { s = new Set(); used.set(id, s); }
-    s.add(handle);
-  };
-  for (const l of links) {
-    const sp = pos.get(l.source_id);
-    const tp = pos.get(l.target_id);
-    let srcHandle: string | undefined;
-    let tgtHandle: string | undefined;
-    if (l.source_anchor && l.target_anchor) {
-      srcHandle = l.source_anchor;
-      tgtHandle = `${l.target_anchor}-t`;
-    } else if (sp && tp) {
-      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
-      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
-    }
-    if (srcHandle) add(l.source_id, srcHandle);
-    if (tgtHandle) add(l.target_id, tgtHandle);
-  }
-  return new Map([...used].map(([k, v]) => [k, [...v]]));
-}
-
-/**
- * Compute the best anchor percentage on a given side of a node,
- * based on where the target node is positioned relative to the source.
- * For vertical sides (E/W): uses the target's Y position relative to source's height.
- * For horizontal sides (N/S): uses the target's X position relative to source's width.
- * This makes links exit the switch at the exact height of the server they connect to.
- */
-function computeAnchor(
-  fromX: number, fromY: number, fromW: number, fromH: number,
-  toX: number, toY: number,
-): string {
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const side = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "E" : "W") : (dy > 0 ? "S" : "N");
-
-  let pct: number;
-  if (side === "E" || side === "W") {
-    // Vertical side: position based on target Y relative to node height
-    pct = fromH > 30 ? ((toY - fromY + fromH / 2) / fromH) * 100 : 50;
-  } else {
-    // Horizontal side: position based on target X relative to node width
-    pct = fromW > 30 ? ((toX - fromX + fromW / 2) / fromW) * 100 : 50;
-  }
-
-  pct = Math.min(95, Math.max(5, Math.round(pct / 5) * 5));
-  if (pct === 50) return side;
-  return `${side}:${pct}`;
-}
-
-/**
- * Build edges with dynamically computed anchors based on current node positions.
- * This is called on every render so anchors update when nodes are dragged.
- */
-function buildEdges(
-  links: MapLink[],
-  flowNodes: Node[],
-  scales: ScaleBand[],
-  traffic: TrafficData,
-  useGradientScale = false,
-): Edge[] {
-  // Build absolute position map (accounting for the FULL parent chain, so
-  // deeply nested groups compute correct absolute positions).
-  const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
-  const byId = new Map<string, Node>();
-  for (const n of flowNodes) byId.set(n.id, n);
-
-  // Walk the entire ancestor chain, summing each parent's relative offset.
-  // Guarded against cycles via a visited set.
-  const absOffset = (node: Node): { x: number; y: number } => {
-    let x = 0;
-    let y = 0;
-    const seen = new Set<string>();
-    let current: Node | undefined = node;
-    while (current) {
-      if (seen.has(current.id)) break;
-      seen.add(current.id);
-      x += current.position.x;
-      y += current.position.y;
-      current = current.parentId ? byId.get(current.parentId) : undefined;
-    }
-    return { x, y };
-  };
-
-  for (const n of flowNodes) {
-    const { x: absX, y: absY } = absOffset(n);
-    const w = Number(n.data?.width) || DEFAULT_NODE_WIDTH;
-    const h = Number(n.data?.height) || DEFAULT_NODE_HEIGHT;
-    nodePos.set(n.id, { x: absX + w / 2, y: absY + h / 2, w, h });
-  }
-
-  return links.map((l) => {
-    const t = traffic[l.id];
-    const inPct = t?.in_pct ?? 0;
-    const outPct = t?.out_pct ?? 0;
-    const inColor = getScaleColor(inPct, scales, useGradientScale);
-    const outColor = getScaleColor(outPct, scales, useGradientScale);
-
-    const sp = nodePos.get(l.source_id);
-    const tp = nodePos.get(l.target_id);
-
-    let srcHandle: string | undefined;
-    let tgtHandle: string | undefined;
-
-    if (l.source_anchor && l.target_anchor) {
-      // Use explicit anchors from DB
-      srcHandle = l.source_anchor;
-      tgtHandle = `${l.target_anchor}-t`;
-    } else if (sp && tp) {
-      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
-      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
-    }
-
-    return {
-      id: l.id,
-      source: l.source_id,
-      target: l.target_id,
-      type: "traffic",
-      sourceHandle: srcHandle,
-      targetHandle: tgtHandle,
-      data: {
-        linkType: l.link_type,
-        bandwidthLabel: l.bandwidth_label,
-        bandwidth: l.bandwidth,
-        width: l.width,
-        inBps: t?.in_bps ?? 0,
-        outBps: t?.out_bps ?? 0,
-        inPct, outPct, inColor, outColor,
-        extra: l.extra,
-        viaPoints: l.via_points ?? [],
-        viaStyle: l.via_style,
-        arrowStyle: l.arrow_style,
-      },
-      zIndex: l.z_order,
-    } satisfies Edge;
-  });
-}
-
 export function formatBps(bps: number): string {
   if (bps >= 1e12) return `${(bps / 1e12).toFixed(1)}Tbps`;
   if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)}Gbps`;
@@ -273,20 +109,75 @@ function isInputFocused(): boolean {
   return tag === "input" || tag === "textarea" || tag === "select" || (el as HTMLElement).isContentEditable;
 }
 
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+interface PendingDelete {
+  nodeIds: string[];
+  linkIds: string[];
+  /** Links not explicitly selected that go away with their deleted nodes. */
+  attachedLinks: number;
+}
+
 function MapViewInner() {
   const { mapId } = useParams<{ mapId: string }>();
-  const { map, traffic, trafficError, loading, error, errorStatus, loadMap, editMode, updateNodePosition, saveNodePositions, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection, snapToGrid, selectMode, createLink, pushUndo, undo, redo, searchQuery, activeTypeFilters, matchedNodeIds } =
-    useMapStore();
+  // Narrow selectors: this view no longer re-renders on unrelated store
+  // changes (saving flags, undo stacks, …).
+  const {
+    map, traffic, nodeStatus, lastTrafficAt, trafficError, loading, error, errorStatus,
+    editMode, snapToGrid, selectMode, searchQuery, activeTypeFilters, matchedNodeIds,
+  } = useMapStore(
+    useShallow((s) => ({
+      map: s.map,
+      traffic: s.traffic,
+      nodeStatus: s.nodeStatus,
+      lastTrafficAt: s.lastTrafficAt,
+      trafficError: s.trafficError,
+      loading: s.loading,
+      error: s.error,
+      errorStatus: s.errorStatus,
+      editMode: s.editMode,
+      snapToGrid: s.snapToGrid,
+      selectMode: s.selectMode,
+      searchQuery: s.searchQuery,
+      activeTypeFilters: s.activeTypeFilters,
+      matchedNodeIds: s.matchedNodeIds,
+    })),
+  );
+  // Actions are stable references.
+  const {
+    loadMap, refreshMap, selectLink, stopTrafficPolling, selectNodes, selectLinks, clearSelection,
+    createLink, undo, redo, applyNodePositions, deleteEntities,
+  } = useMapStore(
+    useShallow((s) => ({
+      loadMap: s.loadMap,
+      refreshMap: s.refreshMap,
+      selectLink: s.selectLink,
+      stopTrafficPolling: s.stopTrafficPolling,
+      selectNodes: s.selectNodes,
+      selectLinks: s.selectLinks,
+      clearSelection: s.clearSelection,
+      createLink: s.createLink,
+      undo: s.undo,
+      redo: s.redo,
+      applyNodePositions: s.applyNodePositions,
+      deleteEntities: s.deleteEntities,
+    })),
+  );
+
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   const { resolvedTheme } = useTheme();
   const flow = useReactFlow();
   const dragStartPos = useRef<Map<string, { x: number; y: number }>>(new Map());
   const showShortcutsRef = useRef(false);
   useEffect(() => { showShortcutsRef.current = showShortcuts; }, [showShortcuts]);
+  const pendingDeleteRef = useRef(false);
+  useEffect(() => { pendingDeleteRef.current = pendingDelete !== null; }, [pendingDelete]);
 
   useEffect(() => {
-    if (mapId) loadMap(mapId);
+    // Initial load / map switch: full load (spinner, fresh undo history).
+    if (mapId) loadMap(mapId, { reset: true });
     return () => stopTrafficPolling();
   }, [mapId, loadMap, stopTrafficPolling]);
 
@@ -296,12 +187,21 @@ function MapViewInner() {
   useEffect(() => {
     if (!editMode) return;
     const handler = (e: KeyboardEvent) => {
-      // Delete selected items
+      // The delete confirmation dialog owns the keyboard while open.
+      if (pendingDeleteRef.current) return;
+
+      // Delete / Backspace — confirm, then delete the whole selection at once
       if ((e.key === "Delete" || e.key === "Backspace") && !isInputFocused()) {
-        const { selectedNodeIds, selectedLinkIds, deleteNode, deleteLink, map: currentMap } = useMapStore.getState();
-        if (!currentMap) return;
-        for (const id of selectedLinkIds) deleteLink(id);
-        for (const id of selectedNodeIds) deleteNode(id);
+        const { selectedNodeIds, selectedLinkIds, map: currentMap } = useMapStore.getState();
+        if (!currentMap || (selectedNodeIds.length === 0 && selectedLinkIds.length === 0)) return;
+        e.preventDefault();
+        const nodeSet = new Set(selectedNodeIds);
+        const linkSet = new Set(selectedLinkIds);
+        const attachedLinks = currentMap.links.filter(
+          (l) => !linkSet.has(l.id) && (nodeSet.has(l.source_id) || nodeSet.has(l.target_id)),
+        ).length;
+        setPendingDelete({ nodeIds: [...selectedNodeIds], linkIds: [...selectedLinkIds], attachedLinks });
+        return;
       }
       // "?" toggles the keyboard shortcuts help overlay
       if (e.key === "?" && !isInputFocused()) {
@@ -317,10 +217,11 @@ function MapViewInner() {
         }
       }
       // Ctrl+A to select all non-group nodes
-      if (e.key === "a" && (e.metaKey || e.ctrlKey)) {
+      if (e.key === "a" && (e.metaKey || e.ctrlKey) && !isInputFocused()) {
         e.preventDefault();
-        if (map) {
-          const allIds = map.nodes.filter(n => n.node_type !== "group").map(n => n.id);
+        const currentMap = useMapStore.getState().map;
+        if (currentMap) {
+          const allIds = currentMap.nodes.filter(n => n.node_type !== "group").map(n => n.id);
           selectNodes(allIds);
         }
       }
@@ -351,39 +252,57 @@ function MapViewInner() {
         if (!currentMap || selectedNodeIds.length === 0) return;
         const selectedNodes = currentMap.nodes.filter(n => selectedNodeIds.includes(n.id));
         (async () => {
-          const results = await Promise.all(
-            selectedNodes.map((n) =>
-              api.createNode(currentMap.id, {
-                name: `${n.name}-copy`,
-                label: `${n.label || n.name} (copy)`,
-                node_type: n.node_type,
-                x: n.x + 30,
-                y: n.y + 30,
-                width: n.width,
-                height: n.height,
-                parent_id: n.parent_id,
-                style: n.style,
+          try {
+            const results = await Promise.all(
+              selectedNodes.map(async (n) => {
+                const created = await api.createNode(currentMap.id, {
+                  name: `${n.name}-copy`,
+                  label: `${n.label || n.name} (copy)`,
+                  node_type: n.node_type,
+                  x: n.x + 30,
+                  y: n.y + 30,
+                  width: n.width,
+                  height: n.height,
+                  parent_id: n.parent_id,
+                  style: n.style,
+                  observium_device_id: n.observium_device_id,
+                  info_url: n.info_url,
+                  extra: n.extra,
+                });
+                // The create schema has no `icon`; carry it over with an update.
+                if (n.icon) await api.updateNode(currentMap.id, created.id, { icon: n.icon });
+                return created;
               }),
-            ),
-          );
-          const newIds = results.map((r) => r.id);
-          await useMapStore.getState().loadMap(currentMap.id);
-          useMapStore.getState().selectNodes(newIds);
+            );
+            await refreshMap();
+            useMapStore.getState().selectNodes(results.map((r) => r.id));
+          } catch (err) {
+            toast.fromError(err, "Failed to duplicate nodes");
+            // Some copies may have been created before the failure.
+            await refreshMap();
+          }
         })();
       }
     };
 
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [editMode, clearSelection, selectNodes, map, undo, redo]);
+  }, [editMode, clearSelection, selectNodes, undo, redo, refreshMap]);
 
-  const initialNodes = useMemo(() => {
+  // Handles depend only on committed (store) positions, so they are computed
+  // once per map change — not on every drag frame.
+  const linkHandles = useMemo(
+    () => (map ? computeLinkHandles(map.nodes, map.links) : new Map()),
+    [map],
+  );
+
+  const baseNodes = useMemo(() => {
     if (!map) return [];
     const isFiltering = searchQuery.trim().length > 0 || activeTypeFilters.length > 0;
     const matched = new Set(matchedNodeIds);
     const isDimmed = (n: MapNode) =>
       isFiltering && n.node_type !== "group" && !matched.has(n.id);
-    const usedHandles = computeUsedHandles(map.nodes, map.links);
+    const usedHandles = computeUsedHandles(map.links, linkHandles);
     const boundIds = new Set<string>();
     for (const g of map.settings?.bound_groups ?? []) for (const id of g) boundIds.add(id);
     const groups = map.nodes
@@ -393,33 +312,58 @@ function MapViewInner() {
       .filter((n: MapNode) => n.node_type !== "group")
       .map((n) => mapNodeToFlow(n, editMode, isDimmed(n), usedHandles.get(n.id), boundIds.has(n.id)));
     return [...groups, ...others];
-  }, [map, editMode, searchQuery, activeTypeFilters, matchedNodeIds]);
+  }, [map, linkHandles, editMode, searchQuery, activeTypeFilters, matchedNodeIds]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
+  // Cheap overlay of the polled node status (no handle recomputation).
+  const flowNodes = useMemo(
+    () =>
+      baseNodes.map((n) => {
+        const status = nodeStatus[n.id]?.status;
+        return status ? { ...n, data: { ...n.data, status } } : n;
+      }),
+    [baseNodes, nodeStatus],
+  );
+
+  const [nodes, setNodes, onNodesChange] = useNodesState(flowNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   useEffect(() => {
-    // Preserve selection state from the store when replacing nodes
-    const { selectedNodeIds } = useMapStore.getState();
-    if (selectedNodeIds.length > 0) {
-      const sel = new Set(selectedNodeIds);
-      setNodes(initialNodes.map((n) => sel.has(n.id) ? { ...n, selected: true } : n));
-    } else {
-      setNodes(initialNodes);
-    }
-  }, [initialNodes, setNodes]);
+    // Preserve selection from the store, and keep the live position of any
+    // node being dragged (a status poll or refresh mid-drag must not snap it back).
+    const sel = new Set(useMapStore.getState().selectedNodeIds);
+    setNodes((prev) => {
+      const dragging = new Map<string, { x: number; y: number }>();
+      for (const n of prev) if (n.dragging) dragging.set(n.id, n.position);
+      return flowNodes.map((n) => {
+        const pos = dragging.get(n.id);
+        const selected = sel.has(n.id);
+        if (!pos && !selected) return n;
+        return {
+          ...n,
+          ...(pos ? { position: pos, dragging: true } : {}),
+          ...(selected ? { selected: true } : {}),
+        };
+      });
+    });
+  }, [flowNodes, setNodes]);
 
-  // Recompute edges whenever nodes move or traffic updates
+  // Rebuild edges when links, traffic or scales change. During a drag
+  // ReactFlow moves connected edges natively (node positions live in RF state).
   const useGradientScale = map?.settings?.scale_mode === "gradient";
+  const builtEdges = useMemo(
+    () => (map ? buildEdges(map.links, linkHandles, { scales, traffic, gradient: useGradientScale }) : []),
+    [map, linkHandles, scales, traffic, useGradientScale],
+  );
   useEffect(() => {
-    if (!map) return;
-    const newEdges = buildEdges(map.links, nodes, scales, traffic, useGradientScale);
-    setEdges(newEdges);
-  }, [map, nodes, scales, traffic, setEdges, useGradientScale]);
+    setEdges((prev) => {
+      const sel = new Set(prev.filter((e) => e.selected).map((e) => e.id));
+      return sel.size === 0 ? builtEdges : builtEdges.map((e) => (sel.has(e.id) ? { ...e, selected: true } : e));
+    });
+  }, [builtEdges, setEdges]);
 
   const handleNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // Filter out "remove" changes — nodes are only removed via our deleteNode action,
+      // Filter out "remove" changes — nodes are only removed via our delete actions,
       // never through ReactFlow's internal reconciliation (which can cause ghost removals)
       const safe = changes.filter((c) => c.type !== "remove");
       onNodesChange(safe);
@@ -431,6 +375,8 @@ function MapViewInner() {
       );
       if (posChanges.length === 0) return;
 
+      // Positions stay in ReactFlow state while dragging; they are committed
+      // to the store (batch-move) once, on drag stop.
       const changedIds = new Set(posChanges.map((c) => c.id));
       const { getBoundGroup } = useMapStore.getState();
       const startPos = dragStartPos.current;
@@ -438,11 +384,9 @@ function MapViewInner() {
       const movedMembers = new Set<string>();
 
       for (const c of posChanges) {
-        updateNodePosition(c.id, c.position!.x, c.position!.y);
-
         // Bound-group "move together": on the FIRST drag the other members are
         // not RF-selected yet, so apply the lead node's delta to them directly
-        // from the positions captured at drag start (dead machinery, now used).
+        // from the positions captured at drag start.
         const group = getBoundGroup(c.id);
         const start = startPos.get(c.id);
         if (!group || !start) continue;
@@ -453,37 +397,53 @@ function MapViewInner() {
           const ms = startPos.get(memberId);
           if (!ms) continue;
           movedMembers.add(memberId);
-          const nx = ms.x + dx;
-          const ny = ms.y + dy;
-          extraChanges.push({ type: "position", id: memberId, position: { x: nx, y: ny }, dragging: true });
-          updateNodePosition(memberId, nx, ny);
+          extraChanges.push({
+            type: "position",
+            id: memberId,
+            position: { x: ms.x + dx, y: ms.y + dy },
+            dragging: c.dragging,
+          });
         }
       }
 
       if (extraChanges.length > 0) onNodesChange(extraChanges);
     },
-    [editMode, onNodesChange, updateNodePosition],
+    [editMode, onNodesChange],
   );
 
-  const handleNodeDragStart = useCallback(
-    (_event: MouseEvent | TouchEvent, _node: Node) => {
+  const handleNodeDragStart = useCallback<OnNodeDrag>(
+    () => {
       if (!editMode) return;
-      pushUndo();
       // Capture positions of ALL nodes so handleNodesChange can apply the
       // dragged node's delta to bound-group members on the very first drag.
-      const allNodes = flow.getNodes();
       const posMap = new Map<string, { x: number; y: number }>();
-      for (const n of allNodes) posMap.set(n.id, { ...n.position });
+      for (const n of flow.getNodes()) posMap.set(n.id, { ...n.position });
       dragStartPos.current = posMap;
     },
-    [editMode, pushUndo, flow],
+    [editMode, flow],
   );
 
-  const handleNodeDragStop = useCallback(() => {
-    if (!editMode) return;
-    saveNodePositions();
-    dragStartPos.current.clear();
-  }, [editMode, saveNodePositions]);
+  const handleNodeDragStop = useCallback<OnNodeDrag>(
+    (_event, _node, draggedNodes) => {
+      if (!editMode) return;
+      dragStartPos.current.clear();
+      const current = useMapStore.getState().map;
+      if (!current) return;
+      // Final positions: RF state, overridden by the drag-stop payload (which
+      // is guaranteed up to date for the dragged nodes themselves).
+      const finalPos = new Map<string, { x: number; y: number }>();
+      for (const n of flow.getNodes()) finalPos.set(n.id, n.position);
+      for (const n of draggedNodes) finalPos.set(n.id, n.position);
+      const moves: Array<{ id: string; x: number; y: number }> = [];
+      for (const n of current.nodes) {
+        const p = finalPos.get(n.id);
+        if (p && (p.x !== n.x || p.y !== n.y)) moves.push({ id: n.id, x: p.x, y: p.y });
+      }
+      // One undo entry + one batch-move per drag; rolled back on failure.
+      if (moves.length > 0) applyNodePositions(moves);
+    },
+    [editMode, flow, applyNodePositions],
+  );
 
   const handleEdgeClick = useCallback(
     (_: React.MouseEvent, edge: Edge) => {
@@ -519,9 +479,10 @@ function MapViewInner() {
 
   const handleConnect = useCallback(
     async (connection: { source: string | null; target: string | null }) => {
-      if (!editMode || !map || !connection.source || !connection.target) return;
-      const sourceNode = map.nodes.find((n: MapNode) => n.id === connection.source);
-      const targetNode = map.nodes.find((n: MapNode) => n.id === connection.target);
+      const current = useMapStore.getState().map;
+      if (!editMode || !current || !connection.source || !connection.target) return;
+      const sourceNode = current.nodes.find((n: MapNode) => n.id === connection.source);
+      const targetNode = current.nodes.find((n: MapNode) => n.id === connection.target);
       const name = `${sourceNode?.label || "A"} - ${targetNode?.label || "B"}`;
       await createLink({
         name,
@@ -532,7 +493,7 @@ function MapViewInner() {
         bandwidth: 1000000000,
       });
     },
-    [editMode, map, createLink],
+    [editMode, createLink],
   );
 
   const handleSelectionChange = useCallback(
@@ -554,30 +515,42 @@ function MapViewInner() {
     async (e: React.DragEvent) => {
       const nodeType = e.dataTransfer.getData("application/netmap-node-type");
       const label = e.dataTransfer.getData("application/netmap-node-label");
-      if (!nodeType || !map || !editMode) return;
+      const current = useMapStore.getState().map;
+      if (!nodeType || !current || !editMode) return;
       e.preventDefault();
 
       const position = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       try {
-        await api.createNode(map.id, {
+        await api.createNode(current.id, {
           name: `new-${nodeType}`,
           label: label || nodeType,
-          node_type: nodeType as import("@/types").NodeType,
+          node_type: nodeType as NodeType,
           x: Math.round(position.x),
           y: Math.round(position.y),
           ...(nodeType === "group" ? { width: 400, height: 300 } : {}),
         });
-        await loadMap(map.id);
       } catch (err) {
-        console.error("Failed to create node on drop:", err);
+        toast.fromError(err, "Failed to create node");
+        return;
       }
+      await refreshMap();
     },
-    [map, editMode, flow, loadMap],
+    [editMode, flow, refreshMap],
   );
 
   const handlePaneClick = useCallback(() => {
     clearSelection();
   }, [clearSelection]);
+
+  const handleConfirmDelete = useCallback(async () => {
+    const pending = pendingDelete;
+    setPendingDelete(null);
+    if (!pending) return;
+    clearSelection();
+    await deleteEntities(pending.nodeIds, pending.linkIds);
+  }, [pendingDelete, clearSelection, deleteEntities]);
+
+  const handleCancelDelete = useCallback(() => setPendingDelete(null), []);
 
   if (loading) {
     return (
@@ -616,6 +589,19 @@ function MapViewInner() {
 
   const selectedLink = selectedEdgeId ? map.links.find((l: MapLink) => l.id === selectedEdgeId) : null;
 
+  const deleteMessage = pendingDelete
+    ? [
+        `Delete ${[
+          pendingDelete.nodeIds.length > 0 ? plural(pendingDelete.nodeIds.length, "node") : null,
+          pendingDelete.linkIds.length > 0 ? plural(pendingDelete.linkIds.length, "link") : null,
+        ].filter(Boolean).join(" and ")}?`,
+        pendingDelete.attachedLinks > 0
+          ? `${plural(pendingDelete.attachedLinks, "attached link")} will also be removed.`
+          : null,
+        "This cannot be undone.",
+      ].filter(Boolean).join(" ")
+    : "";
+
   return (
     <div className="h-[calc(100vh-48px)] relative bg-noc-bg flex">
       <div className={`flex-1 relative${editMode ? " edit-mode" : ""}`} style={{ touchAction: "none" }}>
@@ -642,6 +628,8 @@ function MapViewInner() {
           nodesDraggable={editMode}
           selectionOnDrag={editMode && selectMode}
           multiSelectionKeyCode={editMode ? "Shift" : null}
+          // Deletion goes through our confirm dialog + batch-delete instead.
+          deleteKeyCode={null}
           snapToGrid={snapToGrid}
           snapGrid={[24, 24]}
           connectionMode={ConnectionMode.Loose}
@@ -690,12 +678,16 @@ function MapViewInner() {
         <TrafficLegend scales={scales} />
         <CanvasSearch />
 
-        {trafficError && (
-          <div className="absolute bottom-3 left-3 z-20 flex items-center gap-1.5 noc-glass rounded px-2 py-1">
-            <span className="w-1.5 h-1.5 rounded-full bg-node-firewall animate-pulse" />
-            <span className="text-2xs text-noc-text-muted">Données live indisponibles</span>
-          </div>
-        )}
+        {/* Data freshness + live-data error, right of the zoom controls */}
+        <div className="absolute bottom-3 left-14 z-20 flex flex-col items-start gap-1.5">
+          {trafficError && (
+            <div className="flex items-center gap-1.5 noc-glass rounded px-2 py-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-node-firewall animate-pulse" />
+              <span className="text-2xs text-noc-text-muted">Live data unavailable</span>
+            </div>
+          )}
+          <UpdatedIndicator traffic={traffic} lastPoll={lastTrafficAt} />
+        </div>
 
         <EditorToolbox />
         <EditorToolbar />
@@ -714,6 +706,14 @@ function MapViewInner() {
         )}
       </div>
       {editMode && <PropertyPanel />}
+      <DeleteConfirmDialog
+        open={pendingDelete !== null}
+        title="Delete selection"
+        message={deleteMessage}
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+      />
+      <ToastViewport />
     </div>
   );
 }
