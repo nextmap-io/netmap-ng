@@ -1,27 +1,25 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useObserviumData } from "@/hooks/useObserviumData";
 import type { ObserviumPort } from "@/types";
+import { formatBandwidthLabel } from "@/utils/bandwidth";
+import { portSpeedBps } from "@/utils/portSpeed";
 
 const inputClass =
   "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent/50";
 
 const labelClass = "noc-label mb-1";
 
-function formatSpeed(speed: number): string {
-  if (speed >= 1_000_000_000) return `${(speed / 1_000_000_000).toFixed(0)}G`;
-  if (speed >= 1_000_000) return `${(speed / 1_000_000).toFixed(0)}M`;
-  if (speed >= 1_000) return `${(speed / 1_000).toFixed(0)}K`;
-  return `${speed}`;
-}
-
 interface PortPickerProps {
   deviceId: number | null;
   value: number | null;
-  onChange: (portId: number | null) => void;
+  /** Called on pick/clear; `port` is the picked port's full record (null on clear). */
+  onChange: (portId: number | null, port: ObserviumPort | null) => void;
+  /** Reports the port currently bound (`value`) once the port list has resolved it. */
+  onPortResolved?: (port: ObserviumPort | null) => void;
   label: string;
 }
 
-export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps) {
+export function PortPicker({ deviceId, value, onChange, onPortResolved, label }: PortPickerProps) {
   const { getDevicePorts } = useObserviumData();
   const [ports, setPorts] = useState<ObserviumPort[]>([]);
   const [loading, setLoading] = useState(false);
@@ -55,6 +53,14 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
     () => (value != null ? ports.find((p) => p.port_id === value) : null),
     [ports, value],
   );
+
+  // Report the resolved bound port (e.g. so the editor can compare capacity
+  // against the port speed). Ref keeps an inline callback from re-firing it.
+  const onPortResolvedRef = useRef(onPortResolved);
+  onPortResolvedRef.current = onPortResolved;
+  useEffect(() => {
+    onPortResolvedRef.current?.(selectedPort ?? null);
+  }, [selectedPort]);
 
   // Sync the input text when value or ports change
   useEffect(() => {
@@ -96,18 +102,18 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
     blurTimeout.current = setTimeout(() => setOpen(false), 150);
   };
 
-  const handleSelect = (portId: number, ifName: string) => {
+  const handleSelect = (port: ObserviumPort) => {
     clearTimeout(blurTimeout.current);
-    setQuery(ifName);
+    setQuery(port.ifName);
     setOpen(false);
-    onChange(portId);
+    onChange(port.port_id, port);
   };
 
   const handleClear = () => {
     clearTimeout(blurTimeout.current);
     setQuery("");
     setOpen(false);
-    onChange(null);
+    onChange(null, null);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -129,7 +135,7 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
       const p = filtered[activeIndex];
       if (p) {
         e.preventDefault();
-        handleSelect(p.port_id, p.ifName);
+        handleSelect(p);
       }
     }
   };
@@ -184,14 +190,14 @@ export function PortPicker({ deviceId, value, onChange, label }: PortPickerProps
                 role="option"
                 aria-selected={idx === activeIndex}
                 onMouseEnter={() => setActiveIndex(idx)}
-                onMouseDown={() => handleSelect(port.port_id, port.ifName)}
+                onMouseDown={() => handleSelect(port)}
                 className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIndex ? "bg-noc-bg/60" : "hover:bg-noc-bg/60"}`}
               >
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-noc-text">{port.ifName}</span>
-                  {port.ifSpeed > 0 && (
+                  {portSpeedBps(port) > 0 && (
                     <span className="text-2xs text-noc-text-muted">
-                      {formatSpeed(port.ifSpeed)}
+                      {formatBandwidthLabel(portSpeedBps(port))}
                     </span>
                   )}
                 </div>

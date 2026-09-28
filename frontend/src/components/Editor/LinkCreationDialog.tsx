@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo } from "react";
-import type { MapNode, MapLink, LinkType } from "@/types";
-import { parseBandwidth } from "@/utils/bandwidth";
+import type { MapNode, MapLink, LinkType, ObserviumPort } from "@/types";
+import { parseBandwidth, formatBandwidthLabel } from "@/utils/bandwidth";
+import { portSpeedBps } from "@/utils/portSpeed";
+import { PortPicker } from "./PortPicker";
 
 interface LinkCreationDialogProps {
   open: boolean;
@@ -33,6 +35,10 @@ export function LinkCreationDialog({
   const [name, setName] = useState("");
   const [linkType, setLinkType] = useState<LinkType>("internal");
   const [bandwidthLabel, setBandwidthLabel] = useState("1G");
+  // Once the user types a capacity, port picks no longer overwrite it.
+  const [bandwidthEdited, setBandwidthEdited] = useState(false);
+  const [portA, setPortA] = useState<ObserviumPort | null>(null);
+  const [portB, setPortB] = useState<ObserviumPort | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,6 +62,9 @@ export function LinkCreationDialog({
       setName("");
       setLinkType("internal");
       setBandwidthLabel("1G");
+      setBandwidthEdited(false);
+      setPortA(null);
+      setPortB(null);
       setCreating(false);
       setError(null);
     }
@@ -80,15 +89,36 @@ export function LinkCreationDialog({
       : "";
   };
 
+  const sourceNode = availableNodes.find((n) => n.id === sourceId);
+  const targetNode = availableNodes.find((n) => n.id === targetId);
+  const sourceDevice = sourceNode?.observium_device_id ?? null;
+  const targetDevice = targetNode?.observium_device_id ?? null;
+  const detectedBps = portSpeedBps(portA) || portSpeedBps(portB);
+
+  // Prefill capacity from the picked port(s) unless the user set one by hand.
+  const pickPort = (side: "a" | "b", port: ObserviumPort | null) => {
+    const nextA = side === "a" ? port : portA;
+    const nextB = side === "b" ? port : portB;
+    if (side === "a") setPortA(port);
+    else setPortB(port);
+    const speed = portSpeedBps(nextA) || portSpeedBps(nextB);
+    if (!bandwidthEdited && speed > 0) setBandwidthLabel(formatBandwidthLabel(speed));
+  };
+
   const handleSourceChange = (next: string) => {
+    if (next !== sourceId) setPortA(null);
     setSourceId(next);
     const nextTarget = targetId === next ? "" : targetId;
-    if (nextTarget !== targetId) setTargetId(nextTarget);
+    if (nextTarget !== targetId) {
+      setTargetId(nextTarget);
+      setPortB(null);
+    }
     const fill = autoName(next, nextTarget);
     if (fill) setName(fill);
   };
 
   const handleTargetChange = (next: string) => {
+    if (next !== targetId) setPortB(null);
     setTargetId(next);
     const fill = autoName(sourceId, next);
     if (fill) setName(fill);
@@ -110,6 +140,8 @@ export function LinkCreationDialog({
         target_id: targetId,
         bandwidth_label: bandwidthLabel,
         bandwidth: parseBandwidth(bandwidthLabel),
+        ...(portA ? { observium_port_id_a: portA.port_id } : {}),
+        ...(portB ? { observium_port_id_b: portB.port_id } : {}),
       });
       onClose();
     } catch {
@@ -194,6 +226,24 @@ export function LinkCreationDialog({
             </select>
           </div>
 
+          {/* Optional Observium port binding (only for device-bound endpoints) */}
+          {(sourceDevice != null || targetDevice != null) && (
+            <div className="grid grid-cols-2 gap-2">
+              <PortPicker
+                deviceId={sourceDevice}
+                value={portA?.port_id ?? null}
+                onChange={(_, port) => pickPort("a", port)}
+                label="Port A (optional)"
+              />
+              <PortPicker
+                deviceId={targetDevice}
+                value={portB?.port_id ?? null}
+                onChange={(_, port) => pickPort("b", port)}
+                label="Port B (optional)"
+              />
+            </div>
+          )}
+
           {/* Bandwidth Label */}
           <div>
             <label className="noc-label mb-1 block">Bandwidth Label</label>
@@ -201,9 +251,28 @@ export function LinkCreationDialog({
               className={inputClass}
               type="text"
               value={bandwidthLabel}
-              onChange={(e) => setBandwidthLabel(e.target.value)}
+              onChange={(e) => {
+                setBandwidthLabel(e.target.value);
+                setBandwidthEdited(true);
+              }}
               placeholder="1G"
             />
+            {detectedBps > 0 && (
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <span className="text-2xs text-noc-text-dim tabular-nums">
+                  Port speed: {formatBandwidthLabel(detectedBps)}
+                </span>
+                {parseBandwidth(bandwidthLabel) !== detectedBps && (
+                  <button
+                    type="button"
+                    onClick={() => setBandwidthLabel(formatBandwidthLabel(detectedBps))}
+                    className="text-2xs text-accent hover:text-accent/80 whitespace-nowrap"
+                  >
+                    Use port speed ({formatBandwidthLabel(detectedBps)})
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           {isDuplicate && (
             <p className="text-2xs text-amber-400">

@@ -12,8 +12,8 @@ import { useTheme } from "@/hooks/useTheme";
 
 interface ChartDatum {
   time: number;
-  in: number;
-  out: number;
+  in: number | null;
+  out: number | null;
 }
 
 interface TrafficChartProps {
@@ -73,9 +73,9 @@ export default function TrafficChart({ data }: TrafficChartProps) {
         />
         <Tooltip
           labelFormatter={(ts) => new Date(ts as number).toLocaleString()}
-          formatter={(value: number) => [
-            formatBps(Math.abs(value)) + "bps",
-            value >= 0 ? "In" : "Out",
+          formatter={(value: unknown, name: string | number) => [
+            typeof value === "number" ? formatBps(Math.abs(value)) : "—",
+            name === "in" ? "In" : "Out",
           ]}
           contentStyle={{
             backgroundColor: c.tooltipBg,
@@ -97,6 +97,7 @@ export default function TrafficChart({ data }: TrafficChartProps) {
           stroke="hsl(174 72% 46%)"
           fill="url(#gradientIn)"
           strokeWidth={1.5}
+          connectNulls={false}
         />
         <Area
           type="monotone"
@@ -104,6 +105,7 @@ export default function TrafficChart({ data }: TrafficChartProps) {
           stroke="hsl(36 100% 55%)"
           fill="url(#gradientOut)"
           strokeWidth={1.5}
+          connectNulls={false}
         />
       </AreaChart>
     </ResponsiveContainer>
