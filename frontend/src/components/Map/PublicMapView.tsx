@@ -20,32 +20,16 @@ import { GroupNode } from "./GroupNode";
 import { LabelNode } from "./LabelNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
+import { UpdatedIndicator } from "./UpdatedIndicator";
 import { NotFound } from "../Layout/NotFound";
-import type { NetmapData, MapNode, MapLink, ScaleBand, TrafficData } from "@/types";
-import { getScaleColor } from "@/utils/scaleColor";
+import type { NetmapData, MapNode, NodeStatusData, TrafficData } from "@/types";
+import { buildEdges, computeLinkHandles, computeUsedHandles } from "@/utils/buildEdges";
 
 const nodeTypes = { network: NetworkNode, group: GroupNode, label: LabelNode };
 const edgeTypes = { traffic: TrafficEdge };
 
-function computeAnchor(
-  fromX: number, fromY: number, fromW: number, fromH: number,
-  toX: number, toY: number,
-): string {
-  const dx = toX - fromX;
-  const dy = toY - fromY;
-  const side = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? "E" : "W") : (dy > 0 ? "S" : "N");
-  let pct: number;
-  if (side === "E" || side === "W") {
-    pct = fromH > 30 ? ((toY - fromY + fromH / 2) / fromH) * 100 : 50;
-  } else {
-    pct = fromW > 30 ? ((toX - fromX + fromW / 2) / fromW) * 100 : 50;
-  }
-  pct = Math.min(95, Math.max(5, Math.round(pct / 5) * 5));
-  if (pct === 50) return side;
-  return `${side}:${pct}`;
-}
-
-function mapNodeToFlow(n: MapNode): Node {
+/** Read-only counterpart of MapView's mapNodeToFlow (no edit-only extras). */
+function mapNodeToFlow(n: MapNode, usedHandles: string[] = [], status?: string): Node {
   const isGroup = n.node_type === "group";
   const isLabel = n.node_type === "label";
   const flowType = isGroup ? "group" : isLabel ? "label" : "network";
@@ -58,91 +42,26 @@ function mapNodeToFlow(n: MapNode): Node {
     data: {
       label: n.label || n.name,
       nodeType: n.node_type,
+      bandwidthLabel: n.extra?.bandwidth_label,
       width: n.width,
       height: n.height,
       bgColor: n.style?.bg_color,
       style: n.style,
+      usedHandles,
+      ...(status ? { status } : {}),
     },
-    style: isGroup
-      ? { width: n.width || 400, height: n.height || 300 }
-      : { width: n.width || 120, height: n.height || 28 },
-    zIndex: isGroup ? -1 : 0,
+    style: isGroup ? { width: n.width || 400, height: n.height || 300 } : undefined,
+    zIndex: isGroup ? -1 : (n.z_order || 0),
     draggable: false,
   };
-}
-
-function buildPublicEdges(
-  links: MapLink[],
-  flowNodes: Node[],
-  scales: ScaleBand[],
-  traffic: TrafficData,
-): Edge[] {
-  const nodePos = new Map<string, { x: number; y: number; w: number; h: number }>();
-  const parentPos = new Map<string, { x: number; y: number }>();
-
-  for (const n of flowNodes) {
-    if (n.type === "group") {
-      parentPos.set(n.id, { x: n.position.x, y: n.position.y });
-    }
-  }
-  for (const n of flowNodes) {
-    let absX = n.position.x;
-    let absY = n.position.y;
-    if (n.parentId) {
-      const pp = parentPos.get(n.parentId);
-      if (pp) { absX += pp.x; absY += pp.y; }
-    }
-    const w = Number(n.data?.width) || 80;
-    const h = Number(n.data?.height) || 30;
-    nodePos.set(n.id, { x: absX + w / 2, y: absY + h / 2, w, h });
-  }
-
-  return links.map((l) => {
-    const t = traffic[l.id];
-    const inPct = t?.in_pct ?? 0;
-    const outPct = t?.out_pct ?? 0;
-
-    const sp = nodePos.get(l.source_id);
-    const tp = nodePos.get(l.target_id);
-
-    let srcHandle: string | undefined;
-    let tgtHandle: string | undefined;
-
-    if (l.source_anchor && l.target_anchor) {
-      srcHandle = l.source_anchor;
-      tgtHandle = `${l.target_anchor}-t`;
-    } else if (sp && tp) {
-      srcHandle = computeAnchor(sp.x, sp.y, sp.w, sp.h, tp.x, tp.y);
-      tgtHandle = computeAnchor(tp.x, tp.y, tp.w, tp.h, sp.x, sp.y) + "-t";
-    }
-
-    return {
-      id: l.id,
-      source: l.source_id,
-      target: l.target_id,
-      type: "traffic",
-      sourceHandle: srcHandle,
-      targetHandle: tgtHandle,
-      data: {
-        linkType: l.link_type,
-        bandwidthLabel: l.bandwidth_label,
-        bandwidth: l.bandwidth,
-        width: l.width,
-        inBps: t?.in_bps ?? 0,
-        outBps: t?.out_bps ?? 0,
-        inPct, outPct,
-        inColor: getScaleColor(inPct, scales),
-        outColor: getScaleColor(outPct, scales),
-        extra: l.extra,
-      },
-    } satisfies Edge;
-  });
 }
 
 function PublicMapInner() {
   const { token } = useParams<{ token: string }>();
   const [map, setMap] = useState<NetmapData | null>(null);
   const [traffic, setTraffic] = useState<TrafficData>({});
+  const [nodeStatus, setNodeStatus] = useState<NodeStatusData>({});
+  const [lastPoll, setLastPoll] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
@@ -154,44 +73,68 @@ function PublicMapInner() {
     setError(null);
     setErrorStatus(null);
     let interval: ReturnType<typeof setInterval> | undefined;
+    let cancelled = false;
     api.getPublicMap(token)
       .then((data) => {
+        if (cancelled) return;
         setMap(data);
         setLoading(false);
         const fetchTraffic = () => {
-          api.getPublicTraffic(token).then(setTraffic).catch(() => {});
+          api.getPublicTraffic(token)
+            .then((t) => {
+              if (cancelled) return;
+              setTraffic(t);
+              setLastPoll(Date.now());
+            })
+            .catch(() => {});
+          // Older backends have no nodes-status route (404): just no status.
+          api.getPublicNodeStatus(token)
+            .then((ns) => { if (!cancelled) setNodeStatus(ns); })
+            .catch(() => {});
         };
         fetchTraffic();
         interval = setInterval(fetchTraffic, Math.max((data.settings?.refresh_interval ?? 300) * 1000, 30000));
       })
       .catch((e: unknown) => {
+        if (cancelled) return;
         const message = e instanceof Error ? e.message : "Failed to load map";
         const status = e instanceof ApiError ? e.status : null;
         setError(message);
         setErrorStatus(status);
         setLoading(false);
       });
-    return () => { if (interval) clearInterval(interval); };
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
   }, [token]);
 
   const scales = useMemo(() => map?.scales?.default ?? [], [map]);
 
+  const linkHandles = useMemo(
+    () => (map ? computeLinkHandles(map.nodes, map.links) : new Map()),
+    [map],
+  );
+
   const initialNodes = useMemo(() => {
     if (!map) return [];
-    const groups = map.nodes.filter((n) => n.node_type === "group").map(mapNodeToFlow);
-    const others = map.nodes.filter((n) => n.node_type !== "group").map(mapNodeToFlow);
+    const usedHandles = computeUsedHandles(map.links, linkHandles);
+    const toFlow = (n: MapNode) => mapNodeToFlow(n, usedHandles.get(n.id), nodeStatus[n.id]?.status);
+    const groups = map.nodes.filter((n) => n.node_type === "group").map(toFlow);
+    const others = map.nodes.filter((n) => n.node_type !== "group").map(toFlow);
     return [...groups, ...others];
-  }, [map]);
+  }, [map, linkHandles, nodeStatus]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges] = useEdgesState<Edge>([]);
 
   useEffect(() => { setNodes(initialNodes); }, [initialNodes, setNodes]);
 
+  const useGradientScale = map?.settings?.scale_mode === "gradient";
   useEffect(() => {
     if (!map) return;
-    setEdges(buildPublicEdges(map.links, nodes, scales, traffic));
-  }, [map, nodes, scales, traffic, setEdges]);
+    setEdges(buildEdges(map.links, linkHandles, { scales, traffic, gradient: useGradientScale }));
+  }, [map, linkHandles, scales, traffic, useGradientScale, setEdges]);
 
   if (loading) {
     return (
@@ -320,6 +263,9 @@ function PublicMapInner() {
           />
         </ReactFlow>
         <TrafficLegend scales={scales} />
+        <div className="absolute bottom-3 left-14 z-20">
+          <UpdatedIndicator traffic={traffic} lastPoll={lastPoll} />
+        </div>
       </div>
     </div>
   );

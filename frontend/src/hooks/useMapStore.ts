@@ -1,7 +1,8 @@
 import { create } from "zustand";
-import type { NetmapData, TrafficData, MapNode, MapLink, NodeType, AlignDirection } from "@/types";
+import type { NetmapData, MapSettings, TrafficData, NodeStatusData, MapNode, MapLink, NodeType, AlignDirection } from "@/types";
 import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from "@/types";
 import { api, ApiError } from "@/api/client";
+import { toast } from "@/hooks/useToast";
 
 /** Rendered footprint of a node, falling back to the shared default size. */
 const nodeW = (n: MapNode) => n.width || DEFAULT_NODE_WIDTH;
@@ -94,6 +95,95 @@ function commitUndoSnapshot(
 }
 
 /**
+ * Apply an optimistic position change to a set of nodes and persist it via
+ * batch-move. The pre-action snapshot is pushed onto the undo stack right away
+ * (keeps the order of rapid actions such as repeated nudges); if the write
+ * fails, that exact entry is dropped again, the moved nodes are restored to
+ * their pre-action positions and the error is surfaced as a toast.
+ */
+async function commitMoves(
+  set: (partial: Partial<MapStore>) => void,
+  get: () => MapStore,
+  snap: EntitySnapshot,
+  updatedNodes: MapNode[],
+  ids: Set<string>,
+  what: string,
+): Promise<void> {
+  const map = get().map;
+  if (!map || ids.size === 0) return;
+  const mapId = map.id;
+
+  set({ map: { ...map, nodes: updatedNodes } });
+  commitUndoSnapshot(set, get, snap);
+
+  const moves = updatedNodes
+    .filter((n) => ids.has(n.id))
+    .map((n) => ({ id: n.id, x: n.x, y: n.y }));
+  try {
+    await api.batchMoveNodes(mapId, moves);
+    set({ lastSaved: Date.now() });
+  } catch (e) {
+    const cur = get().map;
+    if (cur && cur.id === mapId) {
+      const before = new Map(snap.nodes.map((n) => [n.id, n]));
+      set({
+        map: {
+          ...cur,
+          nodes: cur.nodes.map((n) => {
+            const prev = ids.has(n.id) ? before.get(n.id) : undefined;
+            return prev ? { ...n, x: prev.x, y: prev.y } : n;
+          }),
+        },
+      });
+      const undoStack = get()._undoStack.filter((s) => s !== snap);
+      set({ _undoStack: undoStack, canUndo: undoStack.length > 0 });
+    }
+    toast.fromError(e, `Failed to ${what}`);
+  }
+}
+
+/** Optimistically apply new map settings (bound groups); roll back + toast on failure. */
+async function persistBoundGroups(
+  set: (partial: Partial<MapStore>) => void,
+  get: () => MapStore,
+  settings: MapSettings,
+  what: string,
+): Promise<void> {
+  const map = get().map;
+  if (!map) return;
+  const previous = map.settings;
+  set({ map: { ...map, settings } });
+  try {
+    await api.updateMap(map.id, { settings });
+    set({ lastSaved: Date.now() });
+  } catch (e) {
+    const cur = get().map;
+    if (cur && cur.id === map.id) set({ map: { ...cur, settings: previous } });
+    toast.fromError(e, `Failed to ${what}`);
+  }
+}
+
+/**
+ * Overlay an undo/redo snapshot onto the CURRENT map by id. Entities created
+ * since the snapshot are kept and entities deleted since are not resurrected,
+ * so undo stays valid across creates/deletes (the stack survives refreshMap).
+ */
+function reconcileSnapshot(current: NetmapData, snap: EntitySnapshot): EntitySnapshot {
+  const snapNodes = new Map(snap.nodes.map((n) => [n.id, n]));
+  const snapLinks = new Map(snap.links.map((l) => [l.id, l]));
+  return {
+    nodes: current.nodes.map((n) => {
+      const s = snapNodes.get(n.id);
+      return s ? structuredClone(s) : n;
+    }),
+    links: current.links.map((l) => {
+      const s = snapLinks.get(l.id);
+      return s ? structuredClone(s) : l;
+    }),
+  };
+}
+
+/**
  * Persist the difference between a target snapshot and the state before it.
  * Node positions go through the batch-move endpoint (existing path, never
  * regressed); nodes/links whose editable fields changed are persisted via the
@@ -140,6 +230,10 @@ interface MapStore {
   map: NetmapData | null;
   traffic: TrafficData;
   trafficError: boolean;
+  /** Per-node reachability, polled alongside traffic (empty on older backends). */
+  nodeStatus: NodeStatusData;
+  /** Time (ms) of the last successful traffic poll. */
+  lastTrafficAt: number | null;
   loading: boolean;
   error: string | null;
   errorStatus: number | null;
@@ -174,7 +268,14 @@ interface MapStore {
   _pollMapId: string | null;
 
   // Actions
-  loadMap: (id: string) => Promise<void>;
+  /**
+   * Load a map. With `reset` (initial mount / map switch) this shows the
+   * loading state and clears undo history; otherwise, when the same map is
+   * already loaded, it delegates to the silent `refreshMap`.
+   */
+  loadMap: (id: string, options?: { reset?: boolean }) => Promise<void>;
+  /** Re-fetch the current map without loading state or clearing undo (viewport stays put). */
+  refreshMap: () => Promise<void>;
   setEditMode: (on: boolean) => void;
 
   // Canvas search & filter
@@ -204,6 +305,8 @@ interface MapStore {
   deleteNode: (nodeId: string) => Promise<void>;
   deleteLink: (linkId: string) => Promise<void>;
   createLink: (data: Record<string, unknown>) => Promise<void>;
+  /** Delete several nodes/links in one request, then silently refresh. */
+  deleteEntities: (nodeIds: string[], linkIds: string[]) => Promise<void>;
 
   // Layout
   alignNodes: (direction: AlignDirection) => Promise<void>;
@@ -220,9 +323,11 @@ interface MapStore {
   unbindSelectedNodes: () => Promise<void>;
 
   // Positions
-  updateNodePosition: (nodeId: string, x: number, y: number) => void;
   nudgeSelectedNodes: (dx: number, dy: number) => Promise<void>;
-  saveNodePositions: () => Promise<void>;
+  /**
+   * Commit a batch of new positions (drag stop, auto-layout) as a single undo
+   * snapshot; rolled back with a toast if the write fails.
+   */
   applyNodePositions: (positions: Array<{ id: string; x: number; y: number }>) => Promise<void>;
 
   // Undo/redo
@@ -261,6 +366,8 @@ export const useMapStore = create<MapStore>((set, get) => ({
   map: null,
   traffic: {},
   trafficError: false,
+  nodeStatus: {},
+  lastTrafficAt: null,
   loading: false,
   error: null,
   errorStatus: null,
@@ -284,14 +391,32 @@ export const useMapStore = create<MapStore>((set, get) => ({
   canUndo: false,
   canRedo: false,
 
-  loadMap: async (id: string) => {
-    set({ loading: true, error: null, errorStatus: null });
+  loadMap: async (id, options) => {
+    const current = get();
+    // Post-mutation reloads of the map already on screen must not flash the
+    // spinner (which unmounts ReactFlow → re-fitView) nor wipe undo history.
+    if (!options?.reset && current.map?.id === id && !current.error && !current.loading) {
+      await get().refreshMap();
+      return;
+    }
+
+    const switching = current.map?.id !== id;
+    set({
+      loading: true,
+      error: null,
+      errorStatus: null,
+      ...(switching ? { traffic: {}, nodeStatus: {}, lastTrafficAt: null, trafficError: false } : {}),
+    });
     try {
       const data = await api.getMap(id);
       const { searchQuery, activeTypeFilters } = get();
       set({
         map: data,
         loading: false,
+        selectedNodeIds: [],
+        selectedLinkIds: [],
+        selectedNodeId: null,
+        selectedLinkId: null,
         _undoStack: [],
         _redoStack: [],
         canUndo: false,
@@ -304,6 +429,41 @@ export const useMapStore = create<MapStore>((set, get) => ({
       const message = e instanceof Error ? e.message : "Failed to load map";
       const status = e instanceof ApiError ? e.status : null;
       set({ error: message, errorStatus: status, loading: false });
+    }
+  },
+
+  refreshMap: async () => {
+    const before = get().map;
+    if (!before) return;
+    const id = before.id;
+    try {
+      const data = await api.getMap(id);
+      // Ignore a late response if the user switched maps meanwhile.
+      if (get().map?.id !== id) return;
+      const { searchQuery, activeTypeFilters, selectedNodeIds, selectedLinkIds } = get();
+      // Drop selections pointing at entities that no longer exist.
+      const nodeIds = new Set(data.nodes.map((n) => n.id));
+      const linkIds = new Set(data.links.map((l) => l.id));
+      const selNodes = selectedNodeIds.filter((n) => nodeIds.has(n));
+      const selLinks = selectedLinkIds.filter((l) => linkIds.has(l));
+      set({
+        map: data,
+        matchedNodeIds: computeMatches(data.nodes, searchQuery, activeTypeFilters),
+        ...(selNodes.length !== selectedNodeIds.length || selLinks.length !== selectedLinkIds.length
+          ? {
+              selectedNodeIds: selNodes,
+              selectedLinkIds: selLinks,
+              selectedNodeId: selNodes.length === 1 && selLinks.length === 0 ? selNodes[0] : null,
+              selectedLinkId: selLinks.length === 1 && selNodes.length === 0 ? selLinks[0] : null,
+            }
+          : {}),
+      });
+      // Settings may have changed the refresh interval: restart active polling.
+      const oldInterval = before.settings?.refresh_interval ?? 300;
+      const newInterval = data.settings?.refresh_interval ?? 300;
+      if (oldInterval !== newInterval && get()._pollMapId === id) get().startTrafficPolling();
+    } catch (e) {
+      toast.fromError(e, "Failed to refresh map");
     }
   },
 
@@ -386,12 +546,13 @@ export const useMapStore = create<MapStore>((set, get) => ({
       await api.updateNode(map.id, nodeId, fields);
       commitUndoSnapshot(set, get, snap);
       set({ saving: false, lastSaved: Date.now() });
-    } catch {
+    } catch (e) {
       // Revert to saved state
       set({
         map: { ...get().map!, nodes: previousNodes },
         saving: false,
       });
+      toast.fromError(e, "Failed to save node");
     }
   },
 
@@ -418,12 +579,13 @@ export const useMapStore = create<MapStore>((set, get) => ({
       await api.updateLink(map.id, linkId, fields);
       commitUndoSnapshot(set, get, snap);
       set({ saving: false, lastSaved: Date.now() });
-    } catch {
+    } catch (e) {
       // Revert to saved state
       set({
         map: { ...get().map!, links: previousLinks },
         saving: false,
       });
+      toast.fromError(e, "Failed to save link");
     }
   },
 
@@ -453,8 +615,9 @@ export const useMapStore = create<MapStore>((set, get) => ({
       await api.batchUpdateNodes(map.id, ids, fields);
       commitUndoSnapshot(set, get, snap);
       set({ saving: false, lastSaved: Date.now() });
-    } catch {
+    } catch (e) {
       set({ map: { ...get().map!, nodes: previousNodes }, saving: false });
+      toast.fromError(e, `Failed to update ${ids.length} node${ids.length > 1 ? "s" : ""}`);
     }
   },
 
@@ -478,33 +641,74 @@ export const useMapStore = create<MapStore>((set, get) => ({
       await api.batchUpdateLinks(map.id, ids, fields);
       commitUndoSnapshot(set, get, snap);
       set({ saving: false, lastSaved: Date.now() });
-    } catch {
+    } catch (e) {
       set({ map: { ...get().map!, links: previousLinks }, saving: false });
+      toast.fromError(e, `Failed to update ${ids.length} link${ids.length > 1 ? "s" : ""}`);
     }
   },
 
-  // Delete node and reload map
+  // Delete node, then silently refresh (viewport + undo history preserved)
   deleteNode: async (nodeId) => {
     const { map } = get();
     if (!map) return;
-    await api.deleteNode(map.id, nodeId);
-    await get().loadMap(map.id);
+    try {
+      await api.deleteNode(map.id, nodeId);
+    } catch (e) {
+      toast.fromError(e, "Failed to delete node");
+      return;
+    }
+    await get().refreshMap();
   },
 
-  // Delete link and reload map
+  // Delete link, then silently refresh
   deleteLink: async (linkId) => {
     const { map } = get();
     if (!map) return;
-    await api.deleteLink(map.id, linkId);
-    await get().loadMap(map.id);
+    try {
+      await api.deleteLink(map.id, linkId);
+    } catch (e) {
+      toast.fromError(e, "Failed to delete link");
+      return;
+    }
+    await get().refreshMap();
   },
 
-  // Create link and reload map
+  // Create link, then silently refresh
   createLink: async (data) => {
     const { map } = get();
     if (!map) return;
-    await api.createLink(map.id, data);
-    await get().loadMap(map.id);
+    try {
+      await api.createLink(map.id, data);
+    } catch (e) {
+      toast.fromError(e, "Failed to create link");
+      return;
+    }
+    await get().refreshMap();
+  },
+
+  deleteEntities: async (nodeIds, linkIds) => {
+    const { map } = get();
+    if (!map || (nodeIds.length === 0 && linkIds.length === 0)) return;
+    try {
+      try {
+        await api.batchDelete(map.id, nodeIds, linkIds);
+      } catch (e) {
+        // Older backend without the batch-delete route: fall back to
+        // sequential per-entity deletes (links first, nodes cascade theirs).
+        if (!(e instanceof ApiError && (e.status === 404 || e.status === 405))) throw e;
+        const nodeSet = new Set(nodeIds);
+        const orphanFree = linkIds.filter((id) => {
+          const l = map.links.find((x) => x.id === id);
+          return !l || (!nodeSet.has(l.source_id) && !nodeSet.has(l.target_id));
+        });
+        for (const id of orphanFree) await api.deleteLink(map.id, id);
+        for (const id of nodeIds) await api.deleteNode(map.id, id);
+      }
+    } catch (e) {
+      toast.fromError(e, "Failed to delete selection");
+    }
+    // Refresh either way: a partial failure may still have removed some items.
+    await get().refreshMap();
   },
 
   // ── Undo / Redo ──
@@ -522,12 +726,12 @@ export const useMapStore = create<MapStore>((set, get) => ({
     if (!map || _undoStack.length === 0) return;
 
     const currentSnap = takeSnapshot(map);
-    const prevSnap = _undoStack[_undoStack.length - 1];
+    const prevSnap = reconcileSnapshot(map, _undoStack[_undoStack.length - 1]);
     const newUndoStack = _undoStack.slice(0, -1);
     const newRedoStack = [..._redoStack, currentSnap];
 
     set({
-      map: { ...map, nodes: cloneMap(prevSnap.nodes), links: cloneMap(prevSnap.links) },
+      map: { ...map, nodes: prevSnap.nodes, links: prevSnap.links },
       _undoStack: newUndoStack,
       _redoStack: newRedoStack,
       canUndo: newUndoStack.length > 0,
@@ -536,7 +740,24 @@ export const useMapStore = create<MapStore>((set, get) => ({
     });
 
     // Persist the revert so it sticks on the backend (positions + field diffs).
-    await persistSnapshot(map.id, prevSnap, currentSnap);
+    try {
+      await persistSnapshot(map.id, prevSnap, currentSnap);
+    } catch (e) {
+      // Put everything back as it was before this undo.
+      if (get().map?.id === map.id) {
+        set({
+          map: { ...get().map!, nodes: currentSnap.nodes, links: currentSnap.links },
+          _undoStack,
+          _redoStack,
+          canUndo: _undoStack.length > 0,
+          canRedo: _redoStack.length > 0,
+          matchedNodeIds: computeMatches(currentSnap.nodes, get().searchQuery, get().activeTypeFilters),
+        });
+      }
+      toast.fromError(e, "Failed to undo");
+      // A multi-request revert may have partially applied: resync with the server.
+      await get().refreshMap();
+    }
   },
 
   redo: async () => {
@@ -544,12 +765,12 @@ export const useMapStore = create<MapStore>((set, get) => ({
     if (!map || _redoStack.length === 0) return;
 
     const currentSnap = takeSnapshot(map);
-    const nextSnap = _redoStack[_redoStack.length - 1];
+    const nextSnap = reconcileSnapshot(map, _redoStack[_redoStack.length - 1]);
     const newRedoStack = _redoStack.slice(0, -1);
     const newUndoStack = [..._undoStack, currentSnap];
 
     set({
-      map: { ...map, nodes: cloneMap(nextSnap.nodes), links: cloneMap(nextSnap.links) },
+      map: { ...map, nodes: nextSnap.nodes, links: nextSnap.links },
       _undoStack: newUndoStack,
       _redoStack: newRedoStack,
       canUndo: true,
@@ -558,7 +779,22 @@ export const useMapStore = create<MapStore>((set, get) => ({
     });
 
     // Persist the revert so it sticks on the backend (positions + field diffs).
-    await persistSnapshot(map.id, nextSnap, currentSnap);
+    try {
+      await persistSnapshot(map.id, nextSnap, currentSnap);
+    } catch (e) {
+      if (get().map?.id === map.id) {
+        set({
+          map: { ...get().map!, nodes: currentSnap.nodes, links: currentSnap.links },
+          _undoStack,
+          _redoStack,
+          canUndo: _undoStack.length > 0,
+          canRedo: _redoStack.length > 0,
+          matchedNodeIds: computeMatches(currentSnap.nodes, get().searchQuery, get().activeTypeFilters),
+        });
+      }
+      toast.fromError(e, "Failed to redo");
+      await get().refreshMap();
+    }
   },
 
   // Align selected nodes to the selection bounding box (locked nodes skipped).
@@ -571,7 +807,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     );
     if (targets.length < 2) return;
 
-    get().pushUndo();
+    const snap = takeSnapshot(map);
 
     const ids = new Set(targets.map((n) => n.id));
     const minLeft = Math.min(...targets.map((n) => n.x));
@@ -596,12 +832,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     const updatedNodes = map.nodes.map((n: MapNode) =>
       ids.has(n.id) ? { ...n, ...place(n) } : n,
     );
-    set({ map: { ...map, nodes: updatedNodes } });
-
-    const moves = updatedNodes
-      .filter((n: MapNode) => ids.has(n.id))
-      .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
-    await api.batchMoveNodes(map.id, moves);
+    await commitMoves(set, get, snap, updatedNodes, ids, "align nodes");
   },
 
   // Center the selection bounding box on the canvas along one axis.
@@ -613,7 +844,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     );
     if (targets.length === 0) return;
 
-    get().pushUndo();
+    const snap = takeSnapshot(map);
     const ids = new Set(targets.map((n) => n.id));
     const horiz = axis === "horizontal";
     const size = horiz ? nodeW : nodeH;
@@ -630,11 +861,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
           : { ...n, y: n.y + delta }
         : n,
     );
-    set({ map: { ...map, nodes: updatedNodes } });
-    const moves = updatedNodes
-      .filter((n: MapNode) => ids.has(n.id))
-      .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
-    await api.batchMoveNodes(map.id, moves);
+    await commitMoves(set, get, snap, updatedNodes, ids, "center nodes on canvas");
   },
 
   // Match the width or height of selected nodes to the largest in the set.
@@ -661,7 +888,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     );
     if (targets.length < 3) return;
 
-    get().pushUndo();
+    const snap = takeSnapshot(map);
 
     const horiz = axis === "horizontal";
     const size = horiz ? nodeW : nodeH;
@@ -689,12 +916,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
           : { ...n, y: positionMap.get(n.id)! }
         : n,
     );
-    set({ map: { ...map, nodes: updatedNodes } });
-
-    const moves = updatedNodes
-      .filter((n: MapNode) => positionMap.has(n.id))
-      .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
-    await api.batchMoveNodes(map.id, moves);
+    await commitMoves(set, get, snap, updatedNodes, new Set(positionMap.keys()), "distribute nodes");
   },
 
   // Flip selected nodes (mirror positions; locked nodes skipped).
@@ -707,7 +929,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     );
     if (targets.length < 2) return;
 
-    get().pushUndo();
+    const snap = takeSnapshot(map);
 
     const ids = new Set(targets.map((n) => n.id));
     let updatedNodes: MapNode[];
@@ -725,11 +947,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
       );
     }
 
-    set({ map: { ...map, nodes: updatedNodes } });
-    const moves = updatedNodes
-      .filter((n: MapNode) => ids.has(n.id))
-      .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
-    await api.batchMoveNodes(map.id, moves);
+    await commitMoves(set, get, snap, updatedNodes, ids, "flip nodes");
   },
 
   toggleSnapToGrid: () => set({ snapToGrid: !get().snapToGrid }),
@@ -766,8 +984,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
     remaining.push([...merged]);
 
     const settings = { ...map.settings, bound_groups: remaining };
-    set({ map: { ...map, settings } });
-    await api.updateMap(map.id, { settings });
+    await persistBoundGroups(set, get, settings, "bind nodes");
   },
 
   unbindSelectedNodes: async () => {
@@ -782,19 +999,7 @@ export const useMapStore = create<MapStore>((set, get) => ({
       .filter((g) => g.length >= 2); // discard groups with <2 members
 
     const settings = { ...map.settings, bound_groups: updated };
-    set({ map: { ...map, settings } });
-    await api.updateMap(map.id, { settings });
-  },
-
-  updateNodePosition: (nodeId, x, y) => {
-    const { map } = get();
-    if (!map) return;
-    set({
-      map: {
-        ...map,
-        nodes: map.nodes.map((n: MapNode) => (n.id === nodeId ? { ...n, x, y } : n)),
-      },
-    });
+    await persistBoundGroups(set, get, settings, "unbind nodes");
   },
 
   nudgeSelectedNodes: async (dx, dy) => {
@@ -808,40 +1013,25 @@ export const useMapStore = create<MapStore>((set, get) => ({
     );
     if (ids.size === 0) return;
 
-    get().pushUndo();
-
+    const snap = takeSnapshot(map);
     const updatedNodes = map.nodes.map((n: MapNode) =>
       ids.has(n.id) ? { ...n, x: n.x + dx, y: n.y + dy } : n
     );
-
-    set({ map: { ...map, nodes: updatedNodes } });
-
-    const moves = updatedNodes
-      .filter((n: MapNode) => ids.has(n.id))
-      .map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
-    await api.batchMoveNodes(map.id, moves);
+    await commitMoves(set, get, snap, updatedNodes, ids, "move nodes");
   },
 
-  saveNodePositions: async () => {
-    const { map } = get();
-    if (!map) return;
-    const moves = map.nodes.map((n: MapNode) => ({ id: n.id, x: n.x, y: n.y }));
-    await api.batchMoveNodes(map.id, moves);
-  },
-
-  // Apply a batch of new positions (auto-layout) as a single undo snapshot.
+  // Apply a batch of new positions (drag stop, auto-layout) as a single undo snapshot.
   applyNodePositions: async (positions) => {
     const { map } = get();
     if (!map || positions.length === 0) return;
-    get().pushUndo();
+    const snap = takeSnapshot(map);
     const posMap = new Map(positions.map((p) => [p.id, p]));
     const updatedNodes = map.nodes.map((n: MapNode) => {
       const p = posMap.get(n.id);
       return p ? { ...n, x: p.x, y: p.y } : n;
     });
-    set({ map: { ...map, nodes: updatedNodes } });
-    const moves = positions.map((p) => ({ id: p.id, x: p.x, y: p.y }));
-    await api.batchMoveNodes(map.id, moves);
+    const ids = new Set(map.nodes.filter((n) => posMap.has(n.id)).map((n) => n.id));
+    await commitMoves(set, get, snap, updatedNodes, ids, "move nodes");
   },
 
   setTraffic: (data) => set({ traffic: data }),
@@ -865,16 +1055,32 @@ export const useMapStore = create<MapStore>((set, get) => ({
       const controller = new AbortController();
       set({ _trafficAbort: controller });
 
+      // Node status is polled alongside traffic but never flags the live-data
+      // error: an older backend without the route (404) simply yields no status.
+      const nodeStatusPoll = api
+        .getNodeStatus(pollMapId, controller.signal)
+        .then((ns) => {
+          if (get()._pollMapId === pollMapId) set({ nodeStatus: ns });
+        })
+        .catch((e: unknown) => {
+          if (e instanceof ApiError && e.status === 404 && get()._pollMapId === pollMapId) {
+            set({ nodeStatus: {} });
+          }
+          // Other failures (abort, transient): keep the last known status.
+        });
+
       try {
         const data = await api.getLiveTraffic(pollMapId, controller.signal);
         // Ignore a late response for a map that is no longer active.
         if (get()._pollMapId !== pollMapId) return;
-        set({ traffic: data, trafficError: false });
+        set({ traffic: data, trafficError: false, lastTrafficAt: Date.now() });
       } catch (e) {
         // An abort is expected on map change/unmount — not a real error.
         if (e instanceof DOMException && e.name === "AbortError") return;
         if (get()._pollMapId !== pollMapId) return;
         set({ trafficError: true });
+      } finally {
+        await nodeStatusPoll;
       }
     };
 
