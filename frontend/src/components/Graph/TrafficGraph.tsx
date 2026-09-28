@@ -21,6 +21,9 @@ interface TrafficGraphPanelProps {
   fetcher?: TrafficHistoryFetcher;
 }
 
+const hasData = (h: TrafficHistory): boolean =>
+  h.in_bps.some((v) => v != null) || h.out_bps.some((v) => v != null);
+
 const swapDirections = (h: TrafficHistory): TrafficHistory => ({
   timestamps: h.timestamps,
   in_bps: h.out_bps,
@@ -34,6 +37,9 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Set when side A returned nothing and the graph fell back to side B,
+  // mirroring the live-traffic fallback.
+  const [fellBackToB, setFellBackToB] = useState(false);
 
   const hostname = typeof link.extra?.hostname === "string" ? link.extra.hostname : "";
   const portIdentifier =
@@ -43,7 +49,8 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
   const portB = link.observium_port_id_b;
   // B-only binding: B's counters are measured from the other end, so its
   // in/out are swapped to keep the graph in the link's A→B orientation.
-  const usesPortB = !fetcher && !hasExplicitRrd && portA == null && portB != null;
+  const usesPortB =
+    fellBackToB || (!fetcher && !hasExplicitRrd && portA == null && portB != null);
   const hasSource = !!fetcher || hasExplicitRrd || portA != null || portB != null;
 
   useEffect(() => {
@@ -51,14 +58,24 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
     // can never show under a different selection.
     setHistory(null);
     setError(null);
+    setFellBackToB(false);
 
+    let onB = false;
     let request: (() => Promise<TrafficHistory>) | null = null;
     if (fetcher) {
       request = () => fetcher(timeRange);
     } else if (mapId && hasExplicitRrd) {
       request = () => api.getTrafficHistory(hostname, portIdentifier, mapId, timeRange);
     } else if (mapId && portA != null) {
-      request = () => api.getTrafficHistoryByPort(portA, mapId, timeRange);
+      request = () =>
+        api.getTrafficHistoryByPort(portA, mapId, timeRange).then((h) => {
+          if (hasData(h) || portB == null) return h;
+          return api.getTrafficHistoryByPort(portB, mapId, timeRange).then((hb) => {
+            if (!hasData(hb)) return h;
+            onB = true;
+            return swapDirections(hb);
+          });
+        });
     } else if (mapId && portB != null) {
       request = () => api.getTrafficHistoryByPort(portB, mapId, timeRange).then(swapDirections);
     }
@@ -74,7 +91,9 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
     setLoading(true);
     request()
       .then((h) => {
-        if (!cancelled) setHistory(h);
+        if (cancelled) return;
+        setHistory(h);
+        setFellBackToB(onB);
       })
       .catch((e: unknown) => {
         if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load traffic history");

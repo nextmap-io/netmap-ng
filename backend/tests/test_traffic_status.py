@@ -95,6 +95,9 @@ def test_status_unbound_and_nodata():
         ({"ifOperStatus": "up", "poll_time": NOW - 16 * 60}, "stale"),
         ({"ifOperStatus": None, "ifAdminStatus": None, "poll_time": None}, "ok"),
         ({"ifOperStatus": "unknown"}, "ok"),
+        ({"ifOperStatus": "dormant"}, "ok"),
+        ({"ifOperStatus": "testing"}, "ok"),
+        ({"ifOperStatus": "notPresent"}, "down"),
         ({}, "ok"),
     ],
 )
@@ -624,3 +627,42 @@ async def test_map_visibility_is_validated(client):
     for value in ("private", "internal", "public"):
         resp = await client.put(f"/api/maps/{map_id}", json={"visibility": value})
         assert resp.status_code == 200
+
+
+async def _positions(client, map_id):
+    data = (await client.get(f"/api/maps/{map_id}")).json()
+    return {n["id"]: (n["x"], n["y"], n["parent_id"]) for n in data["nodes"]}
+
+
+@pytest.mark.anyio
+async def test_deleting_group_keeps_children_in_place(client):
+    """Detached children get the parent chain's offset, so they don't jump."""
+    map_id = await _make_map(client)
+    outer = await _make_node(client, map_id, "outer", node_type="group", x=100, y=50)
+    inner = await _make_node(
+        client, map_id, "inner", node_type="group", parent_id=outer, x=10, y=20
+    )
+    leaf = await _make_node(client, map_id, "leaf", parent_id=inner, x=5, y=7)
+
+    # Single delete of the inner group: leaf goes to top level at outer+inner+leaf.
+    resp = await client.delete(f"/api/maps/{map_id}/nodes/{inner}")
+    assert resp.status_code == 200
+    assert (await _positions(client, map_id))[leaf] == (115, 77, None)
+
+    # Batch delete: a child of the deleted outer group keeps its absolute spot.
+    child = await _make_node(client, map_id, "child", parent_id=outer, x=1, y=2)
+    resp = await client.post(
+        f"/api/maps/{map_id}/nodes/batch-delete", json={"node_ids": [outer]}
+    )
+    assert resp.status_code == 200
+    assert (await _positions(client, map_id))[child] == (101, 52, None)
+
+
+@pytest.mark.anyio
+async def test_public_map_exposes_display_flags_only(client):
+    map_id = await _make_map(client)
+    token = (await client.post(f"/api/maps/{map_id}/share")).json()["public_token"]
+    data = (await client.get(f"/api/public/maps/{token}")).json()
+    flags = data["public_settings"]
+    assert set(flags) == {"show_bps", "show_bandwidth", "show_percentage", "show_graph"}
+    assert all(isinstance(v, bool) for v in flags.values())

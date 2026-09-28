@@ -20,8 +20,9 @@ NodeStatus = Literal["up", "down", "unknown"]
 STALE_AFTER_SECONDS = 15 * 60
 DEFAULT_BANDWIDTH_BPS = 1e9
 
-# ifOperStatus values that do not mean "down" (unknown is treated as not-down).
-_NOT_DOWN_OPER = {"up", "unknown"}
+# ifOperStatus values that mean the link is down. Others (dormant, testing,
+# monitor, unknown, ...) are standby/diagnostic states, not outages.
+_DOWN_OPER = {"down", "lowerlayerdown", "notpresent"}
 
 
 def link_port_ids(links: Iterable[Link]) -> list[int]:
@@ -74,7 +75,7 @@ def _port_status(row: Mapping[str, Any], now: float) -> LinkStatus:
     if _status_str(row.get("ifAdminStatus")) == "down":
         return "admin_down"
     oper = _status_str(row.get("ifOperStatus"))
-    if oper and oper not in _NOT_DOWN_OPER:
+    if oper and oper.lower() in _DOWN_OPER:
         return "down"
     polled = _poll_time(row)
     if polled is not None and now - polled > STALE_AFTER_SECONDS:

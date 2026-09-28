@@ -103,6 +103,43 @@ def _node_updates(data: NodeUpdate) -> dict:
     return updates
 
 
+async def _detach_children(db: AsyncSession, map_id: str, parent_ids: set[str]) -> None:
+    """Move children of ``parent_ids`` to the top level, keeping them in place.
+
+    Child positions are relative to their parent, so the parent chain's
+    absolute offset is added when clearing ``parent_id``; otherwise detached
+    children would jump on screen by their old group's position.
+    """
+    if not parent_ids:
+        return
+    rows = (
+        await db.execute(
+            select(Node.id, Node.parent_id, Node.x, Node.y).where(Node.map_id == map_id)
+        )
+    ).all()
+    by_id = {row.id: row for row in rows}
+
+    def absolute(node_id: str) -> tuple[float, float]:
+        ax = ay = 0.0
+        seen: set[str] = set()
+        current = by_id.get(node_id)
+        while current is not None and current.id not in seen:
+            seen.add(current.id)
+            ax += current.x or 0
+            ay += current.y or 0
+            current = by_id.get(current.parent_id) if current.parent_id else None
+        return ax, ay
+
+    for row in rows:
+        if row.parent_id in parent_ids:
+            px, py = absolute(row.parent_id)
+            await db.execute(
+                update(Node)
+                .where(Node.map_id == map_id, Node.id == row.id)
+                .values(parent_id=None, x=(row.x or 0) + px, y=(row.y or 0) + py)
+            )
+
+
 async def _validate_parent(
     db: AsyncSession,
     map_id: str,
@@ -211,11 +248,7 @@ async def delete_node(
             (Link.source_id == node_id) | (Link.target_id == node_id),
         )
     )
-    await db.execute(
-        update(Node)
-        .where(Node.map_id == map_id, Node.parent_id == node_id)
-        .values(parent_id=None)
-    )
+    await _detach_children(db, map_id, {node_id})
     await db.delete(node)
     await db.commit()
     return {"ok": True}
@@ -334,14 +367,9 @@ async def batch_delete(
 
     for chunk in _chunks(deleted_link_ids):
         await db.execute(delete(Link).where(Link.map_id == map_id, Link.id.in_(chunk)))
-    for chunk in _chunks(node_ids):
-        # Detach children first (including ones deleted in this batch, so no
-        # parent_id ever points at a removed row).
-        await db.execute(
-            update(Node)
-            .where(Node.map_id == map_id, Node.parent_id.in_(chunk))
-            .values(parent_id=None)
-        )
+    # Detach children first (including ones deleted in this batch, so no
+    # parent_id ever points at a removed row), keeping their on-screen position.
+    await _detach_children(db, map_id, deleted_nodes)
     for chunk in _chunks(node_ids):
         await db.execute(delete(Node).where(Node.map_id == map_id, Node.id.in_(chunk)))
     await db.commit()
