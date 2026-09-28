@@ -1,7 +1,9 @@
 import { memo, useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import clsx from "clsx";
-import type { NodeType } from "@/types";
+import type { NodeStatus, NodeType } from "@/types";
+import { NODE_DOWN_COLOR, NODE_UNKNOWN_COLOR } from "./linkStatus";
+import "./linkStatus.css";
 
 const NODE_ICONS: Record<NodeType, string> = {
   router: "RTR", switch_l3: "L3", switch_l2: "L2", server: "SRV",
@@ -99,6 +101,9 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
   const isLarge = nodeWidth > 0 && nodeHeight > 0;
   const locked = !!data.locked;
   const isBound = !!data.isBound;
+  const status = data.status as NodeStatus | undefined;
+  const isDown = status === "down";
+  const isUnknown = status === "unknown";
   const usedHandles = useMemo(
     () => new Set(Array.isArray(data.usedHandles) ? (data.usedHandles as string[]) : []),
     [data.usedHandles],
@@ -118,6 +123,39 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
       style={isLarge ? { width: nodeWidth, height: nodeHeight } : undefined}
     >
       <AllHandles showAll={!!selected || hovered} usedHandles={usedHandles} />
+
+      {/* Device status: red ring + (motion-safe) pulsing dot when down, a
+          subtle grey dot when unknown, nothing when up. Inline colours and a
+          separate ring element so theme overrides on the card don't hide it. */}
+      {isDown && (
+        <span
+          aria-hidden
+          className="absolute -inset-[3px] rounded-md pointer-events-none"
+          style={{ border: `2px solid ${NODE_DOWN_COLOR}`, boxShadow: `0 0 8px ${NODE_DOWN_COLOR}66` }}
+        />
+      )}
+      {(isDown || isUnknown) && (
+        <span
+          title={isDown ? "Device down" : "Device status unknown"}
+          className="absolute -top-1 -left-1 flex w-2 h-2"
+        >
+          {isDown && (
+            <span
+              aria-hidden
+              className="netmap-status-ping absolute inset-0 rounded-full"
+              style={{ backgroundColor: NODE_DOWN_COLOR }}
+            />
+          )}
+          <span
+            className="relative w-2 h-2 rounded-full"
+            style={{
+              backgroundColor: isDown ? NODE_DOWN_COLOR : NODE_UNKNOWN_COLOR,
+              opacity: isDown ? 1 : 0.7,
+              boxShadow: "0 0 0 1.5px hsl(220 18% 10% / 0.6)",
+            }}
+          />
+        </span>
+      )}
 
       {/* Status glyphs: locked / bound-group member */}
       {(locked || isBound) && (

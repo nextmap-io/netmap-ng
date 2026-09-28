@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ScaleBand } from "@/types";
 import { useMapStore } from "@/hooks/useMapStore";
+import { LINK_STATUS_STYLE } from "./linkStatus";
 
 interface TrafficLegendProps {
   scales: ScaleBand[];
@@ -61,6 +62,33 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
           </div>
         ))}
       </div>
+      <div className="h-px bg-noc-border/50 my-1.5 sm:my-2" />
+      <div className="flex flex-col gap-1">
+        {LINK_STATE_ROWS.map((row) => (
+          <div key={row.label} className="flex items-center gap-1.5 sm:gap-2" title={row.title}>
+            <svg className="w-4 sm:w-5 h-2 sm:h-2.5 shrink-0" viewBox="0 0 20 10" preserveAspectRatio="none" aria-hidden>
+              <line
+                x1="0" y1="5" x2="20" y2="5"
+                stroke={row.color}
+                strokeWidth={3}
+                strokeDasharray={row.dash}
+              />
+            </svg>
+            <span className="text-[9px] sm:text-2xs text-noc-text-muted">{row.label}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
+}
+
+const LINK_STATE_ROWS = [
+  { label: "Down", ...pick("down") },
+  { label: "Admin down", ...pick("admin_down") },
+  { label: "No data", ...pick("nodata") },
+];
+
+function pick(status: "down" | "admin_down" | "nodata") {
+  const s = LINK_STATUS_STYLE[status];
+  return { color: s?.color ?? "currentColor", dash: s?.dash, title: s?.title ?? "" };
 }

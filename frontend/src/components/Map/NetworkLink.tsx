@@ -1,4 +1,4 @@
-import { memo, useMemo, useRef, useState, useLayoutEffect } from "react";
+import { memo, useMemo } from "react";
 import {
   getSmoothStepPath,
   getStraightPath,
@@ -7,9 +7,11 @@ import {
   type EdgeProps,
   EdgeLabelRenderer,
 } from "@xyflow/react";
+import type { LinkStatus } from "@/types";
 import { formatBps } from "./MapView";
-
-type Pt = { x: number; y: number };
+import { analyzePath, type Pt } from "./pathGeometry";
+import { LINK_STATUS_OPACITY, LINK_STATUS_STYLE, epochToMs } from "./linkStatus";
+import "./linkStatus.css";
 
 /** Build a straight-segment (angled) path through source → waypoints → target. */
 function angledPath(pts: Pt[]): string {
@@ -27,6 +29,21 @@ function curvedPath(pts: Pt[]): string {
   const last = pts[pts.length - 1];
   d += ` L ${last.x},${last.y}`;
   return d;
+}
+
+const LINK_STATUSES: readonly LinkStatus[] = ["ok", "down", "admin_down", "nodata", "unbound", "stale"];
+
+function toLinkStatus(v: unknown): LinkStatus {
+  return LINK_STATUSES.includes(v as LinkStatus) ? (v as LinkStatus) : "ok";
+}
+
+function ClockIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 2" />
+    </svg>
+  );
 }
 
 // Below this zoom the 10px bps labels collapse into an unreadable smear.
@@ -54,6 +71,8 @@ function TrafficEdgeComponent({
   const width = Number(data?.width) || 3;
   const bandwidthLabel = String(data?.bandwidthLabel || "");
   const linkType = String(data?.linkType || "internal");
+  const status = toLinkStatus(data?.status);
+  const updatedAt = typeof data?.updatedAt === "number" ? data.updatedAt : null;
 
   const extra = data?.extra as Record<string, unknown> | undefined;
   const lineStyle = String(extra?.line_style || "auto");
@@ -67,15 +86,21 @@ function TrafficEdgeComponent({
   );
   const viaStyle = String(data?.viaStyle || "curved");
   const arrowStyle = String(data?.arrowStyle || "");
-  const showArrows = arrowStyle !== "none";
+
+  // Non-"ok" states that replace the traffic rendering entirely.
+  const statusStyle = LINK_STATUS_STYLE[status];
+  const groupOpacity = LINK_STATUS_OPACITY[status];
+  const isStale = status === "stale";
+  const showArrows = arrowStyle !== "none" && !statusStyle;
 
   // Live canvas zoom — used to cull/scale labels that would otherwise smear.
   const zoom = useStore((s) => s.transform[2]);
 
-  const dashArray = lineStyle === "dashed" ? "6 3"
+  const userDashArray = lineStyle === "dashed" ? "6 3"
     : lineStyle === "dotted" ? "2 3"
     : lineStyle === "auto" && linkType === "transit" ? "6 3"
     : undefined;
+  const dashArray = statusStyle ? statusStyle.dash : userDashArray;
 
   const isHorizontal = Math.abs(sourceY - targetY) < 15;
 
@@ -104,44 +129,40 @@ function TrafficEdgeComponent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceX, sourceY, targetX, targetY, routing, isHorizontal, sourcePosition, targetPosition, viaPoints, viaStyle]);
 
-  // Derive label/arrow anchor points from the ACTUAL rendered path so labels
-  // follow step/bezier/waypoint routing instead of the straight source→target
-  // chord. Falls back to chord interpolation before the first measure.
-  const pathRef = useRef<SVGPathElement>(null);
-  const [anchors, setAnchors] = useState<{ out: Pt; mid: Pt; in: Pt } | null>(null);
-  useLayoutEffect(() => {
-    const p = pathRef.current;
-    if (!p) return;
-    let len = 0;
-    try {
-      len = p.getTotalLength();
-    } catch {
-      return;
-    }
-    if (!len) return;
-    const at = (frac: number): Pt => {
-      const pt = p.getPointAtLength(len * frac);
-      return { x: pt.x, y: pt.y };
+  // Derive label anchors, arrow direction and the in/out colour split from the
+  // ACTUAL rendered path (step / bezier / waypoint routes), not the straight
+  // source→target chord. `geom` is null only for a degenerate path, in which
+  // case we fall back to the chord.
+  const geom = useMemo(() => {
+    const g = analyzePath(edgePath);
+    if (!g) return null;
+    const [firstHalf, secondHalf] = g.splitAt(0.5);
+    return {
+      total: g.total,
+      out: g.pointAt(0.25),
+      mid: g.pointAt(0.5),
+      in: g.pointAt(0.75),
+      tangent: g.tangentAt(0.5),
+      firstHalf,
+      secondHalf,
     };
-    setAnchors({ out: at(0.25), mid: at(0.5), in: at(0.75) });
   }, [edgePath]);
 
-  const baseOutX = anchors?.out.x ?? sourceX * 0.75 + targetX * 0.25;
-  const baseOutY = anchors?.out.y ?? sourceY * 0.75 + targetY * 0.25;
-  const baseInX = anchors?.in.x ?? sourceX * 0.25 + targetX * 0.75;
-  const baseInY = anchors?.in.y ?? sourceY * 0.25 + targetY * 0.75;
-  const midX = anchors?.mid.x ?? labelX;
-  const midY = anchors?.mid.y ?? labelY;
+  const baseOutX = geom?.out.x ?? sourceX * 0.75 + targetX * 0.25;
+  const baseOutY = geom?.out.y ?? sourceY * 0.75 + targetY * 0.25;
+  const baseInX = geom?.in.x ?? sourceX * 0.25 + targetX * 0.75;
+  const baseInY = geom?.in.y ?? sourceY * 0.25 + targetY * 0.75;
+  const midX = geom?.mid.x ?? labelX;
+  const midY = geom?.mid.y ?? labelY;
 
-  // Screen-space length gate: flow-unit distance scaled by the live zoom.
-  const flowDist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
+  // Screen-space length gate: rendered path length scaled by the live zoom.
+  const chordDist = Math.sqrt((targetX - sourceX) ** 2 + (targetY - sourceY) ** 2);
+  const flowDist = geom?.total ?? chordDist;
   const showBpsLabels =
-    zoom >= MIN_BPS_LABEL_ZOOM && flowDist * zoom > MIN_LABEL_SCREEN_DIST;
+    !statusStyle && zoom >= MIN_BPS_LABEL_ZOOM && flowDist * zoom > MIN_LABEL_SCREEN_DIST;
 
-  // Unique gradient ID for this edge (out color first half, in color second half)
-  const gradId = `grad-${id}`;
-  const strokeOut = colorOverride || outColor;
-  const strokeIn = colorOverride || inColor;
+  const strokeOut = statusStyle?.color ?? colorOverride ?? outColor;
+  const strokeIn = statusStyle?.color ?? colorOverride ?? inColor;
 
   // Label position override: "above" (default), "below", "left", "right"
   const labelPos = String(extra?.label_position || "above");
@@ -167,101 +188,138 @@ function TrafficEdgeComponent({
     linkType === "peering_pni" ? "PNI" :
     linkType === "customer" ? "CX" : "";
 
-  // Arrow direction: always use source→target direction (works for straight, step, bezier)
+  // Arrow direction: tangent of the drawn path at its length midpoint.
   const rawDx = targetX - sourceX;
   const rawDy = targetY - sourceY;
   const rawLen = Math.sqrt(rawDx * rawDx + rawDy * rawDy) || 1;
-  const dx = rawDx / rawLen;
-  const dy = rawDy / rawLen;
-  const len = 1;
+  const dx = geom?.tangent.x ?? rawDx / rawLen;
+  const dy = geom?.tangent.y ?? rawDy / rawLen;
   const perpX = -dy;
   const perpY = dx;
   const arrowSize = Math.max(width * 2.5, 8);
 
+  const staleSince = isStale && updatedAt
+    ? new Date(epochToMs(updatedAt)).toLocaleString()
+    : null;
+  const tooltip = statusStyle?.title
+    ?? (isStale ? `Stale data${staleSince ? ` — last update ${staleSince}` : ""}` : null);
+
+  const pathCommon = {
+    fill: "none",
+    strokeWidth: width,
+    opacity: selected ? 1 : 0.8,
+    className: statusStyle ? "netmap-link-state" : undefined,
+    filter: selected ? "drop-shadow(0 0 6px hsl(190 90% 50% / 0.4))" : undefined,
+    style: { transition: "opacity 0.15s" },
+  } as const;
+
+  // Fallback gradient (chord-based) is only used when the path couldn't be analysed.
+  const gradId = `grad-${id}`;
+
   return (
     <>
-      {/* Gradient: out color first half → in color second half */}
-      <defs>
-        <linearGradient id={gradId} x1={sourceX} y1={sourceY} x2={targetX} y2={targetY} gradientUnits="userSpaceOnUse">
-          <stop offset="0%" stopColor={strokeOut} />
-          <stop offset="48%" stopColor={strokeOut} />
-          <stop offset="52%" stopColor={strokeIn} />
-          <stop offset="100%" stopColor={strokeIn} />
-        </linearGradient>
-      </defs>
-
-      {/* Single path with gradient */}
-      <path
-        ref={pathRef}
-        id={`${id}-path`}
-        d={edgePath}
-        fill="none"
-        stroke={`url(#${gradId})`}
-        strokeWidth={width}
-        opacity={selected ? 1 : 0.8}
-        strokeDasharray={dashArray}
-        filter={selected ? "drop-shadow(0 0 6px hsl(190 90% 50% / 0.4))" : undefined}
-        style={{ transition: "opacity 0.15s" }}
-      />
-
-      {/* Midpoint: two triangles ►◄ pointing inward, tips 2px apart */}
-      {showArrows && (() => {
-        // Unit vectors along and perpendicular to the link
-        const ux = dx / len; // along: source → target
-        const uy = dy / len;
-        const px = perpX; // perpendicular
-        const py = perpY;
-        const s = arrowSize; // triangle size
-        const g = 1.5; // half-gap between tips
-
-        // ► Out arrow: tip points toward target, base on source side
-        // Tip at mid + g along direction, base at mid + g + s along direction
-        const outTipX = midX + ux * g;
-        const outTipY = midY + uy * g;
-        const outBaseX = midX - ux * (s - g);
-        const outBaseY = midY - uy * (s - g);
-
-        // ◄ In arrow: tip points toward source, base on target side
-        const inTipX = midX - ux * g;
-        const inTipY = midY - uy * g;
-        const inBaseX = midX + ux * (s - g);
-        const inBaseY = midY + uy * (s - g);
-
-        return (
+      <g opacity={groupOpacity}>
+        {tooltip && <title>{tooltip}</title>}
+        {geom ? (
           <>
-            <polygon
-              points={`${outTipX},${outTipY} ${outBaseX + px * s * 0.5},${outBaseY + py * s * 0.5} ${outBaseX - px * s * 0.5},${outBaseY - py * s * 0.5}`}
-              fill={strokeOut}
-              stroke="hsl(220 15% 30%)"
-              strokeWidth={0.5}
-              opacity={0.9}
+            {/* Out colour on the source half, in colour on the target half,
+                split at the path's length midpoint so it follows the route. */}
+            <path
+              id={`${id}-path`}
+              d={geom.firstHalf}
+              stroke={strokeOut}
+              strokeDasharray={dashArray}
+              {...pathCommon}
             />
-            <polygon
-              points={`${inTipX},${inTipY} ${inBaseX + px * s * 0.5},${inBaseY + py * s * 0.5} ${inBaseX - px * s * 0.5},${inBaseY - py * s * 0.5}`}
-              fill={strokeIn}
-              stroke="hsl(220 15% 30%)"
-              strokeWidth={0.5}
-              opacity={0.9}
+            <path
+              d={geom.secondHalf}
+              stroke={strokeIn}
+              strokeDasharray={dashArray}
+              // Continue the dash pattern across the split instead of restarting it.
+              strokeDashoffset={dashArray ? geom.total / 2 : undefined}
+              {...pathCommon}
             />
           </>
-        );
-      })()}
+        ) : (
+          <>
+            <defs>
+              <linearGradient id={gradId} x1={sourceX} y1={sourceY} x2={targetX} y2={targetY} gradientUnits="userSpaceOnUse">
+                <stop offset="0%" stopColor={strokeOut} />
+                <stop offset="48%" stopColor={strokeOut} />
+                <stop offset="52%" stopColor={strokeIn} />
+                <stop offset="100%" stopColor={strokeIn} />
+              </linearGradient>
+            </defs>
+            <path
+              id={`${id}-path`}
+              d={edgePath}
+              stroke={`url(#${gradId})`}
+              strokeDasharray={dashArray}
+              {...pathCommon}
+            />
+          </>
+        )}
+
+        {/* Midpoint: two triangles ►◄ pointing inward, tips 2px apart */}
+        {showArrows && (() => {
+          // Unit vectors along (path tangent) and perpendicular to the link
+          const ux = dx;
+          const uy = dy;
+          const px = perpX;
+          const py = perpY;
+          const s = arrowSize; // triangle size
+          const g = 1.5; // half-gap between tips
+
+          // ► Out arrow: tip points toward target, base on source side
+          const outTipX = midX + ux * g;
+          const outTipY = midY + uy * g;
+          const outBaseX = midX - ux * (s - g);
+          const outBaseY = midY - uy * (s - g);
+
+          // ◄ In arrow: tip points toward source, base on target side
+          const inTipX = midX - ux * g;
+          const inTipY = midY - uy * g;
+          const inBaseX = midX + ux * (s - g);
+          const inBaseY = midY + uy * (s - g);
+
+          return (
+            <>
+              <polygon
+                points={`${outTipX},${outTipY} ${outBaseX + px * s * 0.5},${outBaseY + py * s * 0.5} ${outBaseX - px * s * 0.5},${outBaseY - py * s * 0.5}`}
+                fill={strokeOut}
+                stroke="hsl(220 15% 30%)"
+                strokeWidth={0.5}
+                opacity={0.9}
+              />
+              <polygon
+                points={`${inTipX},${inTipY} ${inBaseX + px * s * 0.5},${inBaseY + py * s * 0.5} ${inBaseX - px * s * 0.5},${inBaseY - py * s * 0.5}`}
+                fill={strokeIn}
+                stroke="hsl(220 15% 30%)"
+                strokeWidth={0.5}
+                opacity={0.9}
+              />
+            </>
+          );
+        })()}
+      </g>
 
       <EdgeLabelRenderer>
         {showBpsLabels && (
           <>
-            <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
+            <div className="nodrag nopan pointer-events-auto cursor-pointer" title={tooltip ?? undefined} style={{
               position: "absolute",
               zIndex: 10,
+              opacity: isStale ? 0.6 : undefined,
               transform: `${labelTranslate} translate(${outLabelX}px, ${outLabelY}px)`,
             }}>
               <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
                 {outBps > 0 ? formatBps(outBps) : outPct > 0 ? `${outPct.toFixed(1)}%` : "0"}
               </div>
             </div>
-            <div className="nodrag nopan pointer-events-auto cursor-pointer" style={{
+            <div className="nodrag nopan pointer-events-auto cursor-pointer" title={tooltip ?? undefined} style={{
               position: "absolute",
               zIndex: 10,
+              opacity: isStale ? 0.6 : undefined,
               transform: `${labelTranslate} translate(${inLabelX}px, ${inLabelY}px)`,
             }}>
               <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
@@ -270,17 +328,37 @@ function TrafficEdgeComponent({
             </div>
           </>
         )}
-        {(bandwidthLabel || typeLabel) && (
-          <div className="nodrag nopan" style={{
+        {statusStyle?.label ? (
+          // DOWN / ADMIN DOWN badge at the path midpoint (replaces the arrows).
+          <div className="nodrag nopan pointer-events-auto" title={statusStyle.title} style={{
+            position: "absolute",
+            zIndex: 11,
+            transform: `translate(-50%, -50%) translate(${midX}px, ${midY}px)`,
+          }}>
+            <div
+              className="bg-noc-card rounded px-1 py-px font-bold tracking-wider whitespace-nowrap leading-tight"
+              style={{
+                fontSize: status === "down" ? "9px" : "8px",
+                color: statusStyle.color,
+                border: `1px solid ${statusStyle.color}`,
+              }}
+            >
+              {statusStyle.label}
+            </div>
+          </div>
+        ) : (bandwidthLabel || typeLabel || isStale) ? (
+          <div className="nodrag nopan" title={tooltip ?? undefined} style={{
             position: "absolute",
             transform: `${labelTranslate} translate(${midX + offX}px, ${midY + offY}px)`,
+            pointerEvents: isStale ? "auto" : undefined,
           }}>
             <div className="flex items-center gap-0.5 whitespace-nowrap opacity-40" style={{ fontSize: "8px" }}>
+              {isStale && <ClockIcon className="w-2 h-2" />}
               {typeLabel && <span className="font-semibold tracking-wider">{typeLabel}</span>}
               <span className="tabular-nums">{bandwidthLabel}</span>
             </div>
           </div>
-        )}
+        ) : null}
       </EdgeLabelRenderer>
     </>
   );

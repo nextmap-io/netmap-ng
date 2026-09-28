@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import type { MapLink, MapNode, LinkType, NodeType } from "@/types";
+import type { MapLink, MapNode, LinkType, NodeType, ObserviumPort } from "@/types";
 import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from "@/types";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { PortPicker } from "./PortPicker";
 import { parseBandwidth, formatBandwidthLabel } from "@/utils/bandwidth";
+import { portSpeedBps } from "@/utils/portSpeed";
 
 const BANDWIDTH_PRESETS = [100e6, 1e9, 2.5e9, 10e9, 25e9, 40e9, 100e9, 400e9];
+/** Capacity a link gets at creation when nothing better is known. */
+const DEFAULT_BANDWIDTH = 1e9;
 
 const nodeCenter = (n: MapNode) => ({
   x: n.x + (n.width || DEFAULT_NODE_WIDTH) / 2,
@@ -79,6 +82,30 @@ export function LinkProperties({
   useEffect(() => {
     setCustomBandwidth(!BANDWIDTH_PRESETS.includes(link.bandwidth));
   }, [link.id, link.bandwidth]);
+
+  // Ports bound on each side, as resolved by the pickers — used to compare the
+  // configured capacity with the real interface speed. The pickers re-report
+  // whenever their bound port changes (including null on link switch/unbind).
+  const [portA, setPortA] = useState<ObserviumPort | null>(null);
+  const [portB, setPortB] = useState<ObserviumPort | null>(null);
+  const detectedBps = portSpeedBps(portA) || portSpeedBps(portB);
+  const capacityDiffers = detectedBps > 0 && detectedBps !== link.bandwidth;
+
+  const bindPort = (side: "a" | "b", portId: number | null, port: ObserviumPort | null) => {
+    const fields: Record<string, unknown> =
+      side === "a" ? { observium_port_id_a: portId } : { observium_port_id_b: portId };
+    // Only prefill capacity on the FIRST binding of a link still at the
+    // creation default; anything else may be a deliberate value (e.g. a
+    // committed rate below the port speed) and gets the one-click hint instead.
+    const speed = portSpeedBps(port);
+    const firstBinding = link.observium_port_id_a == null && link.observium_port_id_b == null;
+    const defaultCapacity = link.bandwidth === DEFAULT_BANDWIDTH && link.bandwidth_label === "1G";
+    if (portId != null && speed > 0 && firstBinding && defaultCapacity) {
+      fields.bandwidth = speed;
+      fields.bandwidth_label = formatBandwidthLabel(speed);
+    }
+    onUpdate(fields);
+  };
 
   const viaPoints = Array.isArray(link.via_points) ? link.via_points : [];
 
@@ -245,6 +272,25 @@ export function LinkProperties({
                 }}
                 className={`${inputClass} mt-1.5`}
               />
+            )}
+            {detectedBps > 0 && (
+              <div className="flex items-center justify-between gap-2 mt-1">
+                <span className="text-2xs text-noc-text-dim tabular-nums">
+                  Port speed: {formatBandwidthLabel(detectedBps)}
+                  {!capacityDiffers && " (matches)"}
+                </span>
+                {capacityDiffers && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdate({ bandwidth: detectedBps, bandwidth_label: formatBandwidthLabel(detectedBps) })
+                    }
+                    className="px-1.5 py-0.5 text-2xs text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 transition-colors whitespace-nowrap"
+                  >
+                    Use port speed ({formatBandwidthLabel(detectedBps)})
+                  </button>
+                )}
+              </div>
             )}
           </div>
           <div>
@@ -464,14 +510,16 @@ export function LinkProperties({
         <PortPicker
           deviceId={sourceNode?.observium_device_id ?? null}
           value={link.observium_port_id_a}
-          onChange={(portId) => onUpdate({ observium_port_id_a: portId })}
+          onChange={(portId, port) => bindPort("a", portId, port)}
+          onPortResolved={setPortA}
           label="Port A"
         />
         <div className="mt-2" />
         <PortPicker
           deviceId={targetNode?.observium_device_id ?? null}
           value={link.observium_port_id_b}
-          onChange={(portId) => onUpdate({ observium_port_id_b: portId })}
+          onChange={(portId, port) => bindPort("b", portId, port)}
+          onPortResolved={setPortB}
           label="Port B"
         />
       </section>
