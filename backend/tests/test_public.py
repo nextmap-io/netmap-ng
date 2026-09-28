@@ -83,6 +83,7 @@ async def test_public_map_uses_explicit_allow_lists(client: AsyncClient):
         "width",
         "height",
         "scales",
+        "public_settings",
         "settings",
         "nodes",
         "links",

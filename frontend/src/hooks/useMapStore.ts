@@ -171,10 +171,14 @@ async function persistBoundGroups(
 function reconcileSnapshot(current: NetmapData, snap: EntitySnapshot): EntitySnapshot {
   const snapNodes = new Map(snap.nodes.map((n) => [n.id, n]));
   const snapLinks = new Map(snap.links.map((l) => [l.id, l]));
+  const currentIds = new Set(current.nodes.map((n) => n.id));
   return {
     nodes: current.nodes.map((n) => {
       const s = snapNodes.get(n.id);
-      return s ? structuredClone(s) : n;
+      // Its parent group was deleted since the snapshot: the server detached it
+      // (and rebased its position), so restoring the old parent would 422 forever.
+      if (!s || (s.parent_id && !currentIds.has(s.parent_id))) return n;
+      return structuredClone(s);
     }),
     links: current.links.map((l) => {
       const s = snapLinks.get(l.id);
@@ -693,9 +697,11 @@ export const useMapStore = create<MapStore>((set, get) => ({
       try {
         await api.batchDelete(map.id, nodeIds, linkIds);
       } catch (e) {
-        // Older backend without the batch-delete route: fall back to
-        // sequential per-entity deletes (links first, nodes cascade theirs).
-        if (!(e instanceof ApiError && (e.status === 404 || e.status === 405))) throw e;
+        // Older backend without the batch-delete route (the path then hits the
+        // /{node_id} route → 405): fall back to sequential per-entity deletes.
+        // A 404 is the new endpoint rejecting unknown ids before deleting
+        // anything — surface it rather than deleting piecemeal.
+        if (!(e instanceof ApiError && e.status === 405)) throw e;
         const nodeSet = new Set(nodeIds);
         const orphanFree = linkIds.filter((id) => {
           const l = map.links.find((x) => x.id === id);
@@ -743,13 +749,14 @@ export const useMapStore = create<MapStore>((set, get) => ({
     try {
       await persistSnapshot(map.id, prevSnap, currentSnap);
     } catch (e) {
-      // Put everything back as it was before this undo.
+      // Put the map back, but drop the failing entry: re-queuing it would make
+      // every later undo retry (and fail on) the same step.
       if (get().map?.id === map.id) {
         set({
           map: { ...get().map!, nodes: currentSnap.nodes, links: currentSnap.links },
-          _undoStack,
+          _undoStack: newUndoStack,
           _redoStack,
-          canUndo: _undoStack.length > 0,
+          canUndo: newUndoStack.length > 0,
           canRedo: _redoStack.length > 0,
           matchedNodeIds: computeMatches(currentSnap.nodes, get().searchQuery, get().activeTypeFilters),
         });
@@ -782,13 +789,14 @@ export const useMapStore = create<MapStore>((set, get) => ({
     try {
       await persistSnapshot(map.id, nextSnap, currentSnap);
     } catch (e) {
+      // Same as undo: drop the failing entry so redo can't get stuck on it.
       if (get().map?.id === map.id) {
         set({
           map: { ...get().map!, nodes: currentSnap.nodes, links: currentSnap.links },
           _undoStack,
-          _redoStack,
+          _redoStack: newRedoStack,
           canUndo: _undoStack.length > 0,
-          canRedo: _redoStack.length > 0,
+          canRedo: newRedoStack.length > 0,
           matchedNodeIds: computeMatches(currentSnap.nodes, get().searchQuery, get().activeTypeFilters),
         });
       }

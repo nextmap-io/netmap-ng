@@ -133,6 +133,16 @@ async def get_public_map(token: str, db: AsyncSession = Depends(get_db)):
             "default_link_width": m.settings.get("default_link_width", 4),
             "scale_mode": m.settings.get("scale_mode"),
         },
+        # Display flags only (booleans), so the viewer knows e.g. whether graphs are allowed.
+        "public_settings": {
+            key: bool(ps.get(key, default))
+            for key, default in (
+                ("show_bps", False),
+                ("show_bandwidth", True),
+                ("show_percentage", True),
+                ("show_graph", False),
+            )
+        },
         "nodes": [_serialize_public_node(node) for node in m.nodes],
         "links": [_serialize_public_link(link, ps) for link in m.links],
     }

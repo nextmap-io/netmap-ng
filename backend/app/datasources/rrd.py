@@ -114,8 +114,18 @@ def _point(value: Any) -> float | None:
     return f if math.isfinite(f) else None
 
 
+# Cap concurrent rrdtool processes: history is reachable from public maps
+# (show_graph), and each xport can run for up to RRD_TIMEOUT_SECONDS.
+_RRDTOOL_CONCURRENCY = asyncio.Semaphore(4)
+
+
 async def _run_rrdtool(cmd: list[str]) -> str | None:
     """Run rrdtool without blocking the event loop; None on failure/timeout."""
+    async with _RRDTOOL_CONCURRENCY:
+        return await _run_rrdtool_unbounded(cmd)
+
+
+async def _run_rrdtool_unbounded(cmd: list[str]) -> str | None:
     try:
         proc = await asyncio.create_subprocess_exec(
             *cmd,

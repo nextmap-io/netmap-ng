@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import {
   ReactFlow,
@@ -21,6 +21,7 @@ import { LabelNode } from "./LabelNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { UpdatedIndicator } from "./UpdatedIndicator";
+import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { NotFound } from "../Layout/NotFound";
 import type { NetmapData, MapNode, NodeStatusData, TrafficData } from "@/types";
 import { buildEdges, computeLinkHandles, computeUsedHandles } from "@/utils/buildEdges";
@@ -65,6 +66,7 @@ function PublicMapInner() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [errorStatus, setErrorStatus] = useState<number | null>(null);
+  const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const { theme, cycle } = useTheme();
 
   useEffect(() => {
@@ -135,6 +137,16 @@ function PublicMapInner() {
     if (!map) return;
     setEdges(buildEdges(map.links, linkHandles, { scales, traffic, gradient: useGradientScale }));
   }, [map, linkHandles, scales, traffic, useGradientScale, setEdges]);
+
+  const showGraph = map?.public_settings?.show_graph === true;
+  const selectedLink = showGraph && selectedLinkId
+    ? map?.links.find((l) => l.id === selectedLinkId) ?? null
+    : null;
+  // Stable per link: TrafficGraphPanel refetches when the fetcher identity changes.
+  const historyFetcher = useCallback(
+    (period: string) => api.getPublicLinkHistory(token ?? "", selectedLinkId ?? "", period),
+    [token, selectedLinkId],
+  );
 
   if (loading) {
     return (
@@ -221,6 +233,8 @@ function PublicMapInner() {
           nodesDraggable={false}
           nodesConnectable={false}
           elementsSelectable={false}
+          onEdgeClick={showGraph ? (_e, edge) => setSelectedLinkId(edge.id) : undefined}
+          onPaneClick={() => setSelectedLinkId(null)}
           panOnDrag
           zoomOnPinch
           zoomOnScroll
@@ -266,6 +280,13 @@ function PublicMapInner() {
         <div className="absolute bottom-3 left-14 z-20">
           <UpdatedIndicator traffic={traffic} lastPoll={lastPoll} />
         </div>
+        {selectedLink && (
+          <TrafficGraphPanel
+            link={selectedLink}
+            fetcher={historyFetcher}
+            onClose={() => setSelectedLinkId(null)}
+          />
+        )}
       </div>
     </div>
   );
