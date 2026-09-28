@@ -1,14 +1,15 @@
 """Public API endpoints for unauthenticated access to shared maps."""
 
-from fastapi import APIRouter, HTTPException, Depends
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models import Map, Link, Node, get_db
-from app.datasources import observium
-
 from app.config import get_settings
+from app.services import traffic
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -137,53 +138,54 @@ async def get_public_map(token: str, db: AsyncSession = Depends(get_db)):
     }
 
 
+# Fields of a live-traffic entry that are always safe to expose publicly.
+_PUBLIC_TRAFFIC_KEYS = ("in_pct", "out_pct", "status", "updated_at")
+
+
 @router.get("/maps/{token}/traffic")
 async def get_public_traffic(token: str, db: AsyncSession = Depends(get_db)):
     m = await _get_public_map(token, db)
     ps = m.public_settings or {}
-
-    # Fetch live traffic
-    result = await db.execute(select(Link).where(Link.map_id == m.id))
-    links = result.scalars().all()
-
-    # Collect every port id needed (primary A + fallback B) and fetch in one
-    # batched query instead of one round-trip per link (avoids N+1).
-    port_ids: list[int] = []
-    for link in links:
-        if link.observium_port_id_a:
-            port_ids.append(link.observium_port_id_a)
-        if link.observium_port_id_b:
-            port_ids.append(link.observium_port_id_b)
-    ports_traffic = await observium.get_ports_traffic(port_ids)
-
     show_bps = ps.get("show_bps", False)
-    traffic_data: dict[str, dict[str, float]] = {}
-    for link in links:
-        entry: dict[str, float] | None = None
-        # Primary side A wins; only fall back to side B when A yields no data.
-        for port_id in (link.observium_port_id_a, link.observium_port_id_b):
-            if not port_id:
-                continue
-            port_data = ports_traffic.get(port_id)
-            if not port_data:
-                continue
-            in_rate = port_data.get("ifInOctets_rate", 0) or 0
-            out_rate = port_data.get("ifOutOctets_rate", 0) or 0
-            in_bps = float(in_rate) * 8
-            out_bps = float(out_rate) * 8
-            bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
-            in_pct = min(100.0, (in_bps / bw) * 100)
-            out_pct = min(100.0, (out_bps / bw) * 100)
-            entry = {"in_pct": round(in_pct, 1), "out_pct": round(out_pct, 1)}
-            if show_bps:
-                entry["in_bps"] = in_bps
-                entry["out_bps"] = out_bps
-            break
-        if entry is None:
-            entry = {"in_pct": 0, "out_pct": 0}
-            if show_bps:
-                entry["in_bps"] = 0
-                entry["out_bps"] = 0
-        traffic_data[link.id] = entry
 
+    live = await traffic.live_traffic(m.links)
+    traffic_data: dict[str, dict[str, Any]] = {}
+    for link_id, entry in live.items():
+        public_entry = {key: entry[key] for key in _PUBLIC_TRAFFIC_KEYS}
+        if show_bps:
+            public_entry["in_bps"] = entry["in_bps"]
+            public_entry["out_bps"] = entry["out_bps"]
+        traffic_data[link_id] = public_entry
     return traffic_data
+
+
+@router.get("/maps/{token}/nodes-status")
+async def get_public_nodes_status(token: str, db: AsyncSession = Depends(get_db)):
+    """Node up/down status keyed by node id (no Observium device ids)."""
+    m = await _get_public_map(token, db)
+    return await traffic.node_statuses(m.nodes)
+
+
+@router.get("/maps/{token}/links/{link_id}/history")
+async def get_public_link_history(
+    token: str,
+    link_id: str,
+    start: str = "-24h",
+    end: str = "now",
+    resolution: int = Query(300, ge=60, le=86400),
+    db: AsyncSession = Depends(get_db),
+):
+    """RRD history for one link of a public map, only if show_graph is enabled.
+
+    Same query params and response shape as the private traffic history.
+    Returns 404 when graphs are disabled or the link is not on this map, so
+    the endpoint does not reveal which links exist.
+    """
+    m = await _get_public_map(token, db)
+    ps = m.public_settings or {}
+    if not ps.get("show_graph", False):
+        raise HTTPException(404, "Traffic history not available")
+    link = next((lnk for lnk in m.links if lnk.id == link_id), None)
+    if link is None:
+        raise HTTPException(404, "Traffic history not available")
+    return await traffic.link_history(link, start, end, resolution)

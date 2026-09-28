@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +12,7 @@ from app.auth.guards import require_map_owner
 from app.api.maps import _serialize_node
 from app.api.validation import SafeHttpUrl
 
+logger = logging.getLogger("netmap.audit")
 router = APIRouter(prefix="/api/maps/{map_id}/nodes", tags=["nodes"])
 
 
@@ -67,6 +70,19 @@ class NodeBatchFields(BaseModel):
 class NodeBatchUpdate(BaseModel):
     node_ids: list[str] = Field(..., max_length=1000)
     fields: NodeBatchFields
+
+
+class NodeBatchDelete(BaseModel):
+    node_ids: list[str] = Field(default_factory=list, max_length=1000)
+    link_ids: list[str] = Field(default_factory=list, max_length=1000)
+
+
+# Keep IN (...) lists well under SQLite's bound-parameter limit.
+_IN_CHUNK = 500
+
+
+def _chunks(ids: list[str]) -> list[list[str]]:
+    return [ids[i : i + _IN_CHUNK] for i in range(0, len(ids), _IN_CHUNK)]
 
 
 _NULLABLE_UPDATE_FIELDS = {
@@ -272,3 +288,68 @@ async def batch_move_nodes(
         node.y = move.y
     await db.commit()
     return {"ok": True}
+
+
+@router.post("/batch-delete")
+async def batch_delete(
+    map_id: str,
+    data: NodeBatchDelete,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Delete many nodes and links in one transaction.
+
+    Same semantics as the single-node delete: links attached to a deleted node
+    are deleted too and children of a deleted group are detached (moved to the
+    top level), not deleted. Any id not belonging to this map -> 404 before
+    anything is deleted.
+    """
+    await require_map_owner(map_id, user, db)
+    node_ids = list(dict.fromkeys(data.node_ids))
+    link_ids = list(dict.fromkeys(data.link_ids))
+
+    map_node_ids = set(
+        (await db.execute(select(Node.id).where(Node.map_id == map_id))).scalars()
+    )
+    if any(node_id not in map_node_ids for node_id in node_ids):
+        raise HTTPException(404, "Node not found")
+    map_links = (
+        await db.execute(
+            select(Link.id, Link.source_id, Link.target_id).where(Link.map_id == map_id)
+        )
+    ).all()
+    map_link_ids = {row.id for row in map_links}
+    if any(link_id not in map_link_ids for link_id in link_ids):
+        raise HTTPException(404, "Link not found")
+
+    deleted_nodes = set(node_ids)
+    requested_links = set(link_ids)
+    deleted_link_ids = [
+        row.id
+        for row in map_links
+        if row.id in requested_links
+        or row.source_id in deleted_nodes
+        or row.target_id in deleted_nodes
+    ]
+
+    for chunk in _chunks(deleted_link_ids):
+        await db.execute(delete(Link).where(Link.map_id == map_id, Link.id.in_(chunk)))
+    for chunk in _chunks(node_ids):
+        # Detach children first (including ones deleted in this batch, so no
+        # parent_id ever points at a removed row).
+        await db.execute(
+            update(Node)
+            .where(Node.map_id == map_id, Node.parent_id.in_(chunk))
+            .values(parent_id=None)
+        )
+    for chunk in _chunks(node_ids):
+        await db.execute(delete(Node).where(Node.map_id == map_id, Node.id.in_(chunk)))
+    await db.commit()
+    logger.info(
+        "AUDIT %s batch-delete map=%s nodes=%d links=%d",
+        user.get("email", "anonymous"),
+        map_id,
+        len(node_ids),
+        len(deleted_link_ids),
+    )
+    return {"deleted_node_ids": node_ids, "deleted_link_ids": deleted_link_ids}

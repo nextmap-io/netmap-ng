@@ -209,7 +209,7 @@ async def test_live_traffic_a_primary_b_fallback(client: AsyncClient, monkeypatc
             200: {
                 "port_id": 200,
                 "ifInOctets_rate": 12_500_000,  # *8 = 100 Mbit/s = 10% of 1G
-                "ifOutOctets_rate": 0,
+                "ifOutOctets_rate": 2_500_000,  # *8 = 20 Mbit/s = 2% of 1G
             }
         }
 
@@ -221,9 +221,12 @@ async def test_live_traffic_a_primary_b_fallback(client: AsyncClient, monkeypatc
     # Single batched call (B5), both port ids collected.
     assert calls["count"] == 1
     assert set(calls["ids"]) == {100, 200}
-    # Fallback to B (B1): non-zero traffic from port 200.
-    assert data[link_id]["in_pct"] == 10.0
-    assert data[link_id]["in_bps"] == 100_000_000.0
+    # Fallback to B (B1): port 200's rates, swapped to A's point of view
+    # (what B receives is what A sends).
+    assert data[link_id]["out_pct"] == 10.0
+    assert data[link_id]["out_bps"] == 100_000_000.0
+    assert data[link_id]["in_pct"] == 2.0
+    assert data[link_id]["in_bps"] == 20_000_000.0
 
 
 @pytest.mark.anyio
@@ -292,7 +295,14 @@ async def test_live_traffic_zero_when_no_data(client: AsyncClient, monkeypatch):
 
     resp = await client.get(f"/api/datasources/traffic/live?map_id={map_id}")
     data = resp.json()
-    assert data[link_id] == {"in_bps": 0, "out_bps": 0, "in_pct": 0, "out_pct": 0}
+    assert data[link_id] == {
+        "in_bps": 0,
+        "out_bps": 0,
+        "in_pct": 0,
+        "out_pct": 0,
+        "status": "nodata",
+        "updated_at": None,
+    }
 
 
 # ── Editor integrity and persistence regressions ───────────────────────

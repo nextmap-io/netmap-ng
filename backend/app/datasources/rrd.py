@@ -3,13 +3,22 @@ Read RRD files (Observium format) for historical traffic data.
 Uses rrdtool Python bindings or falls back to subprocess.
 """
 
+import asyncio
+import json
+import logging
+import math
 import os
 import re
 import subprocess
-import json
 from typing import Any
+
 from fastapi import HTTPException
 from app.config import get_settings
+
+logger = logging.getLogger("netmap.rrd")
+
+# Max wall time for one `rrdtool xport` run; the process is killed past this.
+RRD_TIMEOUT_SECONDS = 30.0
 
 try:
     import rrdtool as _rrdtool
@@ -90,7 +99,55 @@ def fetch_current(hostname: str, port_identifier: str | int) -> dict[str, float]
     return {"in_bps": in_bytes * 8, "out_bps": out_bytes * 8}
 
 
-def fetch_history(
+def _empty_history() -> dict[str, list[Any]]:
+    return {"timestamps": [], "in_bps": [], "out_bps": []}
+
+
+def _point(value: Any) -> float | None:
+    """RRD gaps (null / NaN / non-numeric) become None, not 0."""
+    if value is None:
+        return None
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return None
+    return f if math.isfinite(f) else None
+
+
+async def _run_rrdtool(cmd: list[str]) -> str | None:
+    """Run rrdtool without blocking the event loop; None on failure/timeout."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except OSError:
+        logger.exception("Failed to start rrdtool")
+        return None
+    try:
+        stdout, stderr = await asyncio.wait_for(
+            proc.communicate(), timeout=RRD_TIMEOUT_SECONDS
+        )
+    except asyncio.TimeoutError:
+        logger.warning("rrdtool xport timed out after %ss", RRD_TIMEOUT_SECONDS)
+        try:
+            proc.kill()
+        except ProcessLookupError:
+            pass
+        await proc.wait()
+        return None
+    if proc.returncode != 0:
+        logger.warning(
+            "rrdtool xport failed (%s): %s",
+            proc.returncode,
+            stderr.decode(errors="replace")[:500],
+        )
+        return None
+    return stdout.decode(errors="replace")
+
+
+async def fetch_history(
     hostname: str,
     port_identifier: str | int,
     start: str = "-24h",
@@ -99,7 +156,7 @@ def fetch_history(
 ) -> dict[str, Any]:
     """
     Fetch historical data from an RRD file.
-    Returns time series suitable for charting.
+    Returns time series suitable for charting; gaps are ``None``.
     """
     path = _safe_rrd_path(hostname, port_identifier)
     start = _validate_time(start, "start")
@@ -108,7 +165,7 @@ def fetch_history(
         raise HTTPException(400, "resolution must be between 60 and 86400")
 
     if not os.path.exists(path):
-        return {"timestamps": [], "in_bps": [], "out_bps": []}
+        return _empty_history()
 
     cmd = [
         "rrdtool",
@@ -128,23 +185,29 @@ def fetch_history(
         "XPORT:out_bps:out_bps",
     ]
 
-    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-    if result.returncode != 0:
-        return {"timestamps": [], "in_bps": [], "out_bps": []}
+    output = await _run_rrdtool(cmd)
+    if output is None:
+        return _empty_history()
+    try:
+        # json.loads accepts the bare NaN literals some rrdtool builds emit.
+        data = json.loads(output)
+    except ValueError:
+        logger.warning("rrdtool xport returned invalid JSON")
+        return _empty_history()
 
-    data = json.loads(result.stdout)
     meta = data.get("meta", {})
     start_ts = meta.get("start", 0)
     step = meta.get("step", 300)
     rows = data.get("data", [])
 
-    timestamps = []
-    in_bps = []
-    out_bps = []
+    timestamps: list[int] = []
+    in_bps: list[float | None] = []
+    out_bps: list[float | None] = []
 
     for i, row in enumerate(rows):
+        row = row if isinstance(row, list) else []
         timestamps.append(start_ts + i * step)
-        in_bps.append(row[0] if row[0] is not None else 0)
-        out_bps.append(row[1] if row[1] is not None else 0)
+        in_bps.append(_point(row[0]) if len(row) > 0 else None)
+        out_bps.append(_point(row[1]) if len(row) > 1 else None)
 
     return {"timestamps": timestamps, "in_bps": in_bps, "out_bps": out_bps}

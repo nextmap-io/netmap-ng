@@ -15,6 +15,7 @@ from app.api.nodes import router as nodes_router
 from app.api.links import router as links_router
 from app.api.datasources import router as datasources_router
 from app.api.public import router as public_router
+from app.datasources import observium
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s"
@@ -26,6 +27,7 @@ logger = logging.getLogger("netmap")
 async def lifespan(app: FastAPI):
     await init_db()
     yield
+    await observium.close_pool()
 
 
 app = FastAPI(

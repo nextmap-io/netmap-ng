@@ -12,8 +12,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.oauth import get_current_user
 from app.auth.guards import require_editor, require_map_read
-from app.models import Link, get_db
+from app.models import Link, Node, get_db
 from app.datasources import observium, rrd
+from app.services import traffic
 
 logger = logging.getLogger("netmap.datasources")
 router = APIRouter(prefix="/api/datasources", tags=["datasources"])
@@ -69,52 +70,27 @@ async def get_live_traffic(
     user=Depends(get_current_user),
 ):
     """
-    Fetch current traffic for all links in a map.
+    Fetch current traffic and status for all links in a map.
     Requires read access to the map.
     """
     await require_map_read(map_id, user, db)
     result = await db.execute(select(Link).where(Link.map_id == map_id))
-    links = result.scalars().all()
+    return await traffic.live_traffic(result.scalars().all())
 
-    # Collect every port id needed (primary A + fallback B) and fetch in one
-    # batched query instead of one round-trip per link (avoids N+1).
-    port_ids: list[int] = []
-    for link in links:
-        if link.observium_port_id_a:
-            port_ids.append(link.observium_port_id_a)
-        if link.observium_port_id_b:
-            port_ids.append(link.observium_port_id_b)
-    ports_traffic = await observium.get_ports_traffic(port_ids)
 
-    traffic_data: dict[str, dict[str, float]] = {}
-    for link in links:
-        entry: dict[str, float] | None = None
-        # Primary side A wins; only fall back to side B when A yields no data.
-        for port_id in (link.observium_port_id_a, link.observium_port_id_b):
-            if not port_id:
-                continue
-            port_data = ports_traffic.get(port_id)
-            if not port_data:
-                continue
-            in_rate = port_data.get("ifInOctets_rate", 0) or 0
-            out_rate = port_data.get("ifOutOctets_rate", 0) or 0
-            in_bps = float(in_rate) * 8
-            out_bps = float(out_rate) * 8
-            bw = link.bandwidth if link.bandwidth and link.bandwidth > 0 else 1e9
-            in_pct = min(100.0, (in_bps / bw) * 100)
-            out_pct = min(100.0, (out_bps / bw) * 100)
-            entry = {
-                "in_bps": in_bps,
-                "out_bps": out_bps,
-                "in_pct": round(in_pct, 1),
-                "out_pct": round(out_pct, 1),
-            }
-            break
-        if entry is None:
-            entry = {"in_bps": 0, "out_bps": 0, "in_pct": 0, "out_pct": 0}
-        traffic_data[link.id] = entry
-
-    return traffic_data
+@router.get("/traffic/nodes")
+async def get_nodes_status(
+    map_id: str,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """
+    Up/down status of every node bound to an Observium device.
+    Requires read access to the map.
+    """
+    await require_map_read(map_id, user, db)
+    result = await db.execute(select(Node).where(Node.map_id == map_id))
+    return await traffic.node_statuses(result.scalars().all())
 
 
 @router.get("/traffic/history")
@@ -128,9 +104,12 @@ async def get_traffic_history(
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
-    """Fetch historical traffic from RRD file. Requires map read access."""
-    # Verify user has access to this map
-    m = await require_map_read(map_id, user, db)
+    """Fetch historical traffic from RRD file. Requires map read access.
+
+    ``public_settings.show_graph`` only gates the public (unauthenticated)
+    endpoint; anyone who can read the map may read its links' history.
+    """
+    await require_map_read(map_id, user, db)
 
     # Verify the hostname/port actually belongs to a link in this map
     result = await db.execute(select(Link).where(Link.map_id == map_id))
@@ -146,17 +125,7 @@ async def get_traffic_history(
     if not link_found:
         raise HTTPException(403, "This data source is not part of the specified map")
 
-    # Admins and editors always have graph access
-    # Only restrict for viewers who are not the owner
-    from app.auth.guards import is_admin, is_editor
-
-    if not is_admin(user) and not is_editor(user) and m.owner != user.get("email"):
-        ps = m.public_settings or {}
-        if not ps.get("show_graph", False):
-            raise HTTPException(403, "Traffic history is not available for this map")
-
-    data = rrd.fetch_history(hostname, port_identifier, start, end, resolution)
-    return data
+    return await rrd.fetch_history(hostname, port_identifier, start, end, resolution)
 
 
 @router.get("/traffic/history/by-port")
@@ -172,8 +141,9 @@ async def get_traffic_history_by_port(
     """
     Fetch historical traffic from RRD file using an Observium port ID.
     Resolves hostname and port_identifier automatically from Observium.
+    Requires map read access (``show_graph`` only gates the public endpoint).
     """
-    m = await require_map_read(map_id, user, db)
+    await require_map_read(map_id, user, db)
 
     # Verify this port_id belongs to a link in this map
     result = await db.execute(select(Link).where(Link.map_id == map_id))
@@ -187,21 +157,5 @@ async def get_traffic_history_by_port(
             403, "This port is not bound to any link in the specified map"
         )
 
-    from app.auth.guards import is_admin, is_editor
-
-    if not is_admin(user) and not is_editor(user) and m.owner != user.get("email"):
-        ps = m.public_settings or {}
-        if not ps.get("show_graph", False):
-            raise HTTPException(403, "Traffic history is not available for this map")
-
-    # Resolve hostname and ifIndex from Observium.
-    # Observium names port RRD files `port-{ifIndex}.rrd` per device.
-    port_info = await observium.get_port_rrd_info(port_id)
-    if not port_info:
-        return {"timestamps": [], "in_bps": [], "out_bps": []}
-
-    hostname = port_info["hostname"]
-    port_identifier = str(port_info.get("ifIndex") or port_info["port_id"])
-
-    data = rrd.fetch_history(hostname, port_identifier, start, end, resolution)
-    return data
+    data = await traffic.port_history(port_id, start, end, resolution)
+    return data if data is not None else traffic.empty_history()

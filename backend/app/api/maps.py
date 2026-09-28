@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +27,7 @@ class MapUpdate(BaseModel):
     height: int | None = Field(None, ge=100, le=10000)
     scales: dict | None = None
     settings: dict | None = None
-    visibility: str | None = None
+    visibility: Literal["private", "internal", "public"] | None = None
     public_settings: dict | None = None
 
 
