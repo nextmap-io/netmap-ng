@@ -5,7 +5,7 @@ import { formatBandwidthLabel } from "@/utils/bandwidth";
 import { portSpeedBps } from "@/utils/portSpeed";
 
 const inputClass =
-  "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent/50";
+  "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50";
 
 const labelClass = "noc-label mb-1";
 

@@ -44,7 +44,7 @@ const NODE_BADGE_BG: Record<NodeType, string> = {
   group: "bg-noc-muted/20 text-noc-text-muted", label: "bg-transparent text-noc-text-muted", custom: "bg-noc-muted/20 text-noc-text-muted",
 };
 
-const hStyle = "!bg-transparent !border-0 !w-[3px] !h-[3px] !min-w-0 !min-h-0";
+const hStyle = "bg-transparent! border-0! w-[3px]! h-[3px]! min-w-0! min-h-0!";
 
 const HANDLE_SIDES = [
   { pos: Position.Top, prefix: "N", styleProp: "left" as const },
@@ -130,7 +130,7 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
       {isDown && (
         <span
           aria-hidden
-          className="absolute -inset-[3px] rounded-md pointer-events-none"
+          className="absolute inset-[-3px] rounded-md pointer-events-none"
           style={{ border: `2px solid ${NODE_DOWN_COLOR}`, boxShadow: `0 0 8px ${NODE_DOWN_COLOR}66` }}
         />
       )}

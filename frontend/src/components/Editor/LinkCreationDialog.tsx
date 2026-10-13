@@ -151,7 +151,7 @@ export function LinkCreationDialog({
   };
 
   const selectClass =
-    "w-full bg-noc-bg border border-noc-border rounded px-2 py-1.5 text-2xs text-noc-text focus:border-accent/50 outline-none transition-colors";
+    "w-full bg-noc-bg border border-noc-border rounded px-2 py-1.5 text-2xs text-noc-text focus:border-accent/50 outline-hidden transition-colors";
   const inputClass = selectClass;
 
   return (
