@@ -1,113 +1,181 @@
 import {
   Area,
-  AreaChart,
   CartesianGrid,
+  ComposedChart,
+  Line,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { formatBps } from "../Map/MapView";
-import { useTheme } from "@/hooks/useTheme";
+import { CHART_HEIGHT, formatAxis, formatRate, formatTimeTick, timeTicks, type Period } from "./format";
+import type { ChartScale } from "./trafficStats";
+import { useChartColors } from "./useChartColors";
 
-interface ChartDatum {
+export interface ChartDatum {
   time: number;
+  /** In, ≥ 0 (drawn above zero). */
   in: number | null;
+  /** Out, ≤ 0 (negated, drawn below zero). */
   out: number | null;
+  prevIn?: number | null;
+  prevOut?: number | null;
+}
+
+export interface PeakAnnotation {
+  value: number;
+  direction: "in" | "out";
 }
 
 interface TrafficChartProps {
   data: ChartDatum[];
+  period: Period;
+  scale: ChartScale;
+  peak: PeakAnnotation | null;
+  showPrevious: boolean;
 }
 
-/** Chart chrome colors resolved per theme so the grid/axes match the canvas. */
-const CHART_PALETTE = {
-  dark: { grid: "hsl(220 15% 16%)", axis: "hsl(215 15% 55%)", tooltipBg: "hsl(220 18% 10%)", tooltipText: "hsl(210 20% 88%)" },
-  light: { grid: "hsl(36 8% 82%)", axis: "hsl(30 6% 45%)", tooltipBg: "#ffffff", tooltipText: "hsl(30 8% 18%)" },
-  scada: { grid: "#1a3a1a", axis: "#00aa55", tooltipBg: "#0d1a0d", tooltipText: "#00ff88" },
-} as const;
 
-export default function TrafficChart({ data }: TrafficChartProps) {
-  const { resolvedTheme } = useTheme();
-  const c = CHART_PALETTE[resolvedTheme];
+const SERIES_NAMES: Record<string, string> = {
+  in: "In",
+  out: "Out",
+  prevIn: "In, previous period",
+  prevOut: "Out, previous period",
+};
+
+export default function TrafficChart({ data, period, scale, peak, showPrevious }: TrafficChartProps) {
+  const c = useChartColors();
+  const first = data.length ? data[0].time : 0;
+  const last = data.length ? data[data.length - 1].time : 0;
+  const xTicks = timeTicks(first, last, period);
+  const axisTick = { fill: c.axis, fontSize: 12 };
+  // The capacity is annotated only when it is not already the top of the chart.
+  const capacityInside = scale.capacity !== null && scale.capacity < scale.max;
+
   return (
-    <ResponsiveContainer width="100%" height={200}>
-      <AreaChart data={data}>
-        <defs>
-          <linearGradient id="gradientIn" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="hsl(174 72% 46%)" stopOpacity={0.25} />
-            <stop offset="100%" stopColor="hsl(174 72% 46%)" stopOpacity={0} />
-          </linearGradient>
-          <linearGradient id="gradientOut" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor="hsl(36 100% 55%)" stopOpacity={0.25} />
-            <stop offset="100%" stopColor="hsl(36 100% 55%)" stopOpacity={0} />
-          </linearGradient>
-        </defs>
-        <CartesianGrid
-          strokeDasharray="3 3"
-          stroke={c.grid}
-          strokeOpacity={0.5}
-        />
+    <ResponsiveContainer width="100%" height={CHART_HEIGHT}>
+      <ComposedChart data={data} margin={{ top: 20, right: 8, bottom: 4, left: 0 }}>
+        <CartesianGrid vertical={false} stroke={c.grid} />
         <XAxis
           dataKey="time"
           type="number"
-          domain={["dataMin", "dataMax"]}
-          tickFormatter={(ts) =>
-            new Date(ts).toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })
-          }
-          stroke={c.axis}
-          fontSize={10}
+          scale="time"
+          domain={[first, last]}
+          ticks={xTicks}
+          tickFormatter={(ts: number) => formatTimeTick(ts, period)}
+          tick={axisTick}
           tickLine={false}
-          axisLine={{ stroke: c.grid }}
+          axisLine={false}
+          minTickGap={16}
         />
         <YAxis
-          tickFormatter={(v) => formatBps(Math.abs(v))}
-          stroke={c.axis}
-          fontSize={10}
-          width={56}
+          type="number"
+          domain={[-scale.max, scale.max]}
+          ticks={scale.ticks}
+          allowDataOverflow
+          tickFormatter={(v: number) => formatAxis(v)}
+          tick={axisTick}
           tickLine={false}
-          axisLine={{ stroke: c.grid }}
+          axisLine={false}
+          width={48}
+          label={{ value: "b/s", position: "top", offset: 8, fill: c.axis, fontSize: 12 }}
         />
         <Tooltip
+          isAnimationActive={false}
+          cursor={{ stroke: c.cursor, strokeWidth: 1 }}
           labelFormatter={(ts) => new Date(ts as number).toLocaleString()}
           formatter={(value: unknown, name: string | number) => [
-            typeof value === "number" ? formatBps(Math.abs(value)) : "—",
-            name === "in" ? "In" : "Out",
+            typeof value === "number" ? formatRate(Math.abs(value)) : "—",
+            SERIES_NAMES[String(name)] ?? String(name),
           ]}
-          contentStyle={{
-            backgroundColor: c.tooltipBg,
-            border: `1px solid ${c.grid}`,
-            borderRadius: 6,
-            fontFamily: "JetBrains Mono, monospace",
-            fontSize: 11,
-          }}
-          labelStyle={{
-            color: c.axis,
-            fontSize: 10,
-            marginBottom: 4,
-          }}
-          itemStyle={{ color: c.tooltipText, padding: "1px 0" }}
         />
+
         <Area
-          type="monotone"
+          type="stepAfter"
           dataKey="in"
-          stroke="hsl(174 72% 46%)"
-          fill="url(#gradientIn)"
+          name="in"
+          stroke={c.seriesA}
           strokeWidth={1.5}
+          fill={c.seriesA}
+          fillOpacity={0.12}
+          baseValue={0}
           connectNulls={false}
+          isAnimationActive={false}
+          activeDot={false}
         />
         <Area
-          type="monotone"
+          type="stepAfter"
           dataKey="out"
-          stroke="hsl(36 100% 55%)"
-          fill="url(#gradientOut)"
+          name="out"
+          stroke={c.seriesB}
           strokeWidth={1.5}
+          fill={c.seriesB}
+          fillOpacity={0.12}
+          baseValue={0}
           connectNulls={false}
+          isAnimationActive={false}
+          activeDot={false}
         />
-      </AreaChart>
+
+        {showPrevious && (
+          <Line
+            type="stepAfter"
+            dataKey="prevIn"
+            name="prevIn"
+            stroke={c.ink}
+            strokeWidth={1}
+            strokeDasharray="4 3"
+            dot={false}
+            activeDot={false}
+            connectNulls={false}
+            isAnimationActive={false}
+          />
+        )}
+        {showPrevious && (
+          <Line
+            type="stepAfter"
+            dataKey="prevOut"
+            name="prevOut"
+            stroke={c.ink}
+            strokeWidth={1}
+            strokeDasharray="4 3"
+            dot={false}
+            activeDot={false}
+            connectNulls={false}
+            isAnimationActive={false}
+          />
+        )}
+
+        {/* Solid zero line between in (above) and out (below). */}
+        <ReferenceLine y={0} stroke={c.zero} strokeWidth={1} />
+
+        {capacityInside && scale.capacity !== null && (
+          <>
+            <ReferenceLine
+              y={scale.capacity}
+              stroke={c.axis}
+              strokeDasharray="2 3"
+              label={{ value: `Capacity ${formatRate(scale.capacity)}`, position: "insideBottomLeft", fill: c.axis, fontSize: 12 }}
+            />
+            <ReferenceLine y={-scale.capacity} stroke={c.axis} strokeDasharray="2 3" />
+          </>
+        )}
+
+        {peak && (
+          <ReferenceLine
+            y={peak.direction === "in" ? peak.value : -peak.value}
+            stroke={c.ink}
+            strokeDasharray="4 3"
+            label={{
+              value: `Peak ${formatRate(peak.value)} ${peak.direction}`,
+              position: peak.direction === "in" ? "insideTopRight" : "insideBottomRight",
+              fill: c.ink,
+              fontSize: 12,
+            }}
+          />
+        )}
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }
