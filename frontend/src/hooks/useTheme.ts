@@ -1,60 +1,93 @@
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
 export type Theme = "light" | "dark" | "system" | "scada";
-
-function getSystemTheme(): "light" | "dark" {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
-}
-
-function applyTheme(theme: Theme) {
-  const el = document.documentElement;
-  el.classList.remove("dark", "light", "scada");
-  if (theme === "scada") {
-    el.classList.add("scada");
-  } else {
-    const resolved = theme === "system" ? getSystemTheme() : theme;
-    el.classList.add(resolved);
-  }
-}
 
 /** The concrete theme actually painted (never "system"). */
 export type ResolvedTheme = "light" | "dark" | "scada";
 
+const THEME_BG: Record<ResolvedTheme, string> = {
+  light: "#f5f6f7",
+  dark: "#191c20",
+  scada: "#0b0d0c",
+};
+
+const darkQuery = () => window.matchMedia("(prefers-color-scheme: dark)");
+
+function readStoredTheme(): Theme {
+  try {
+    const t = localStorage.getItem("theme");
+    if (t === "light" || t === "dark" || t === "system" || t === "scada") return t;
+  } catch {
+    /* storage unavailable */
+  }
+  return "system";
+}
+
+function resolve(theme: Theme): ResolvedTheme {
+  if (theme === "system") return darkQuery().matches ? "dark" : "light";
+  return theme;
+}
+
+/*
+  One theme state for the whole app. Every useTheme() caller subscribes to the
+  same store, so switching the theme from the header re-renders the map,
+  legend and charts, whose colors are resolved from CSS variables.
+  public/theme-init.js applies the class before the first paint; this keeps it
+  in sync afterwards.
+*/
+let state: { theme: Theme; resolved: ResolvedTheme } = (() => {
+  const theme = readStoredTheme();
+  return { theme, resolved: resolve(theme) };
+})();
+const listeners = new Set<() => void>();
+
+function apply(resolved: ResolvedTheme) {
+  const el = document.documentElement;
+  el.classList.remove("dark", "light", "scada");
+  el.classList.add(resolved);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", THEME_BG[resolved]);
+}
+
+function update(theme: Theme) {
+  const resolved = resolve(theme);
+  if (theme === state.theme && resolved === state.resolved) return;
+  state = { theme, resolved };
+  apply(resolved);
+  listeners.forEach((l) => l());
+}
+
+let mediaBound = false;
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  if (!mediaBound) {
+    mediaBound = true;
+    apply(state.resolved);
+    darkQuery().addEventListener("change", () => update(state.theme));
+  }
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+const getSnapshot = () => state;
+
+const ORDER: Theme[] = ["system", "dark", "light", "scada"];
+
 export function useTheme() {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    return (localStorage.getItem("theme") as Theme) || "system";
-  });
-  // Track the OS scheme in state so consumers re-render when it flips while
-  // theme === "system" (canvas/minimap colors depend on it).
-  const [systemDark, setSystemDark] = useState<boolean>(() => getSystemTheme() === "dark");
+  const { theme, resolved } = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   const setTheme = useCallback((t: Theme) => {
-    localStorage.setItem("theme", t);
-    setThemeState(t);
-    applyTheme(t);
+    try {
+      localStorage.setItem("theme", t);
+    } catch {
+      /* storage unavailable: still switch for this session */
+    }
+    update(t);
   }, []);
 
-  useEffect(() => {
-    applyTheme(theme);
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = () => {
-      setSystemDark(mq.matches);
-      if (theme === "system") applyTheme("system");
-    };
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [theme]);
-
   const cycle = useCallback(() => {
-    const order: Theme[] = ["system", "dark", "light", "scada"];
-    const next = order[(order.indexOf(theme) + 1) % order.length];
-    setTheme(next);
-  }, [theme, setTheme]);
+    setTheme(ORDER[(ORDER.indexOf(state.theme) + 1) % ORDER.length]);
+  }, [setTheme]);
 
-  const resolvedTheme: ResolvedTheme =
-    theme === "scada" ? "scada" : theme === "system" ? (systemDark ? "dark" : "light") : theme;
-
-  return { theme, setTheme, cycle, resolvedTheme };
+  return { theme, setTheme, cycle, resolvedTheme: resolved };
 }
