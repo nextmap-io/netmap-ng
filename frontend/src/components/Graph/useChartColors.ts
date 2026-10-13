@@ -9,6 +9,7 @@ export interface ChartColors {
   axis: string;
   zero: string;
   cursor: string;
+  surface: string;
 }
 
 const TOKENS: Record<keyof ChartColors, string> = {
@@ -19,6 +20,7 @@ const TOKENS: Record<keyof ChartColors, string> = {
   axis: "--color-muted-foreground",
   zero: "--color-foreground-secondary",
   cursor: "--color-border",
+  surface: "--color-card",
 };
 
 // The theme lives as a class on <html> and can be changed by any component

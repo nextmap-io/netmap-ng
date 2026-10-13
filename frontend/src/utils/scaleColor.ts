@@ -9,8 +9,8 @@ const NO_DATA_COLOR = "#8c949e";
  * in light, dark and SCADA.
  */
 export const COLOR_TOKENS: Record<string, { cssVar: string; label: string }> = {
-  "@quiet": { cssVar: "--color-scale-quiet", label: "Quiet (normal load)" },
-  "@load": { cssVar: "--color-scale-load", label: "Load (busier, still normal)" },
+  "@quiet": { cssVar: "--color-scale-quiet", label: "Quiet" },
+  "@load": { cssVar: "--color-scale-load", label: "Load" },
   "@watch": { cssVar: "--color-warning-mark", label: "Watch" },
   "@incident": { cssVar: "--color-destructive", label: "Incident" },
   "@muted": { cssVar: "--color-muted-foreground", label: "Muted" },

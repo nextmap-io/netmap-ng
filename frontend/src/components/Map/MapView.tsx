@@ -656,6 +656,7 @@ function MapViewInner() {
           <Background gap={24} size={snapToGrid ? 1.5 : 1} color={snapToGrid ? colors.dotsStrong : colors.dots} />
           <Controls showInteractive={false} />
           <MiniMap
+            className="max-md:hidden"
             pannable
             zoomable
             // Neutral: node types are named on the canvas, not colored.

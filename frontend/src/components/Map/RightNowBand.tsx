@@ -161,7 +161,10 @@ export function RightNowBand({
       const name = endpoints(link);
       const pctText = `${Math.round(pct)}%`;
       const severity = utilizationSeverity(pct, scales);
-      const bw = link.bandwidth_label;
+      // The capacity the percentage is computed against (not the free-text
+      // bandwidth_label, which can disagree with it). Absent on public maps
+      // that hide capacity.
+      const bw = link.bandwidth && link.bandwidth > 0 ? formatBps(link.bandwidth) : null;
       const ctx =
         `${dir === "out" ? "Outbound" : "Inbound"}` +
         (showBps && bps > 0 ? `, ${formatBps(bps)}` : "") +
@@ -169,7 +172,8 @@ export function RightNowBand({
         (link.name && link.name !== name ? ` · ${link.name}` : "");
       busiestFact = {
         label: "Busiest link",
-        value: severity === "normal" ? `${pctText} ${name}` : `${name} at ${pctText}`,
+        // Percentage first so it survives truncation on narrow layouts.
+        value: `${pctText} ${name}`,
         context: ctx,
         severity,
         title: `${name} at ${pctText} — ${ctx}`,

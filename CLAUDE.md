@@ -22,7 +22,7 @@ Python backend, React frontend in `frontend/`.
 - **OIDC authentication** via Authlib with role-based access control (viewer/editor/admin via OIDC claims).
 - **Authorization guards** on all API endpoints -- editor/admin roles enforced, map ownership checked.
 - **Public maps** via unique token URLs with configurable data filtering (no sensitive data leaked).
-- **Dark-first** NOC-inspired UI theme, JetBrains Mono with tabular numbers.
+- **"Ledger" design system** (see `docs/DESIGN.md`): Archivo (self-hosted) with tabular figures, rules instead of boxed cards, ink + one cobalt accent, amber/red only for abnormal states with a word. Tokens in `frontend/src/styles/index.css` for dark, light and SCADA; map colors may be theme tokens (`@quiet`, `@load`, `@watch`, `@incident`) resolved by `utils/scaleColor.ts`.
 
 ## Directory Map
 
@@ -47,6 +47,7 @@ Python backend, React frontend in `frontend/`.
 | `frontend/src/components/Map/NetworkLink.tsx` | Custom edge with split-gradient traffic labels + directional arrows |
 | `frontend/src/components/Map/GroupNode.tsx` | Container node for sites/racks/logical groups |
 | `frontend/src/components/Map/TrafficLegend.tsx` | Color scale legend overlay |
+| `frontend/src/components/Map/RightNowBand.tsx` | "Right now" status band (links/devices down, busiest link, data age) |
 | `frontend/src/components/Graph/TrafficGraph.tsx` | Recharts bottom panel (teal in / amber out) |
 | `frontend/src/components/Editor/MapEditor.tsx` | Editor sidebar panel |
 | `frontend/src/components/Editor/PropertyPanel.tsx` | Node/link property editor |
@@ -63,7 +64,7 @@ Python backend, React frontend in `frontend/`.
 | `frontend/src/components/Layout/MapList.tsx` | Map listing/selection |
 | `frontend/src/hooks/useMapStore.ts` | Zustand store: map data, traffic polling, edit state |
 | `frontend/src/hooks/useObserviumData.ts` | Hook for fetching Observium device/port data |
-| `frontend/src/hooks/useTheme.ts` | Theme management (light/dark/system/SCADA) |
+| `frontend/src/hooks/useTheme.ts` | Shared theme store (light/dark/system/SCADA); applied before first paint by `public/theme-init.js` |
 | `frontend/src/api/client.ts` | Typed fetch wrapper with URL encoding |
 
 ## Authentication & Authorization

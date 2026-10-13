@@ -172,6 +172,11 @@ export default function TrafficChart({ data, period, scale, peak, showPrevious }
               position: peak.direction === "in" ? "insideTopRight" : "insideBottomRight",
               fill: c.ink,
               fontSize: 12,
+              // Outline in the panel color so the label stays legible where it
+              // crosses the series (legibility, not a decorative glow).
+              stroke: c.surface,
+              strokeWidth: 4,
+              paintOrder: "stroke",
             }}
           />
         )}

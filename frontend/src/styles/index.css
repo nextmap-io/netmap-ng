@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* Tailwind `dark:` variant follows the theme class on <html>. */
-@custom-variant dark (&:is(.dark *, .scada *));
+@custom-variant dark (&:is(:root.dark *, :root.scada *));
 
 /*
   "Ledger" design system — see docs/DESIGN.md.
@@ -70,7 +70,7 @@
 }
 
 @layer base {
-  .light {
+  :root.light {
     --color-background: #f5f6f7;
     --color-card: #ffffff;
     --color-foreground: #15181c;
@@ -104,7 +104,7 @@
 
   /* SCADA: the Ledger rules on a near-black, high-contrast ground for wall
      screens. Phosphor-green ink and accent; no glow, no scanlines. */
-  .scada {
+  :root.scada {
     --color-background: #0b0d0c;
     --color-card: #121614;
     --color-foreground: #e3f3e7;
@@ -275,6 +275,16 @@
 }
 .react-flow__edgelabel-renderer > * {
   pointer-events: auto;
+}
+
+/* Group nodes draw their own region (GroupNode); drop ReactFlow's default
+   group box (fill, border, padding, selection shadow). */
+.react-flow__node-group {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
 }
 
 /* Handles: discreet, shown on hover in edit mode. */

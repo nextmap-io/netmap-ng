@@ -271,6 +271,7 @@ function PublicMapInner() {
           <Background gap={24} size={1} color={colors.dots} />
           <Controls showInteractive={false} />
           <MiniMap
+            className="max-md:hidden"
             pannable
             zoomable
             // Neutral: node types are named on the canvas, not colored.

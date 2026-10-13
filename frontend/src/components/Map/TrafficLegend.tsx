@@ -15,7 +15,10 @@ interface TrafficLegendProps {
  * Positioned inside the canvas container (which is `relative`).
  */
 export function TrafficLegend({ scales }: TrafficLegendProps) {
-  const [collapsed, setCollapsed] = useState(false);
+  // Collapsed by default on phones, where an open legend would hide the map.
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches,
+  );
   // Re-render on theme change: swatch colors are resolved from tokens.
   useThemeKey();
   // The PropertyPanel (w-72, fixed right-0) slides in when something is
@@ -25,7 +28,10 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
       s.editMode &&
       (s.selectedNodeIds.length > 0 || s.selectedLinkIds.length > 0),
   );
-  const posClass = panelOpen ? "absolute top-3 right-76 z-20" : "absolute top-3 right-3 z-20";
+  // In edit mode the toolbar spans the top of the canvas: sit below it.
+  const editMode = useMapStore((s) => s.editMode);
+  const top = editMode ? "top-16" : "top-3";
+  const posClass = `absolute ${top} ${panelOpen ? "right-76" : "right-3"} z-20`;
 
   if (!scales.length) return null;
 
