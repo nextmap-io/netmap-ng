@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type { ReactNode } from "react";
+import { LABEL } from "./ui";
 
 interface FormFieldProps {
   label: string;
@@ -11,7 +12,7 @@ interface FormFieldProps {
  * Associates a <label> with its control via a generated id.
  * Use when the control is rendered as a sibling rather than wrapped by the label.
  */
-export function FormField({ label, labelClassName = "noc-label mb-1 block", children }: FormFieldProps) {
+export function FormField({ label, labelClassName = LABEL, children }: FormFieldProps) {
   const id = useId();
   return (
     <div>

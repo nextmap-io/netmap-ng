@@ -8,15 +8,15 @@ import { exportMapToPng } from "@/utils/exportImage";
 import { LinkCreationDialog } from "./LinkCreationDialog";
 import { MapSettingsDialog } from "./MapSettingsDialog";
 
-const SEPARATOR = <div className="h-4 w-px bg-noc-border/50" />;
+const SEPARATOR = <div aria-hidden="true" className="h-4 w-px mx-1 bg-border" />;
 
+/** Page ground of the active theme (Ledger tokens), used behind the PNG export. */
 function exportBgColor(theme: string): string {
-  if (theme === "light") return "#f4f1ec";
-  if (theme === "scada") return "#0a0a0a";
-  if (theme === "system") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "#0b0e14" : "#f4f1ec";
-  }
-  return "#0b0e14";
+  const fromCss = getComputedStyle(document.documentElement).getPropertyValue("--color-background").trim();
+  if (fromCss) return fromCss;
+  if (theme === "light") return "#f5f6f7";
+  if (theme === "scada") return "#0b0d0c";
+  return "#191c20";
 }
 
 export function EditorToolbar() {
@@ -126,9 +126,9 @@ export function EditorToolbar() {
   const isBound = selectedNodeIds.length > 0 && selectedNodeIds.some((id) => getBoundGroup(id));
 
   const btnBase =
-    "p-1.5 rounded border border-transparent text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors";
-  const btnDisabled = "opacity-30 cursor-not-allowed";
-  const btnActive = "bg-accent/15! text-accent! border-accent/20!";
+    "inline-flex items-center justify-center w-7 h-7 rounded text-foreground-secondary hover:text-foreground hover:bg-muted transition-colors";
+  const btnDisabled = "opacity-40 cursor-not-allowed hover:bg-transparent hover:text-foreground-secondary";
+  const btnActive = "inline-flex items-center justify-center w-7 h-7 rounded bg-muted text-link";
 
   function btn(
     enabled: boolean,
@@ -140,10 +140,11 @@ export function EditorToolbar() {
     return (
       <button
         className={`${active ? btnActive : btnBase} ${!enabled ? btnDisabled : ""}`}
-        style={{ width: 28, height: 28 }}
         onClick={enabled ? onClick : undefined}
         disabled={!enabled}
         title={title}
+        aria-label={title}
+        aria-pressed={active}
       >
         {icon}
       </button>
@@ -152,7 +153,7 @@ export function EditorToolbar() {
 
   return (
     <>
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 noc-glass rounded flex items-center gap-0.5 px-1.5 py-1">
+      <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 bg-card border border-border rounded flex flex-wrap items-center justify-center gap-0.5 px-1 py-1 w-max max-w-[calc(100vw-32px)]">
         {/* Group 1 - Alignment */}
         {btn(canAlign, () => alignNodes("left"), <IconAlignLeft />, "Align Left")}
         {btn(canAlign, () => alignNodes("center"), <IconAlignCenterH />, "Align Center Horizontal")}
@@ -200,15 +201,15 @@ export function EditorToolbar() {
             layoutMenuOpen,
           )}
           {layoutMenuOpen && (
-            <div className="absolute top-9 left-0 z-30 noc-glass rounded py-1 min-w-[140px]">
+            <div role="menu" className="absolute top-9 left-0 z-30 bg-card border border-border rounded py-1 min-w-[140px]">
               <button
-                className="w-full text-left px-3 py-1.5 text-2xs text-noc-text hover:bg-noc-surface transition-colors"
+                role="menuitem" className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-muted transition-colors"
                 onClick={() => runAutoLayout("force")}
               >
                 Organique
               </button>
               <button
-                className="w-full text-left px-3 py-1.5 text-2xs text-noc-text hover:bg-noc-surface transition-colors"
+                role="menuitem" className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-muted transition-colors"
                 onClick={() => runAutoLayout("layered")}
               >
                 Hiérarchique

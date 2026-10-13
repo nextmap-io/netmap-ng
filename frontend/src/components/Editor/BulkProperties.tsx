@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { LinkType, NodeType } from "@/types";
 import { FormField } from "./FormField";
+import { BLOCK, BLOCK_TITLE, BUTTON, COLOR_INPUT, INPUT, LABEL, ROW_LABEL, STACK } from "./ui";
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "router", label: "Router" },
@@ -28,9 +29,8 @@ const LINK_TYPES: { value: LinkType; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
-const inputClass =
-  "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50";
-const labelClass = "noc-label mb-1";
+const inputClass = INPUT;
+const labelClass = LABEL;
 
 interface BulkNodeProps {
   count: number;
@@ -44,14 +44,13 @@ export function BulkNodeProperties({ count, onApply }: BulkNodeProps) {
   const [height, setHeight] = useState("");
 
   return (
-    <div className="space-y-4">
-      <p className="text-2xs text-noc-text-dim">
-        Editing <span className="text-accent tabular-nums">{count}</span> nodes. Changes apply to all selected.
+    <div className={STACK}>
+      <p className="text-sm text-muted-foreground">
+        Editing <span className="text-foreground">{count}</span> nodes. Changes apply to all selected.
       </p>
 
-      <section>
-        <div className={labelClass}>Type</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Type</h3>
         <FormField label="Set type" labelClassName={labelClass}>
           {(id) => (
             <select
@@ -75,11 +74,10 @@ export function BulkNodeProperties({ count, onApply }: BulkNodeProps) {
         </FormField>
       </section>
 
-      <section>
-        <div className={labelClass}>Appearance</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Appearance</h3>
         <div className="flex items-center justify-between mb-2">
-          <label htmlFor="bulk-node-color" className="text-2xs text-noc-text-muted uppercase tracking-wider">
+          <label htmlFor="bulk-node-color" className={ROW_LABEL}>
             Color
           </label>
           <div className="flex items-center gap-1.5">
@@ -88,11 +86,11 @@ export function BulkNodeProperties({ count, onApply }: BulkNodeProps) {
               type="color"
               value={color}
               onChange={(e) => setColor(e.target.value)}
-              className="w-6 h-5 rounded border border-noc-border bg-noc-bg cursor-pointer"
+              className={COLOR_INPUT}
             />
             <button
               onClick={() => onApply({ style: { bg_color: color } })}
-              className="px-2 py-0.5 text-2xs text-accent border border-accent/30 rounded hover:bg-accent/10 transition-colors"
+              className={BUTTON}
             >
               Apply
             </button>
@@ -132,19 +130,18 @@ export function BulkNodeProperties({ count, onApply }: BulkNodeProps) {
         </div>
       </section>
 
-      <section>
-        <div className={labelClass}>Behavior</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Behavior</h3>
         <div className="flex items-center gap-2">
           <button
             onClick={() => onApply({ locked: true })}
-            className="flex-1 px-2 py-1 text-2xs text-noc-text-muted border border-noc-border rounded hover:text-noc-text transition-colors"
+            className={`${BUTTON} flex-1`}
           >
             Lock all
           </button>
           <button
             onClick={() => onApply({ locked: false })}
-            className="flex-1 px-2 py-1 text-2xs text-noc-text-muted border border-noc-border rounded hover:text-noc-text transition-colors"
+            className={`${BUTTON} flex-1`}
           >
             Unlock all
           </button>
@@ -165,14 +162,13 @@ export function BulkLinkProperties({ count, onApply }: BulkLinkProps) {
   const [width, setWidth] = useState(4);
 
   return (
-    <div className="space-y-4">
-      <p className="text-2xs text-noc-text-dim">
-        Editing <span className="text-accent tabular-nums">{count}</span> links. Changes apply to all selected.
+    <div className={STACK}>
+      <p className="text-sm text-muted-foreground">
+        Editing <span className="text-foreground">{count}</span> links. Changes apply to all selected.
       </p>
 
-      <section>
-        <div className={labelClass}>Type</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Type</h3>
         <FormField label="Set type" labelClassName={labelClass}>
           {(id) => (
             <select
@@ -196,11 +192,10 @@ export function BulkLinkProperties({ count, onApply }: BulkLinkProps) {
         </FormField>
       </section>
 
-      <section>
-        <div className={labelClass}>Appearance</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Appearance</h3>
         <div className="flex items-center justify-between mb-2">
-          <label htmlFor="bulk-link-color" className="text-2xs text-noc-text-muted uppercase tracking-wider">
+          <label htmlFor="bulk-link-color" className={ROW_LABEL}>
             Color override
           </label>
           <div className="flex items-center gap-1.5">
@@ -209,11 +204,11 @@ export function BulkLinkProperties({ count, onApply }: BulkLinkProps) {
               type="color"
               value={color}
               onChange={(e) => setColor(e.target.value)}
-              className="w-6 h-5 rounded border border-noc-border bg-noc-bg cursor-pointer"
+              className={COLOR_INPUT}
             />
             <button
               onClick={() => onApply({ extra: { color_override: color } })}
-              className="px-2 py-0.5 text-2xs text-accent border border-accent/30 rounded hover:bg-accent/10 transition-colors"
+              className={BUTTON}
             >
               Apply
             </button>
@@ -231,9 +226,10 @@ export function BulkLinkProperties({ count, onApply }: BulkLinkProps) {
                 onChange={(e) => setWidth(parseInt(e.target.value, 10))}
                 onMouseUp={() => onApply({ width })}
                 onTouchEnd={() => onApply({ width })}
-                className="flex-1 accent-accent"
+                className="flex-1"
+                style={{ accentColor: "var(--color-foreground)" }}
               />
-              <span className="text-2xs text-noc-text-muted tabular-nums w-5 text-right">{width}</span>
+              <span className="text-sm text-foreground-secondary w-6 text-right">{width}</span>
             </div>
           )}
         </FormField>

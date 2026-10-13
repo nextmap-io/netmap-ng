@@ -1,8 +1,26 @@
 import { useState } from "react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
+import { useTheme } from "@/hooks/useTheme";
 import type { ScaleBand } from "@/types";
+import { COLOR_TOKENS, isColorToken, resolveColor } from "@/utils/scaleColor";
+import { LEDGER_DEFAULT_SCALE } from "@/utils/ledgerScale";
 import { FormField } from "./FormField";
+import {
+  BACKDROP,
+  BLOCK,
+  BLOCK_TITLE,
+  BUTTON,
+  BUTTON_PRIMARY,
+  BUTTON_SM,
+  COLOR_INPUT,
+  HINT,
+  INPUT,
+  LABEL,
+  SURFACE,
+  TEXT_ACTION,
+  TITLE,
+} from "./ui";
 
 interface MapSettingsDialogProps {
   open: boolean;
@@ -14,8 +32,26 @@ type LocalBand = ScaleBand & { _key: string };
 let bandKeyCounter = 0;
 const nextBandKey = () => `band-${++bandKeyCounter}`;
 
+const CUSTOM = "custom";
+const HEX_RE = /^#[0-9a-f]{6}$/i;
+
+/** A value safe for <input type="color"> (never a "@token"). */
+function toHex(color: string): string {
+  const resolved = resolveColor(color);
+  if (HEX_RE.test(resolved)) return resolved.toLowerCase();
+  if (/^#[0-9a-f]{3}$/i.test(resolved)) {
+    const [r, g, b] = resolved.slice(1);
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return "#888888";
+}
+
+const CHECKBOX_STYLE = { accentColor: "var(--color-foreground)" };
+
 export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   const { map, loadMap } = useMapStore();
+  // Swatches resolve "@tokens" against the painted theme: re-render on change.
+  const { resolvedTheme } = useTheme();
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -85,8 +121,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
 
   if (!open || !map) return null;
 
-  const inputClass =
-    "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50";
+  const inputClass = INPUT;
 
   const handleBandChange = (idx: number, field: keyof ScaleBand, value: string | number) => {
     setBands((prev) =>
@@ -94,16 +129,30 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
     );
   };
 
+  /** Token picked from the select, or "custom" (keeps the current look as hex). */
+  const handleBandColorChoice = (idx: number, choice: string) => {
+    const current = bands[idx]?.color ?? "";
+    if (choice === CUSTOM) {
+      if (isColorToken(current)) handleBandChange(idx, "color", toHex(current));
+      return;
+    }
+    handleBandChange(idx, "color", choice);
+  };
+
   const handleAddBand = () => {
     const lastMax = bands.length > 0 ? bands[bands.length - 1].max : 0;
     setBands((prev) => [
       ...prev,
-      { min: lastMax, max: lastMax + 10, color: "#00bcd4", label: "", _key: nextBandKey() },
+      { min: lastMax, max: lastMax + 10, color: "@load", label: "", _key: nextBandKey() },
     ]);
   };
 
   const handleDeleteBand = (idx: number) => {
     setBands((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleResetScale = () => {
+    setBands(LEDGER_DEFAULT_SCALE.map((b) => ({ ...b, _key: nextBandKey() })));
   };
 
   const handleSave = async () => {
@@ -141,24 +190,33 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
       onClose();
     } catch (e) {
       console.error("Failed to save map settings:", e);
-      setError("Failed to save settings. Please try again.");
+      setError(e instanceof Error && e.message ? e.message : "the server rejected the request.");
     } finally {
       setSaving(false);
     }
   };
 
+  const shareUrl = publicToken ? `${window.location.origin}/public/${publicToken}` : "";
+
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center" onClick={onClose}>
+    <div role="presentation" className={BACKDROP} onClick={onClose}>
       <div
-        className="noc-card w-[480px] max-h-[80vh] overflow-y-auto p-4 animate-fade-in"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="map-settings-title"
+        className={`${SURFACE} w-full max-w-xl max-h-[90vh] overflow-y-auto p-4`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-4">
-          <span className="noc-label text-sm">Map Settings</span>
+          <h2 id="map-settings-title" className={TITLE}>
+            Map settings
+          </h2>
           <button
             onClick={onClose}
-            className="text-noc-text-muted hover:text-noc-text transition-colors"
+            aria-label="Close map settings"
+            title="Close"
+            className="w-7 h-7 inline-flex items-center justify-center rounded text-foreground-secondary hover:bg-muted hover:text-foreground transition-colors"
           >
             <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5}>
               <path d="M4 4l8 8M12 4l-8 8" />
@@ -166,93 +224,76 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
           </button>
         </div>
 
-        <div className="space-y-3">
-          {/* Map Name */}
-          <FormField label="Map Name">
-            {(id) => (
-              <input
-                id={id}
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className={inputClass}
-              />
-            )}
-          </FormField>
-
-          {/* Description */}
-          <FormField label="Description">
-            {(id) => (
-              <textarea
-                id={id}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                className={`${inputClass} resize-none`}
-              />
-            )}
-          </FormField>
-
-          {/* Width / Height */}
-          <div className="grid grid-cols-2 gap-3">
-            <FormField label="Width">
+        <div className="space-y-4">
+          {/* General */}
+          <section className={`${BLOCK} space-y-3`}>
+            <h3 className={BLOCK_TITLE}>General</h3>
+            <FormField label="Map name">
               {(id) => (
                 <input
                   id={id}
-                  type="number"
-                  value={width}
-                  onChange={(e) => setWidth(Number(e.target.value))}
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
                   className={inputClass}
                 />
               )}
             </FormField>
-            <FormField label="Height">
+
+            <FormField label="Description">
+              {(id) => (
+                <textarea
+                  id={id}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  rows={2}
+                  className={`${inputClass} resize-none`}
+                />
+              )}
+            </FormField>
+
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Width">
+                {(id) => (
+                  <input
+                    id={id}
+                    type="number"
+                    value={width}
+                    onChange={(e) => setWidth(Number(e.target.value))}
+                    className={inputClass}
+                  />
+                )}
+              </FormField>
+              <FormField label="Height">
+                {(id) => (
+                  <input
+                    id={id}
+                    type="number"
+                    value={height}
+                    onChange={(e) => setHeight(Number(e.target.value))}
+                    className={inputClass}
+                  />
+                )}
+              </FormField>
+            </div>
+
+            <FormField label="Refresh interval (seconds)">
               {(id) => (
                 <input
                   id={id}
                   type="number"
-                  value={height}
-                  onChange={(e) => setHeight(Number(e.target.value))}
+                  value={refreshInterval}
+                  onChange={(e) => setRefreshInterval(Number(e.target.value))}
+                  min={5}
                   className={inputClass}
                 />
               )}
             </FormField>
-          </div>
+          </section>
 
-          {/* Refresh Interval */}
-          <FormField label="Refresh Interval (seconds)">
-            {(id) => (
-              <input
-                id={id}
-                type="number"
-                value={refreshInterval}
-                onChange={(e) => setRefreshInterval(Number(e.target.value))}
-                min={5}
-                className={inputClass}
-              />
-            )}
-          </FormField>
-
-          {/* Separator */}
-          <div className="h-px bg-noc-border/50" />
-
-          {/* Scale Mode */}
-          <FormField label="Scale Mode">
-            {(id) => (
-              <select
-                id={id}
-                value={scaleMode}
-                onChange={(e) => setScaleMode(e.target.value as "steps" | "gradient")}
-                className={inputClass}
-              >
-                <option value="steps">Steps (fixed color per band)</option>
-                <option value="gradient">Gradient (smooth interpolation)</option>
-              </select>
-            )}
-          </FormField>
-
-          {/* Visibility & Sharing */}
-          <div className="space-y-2">
+          {/* Sharing */}
+          <section className={`${BLOCK} space-y-3`}>
+            <h3 className={BLOCK_TITLE}>Sharing</h3>
             <FormField label="Visibility">
               {(id) => (
                 <select
@@ -272,126 +313,190 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
               )}
             </FormField>
             {visibility === "public" && (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {publicToken ? (
-                  <FormField label="Share Link">
+                  <FormField label="Share link">
                     {(id) => (
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-2">
                         <input
                           id={id}
                           type="text"
                           readOnly
-                          value={`${window.location.origin}/public/${publicToken}`}
-                          className={inputClass + " text-2xs"}
+                          value={shareUrl}
+                          className="w-full px-2 py-1.5 font-mono text-sm text-foreground bg-background border border-border rounded"
                           onClick={(e) => (e.target as HTMLInputElement).select()}
                         />
                         <button
-                          onClick={() => copyToClipboard(`${window.location.origin}/public/${publicToken}`)}
-                          className="px-2 py-1 text-2xs bg-accent/10 text-accent border border-accent/20 rounded hover:bg-accent/20 transition-colors shrink-0"
+                          onClick={() => copyToClipboard(shareUrl)}
+                          className={`${BUTTON_SM} shrink-0`}
                         >
-                          {copied ? "Copied!" : "Copy"}
+                          {copied ? "Copied" : "Copy"}
                         </button>
                       </div>
                     )}
                   </FormField>
                 ) : (
-                  <p className="text-2xs text-noc-text-dim">Save to generate the public share link.</p>
+                  <p className={HINT}>Save to generate the public share link.</p>
                 )}
-                <div className="noc-label">Public Data Visibility</div>
-                <div className="space-y-1.5">
-                  <label className="flex items-center gap-2 text-xs text-noc-text">
-                    <input type="checkbox" checked={showPercentage} onChange={(e) => setShowPercentage(e.target.checked)} className="accent-accent" />
-                    Show utilization %
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-noc-text">
-                    <input type="checkbox" checked={showBandwidth} onChange={(e) => setShowBandwidth(e.target.checked)} className="accent-accent" />
-                    Show link capacity (10G, 40G...)
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-noc-text">
-                    <input type="checkbox" checked={showBps} onChange={(e) => setShowBps(e.target.checked)} className="accent-accent" />
-                    Show traffic in bps
-                  </label>
-                  <label className="flex items-center gap-2 text-xs text-noc-text">
-                    <input type="checkbox" checked={showGraph} onChange={(e) => setShowGraph(e.target.checked)} className="accent-accent" />
-                    Allow traffic history graphs
-                  </label>
-                </div>
+                <fieldset>
+                  <legend className={LABEL}>What the public link shows</legend>
+                  <div className="space-y-1.5">
+                    <label className="flex items-center gap-2 text-base text-foreground">
+                      <input type="checkbox" checked={showPercentage} onChange={(e) => setShowPercentage(e.target.checked)} style={CHECKBOX_STYLE} />
+                      Utilization %
+                    </label>
+                    <label className="flex items-center gap-2 text-base text-foreground">
+                      <input type="checkbox" checked={showBandwidth} onChange={(e) => setShowBandwidth(e.target.checked)} style={CHECKBOX_STYLE} />
+                      Link capacity (10G, 40G…)
+                    </label>
+                    <label className="flex items-center gap-2 text-base text-foreground">
+                      <input type="checkbox" checked={showBps} onChange={(e) => setShowBps(e.target.checked)} style={CHECKBOX_STYLE} />
+                      Traffic in bps
+                    </label>
+                    <label className="flex items-center gap-2 text-base text-foreground">
+                      <input type="checkbox" checked={showGraph} onChange={(e) => setShowGraph(e.target.checked)} style={CHECKBOX_STYLE} />
+                      Traffic history graphs
+                    </label>
+                  </div>
+                </fieldset>
               </div>
             )}
-          </div>
+          </section>
 
-          {/* Color Scale Editor */}
-          <div>
-            <div className="noc-label mb-2">Color Scale</div>
-            <div className="space-y-1.5">
-              {bands.map((band, idx) => (
-                <div key={band._key} className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={band.color}
-                    onChange={(e) => handleBandChange(idx, "color", e.target.value)}
-                    className="w-7 h-7 rounded border border-noc-border cursor-pointer bg-transparent p-0"
-                  />
-                  <input
-                    type="number"
-                    value={band.min}
-                    onChange={(e) => handleBandChange(idx, "min", Number(e.target.value))}
-                    className={`w-16 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50`}
-                    title="Min %"
-                  />
-                  <span className="text-noc-text-muted text-xs">-</span>
-                  <input
-                    type="number"
-                    value={band.max}
-                    onChange={(e) => handleBandChange(idx, "max", Number(e.target.value))}
-                    className={`w-16 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50`}
-                    title="Max %"
-                  />
-                  <input
-                    type="text"
-                    value={band.label}
-                    onChange={(e) => handleBandChange(idx, "label", e.target.value)}
-                    placeholder="Label"
-                    className={`flex-1 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50`}
-                  />
-                  <button
-                    onClick={() => handleDeleteBand(idx)}
-                    className="text-noc-text-muted hover:text-node-firewall transition-colors p-0.5"
-                    title="Remove band"
-                  >
-                    <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5}>
-                      <path d="M4 4l8 8M12 4l-8 8" />
-                    </svg>
-                  </button>
-                </div>
-              ))}
+          {/* Traffic scale */}
+          <section className={`${BLOCK} space-y-3`} data-resolved-theme={resolvedTheme}>
+            <div className="flex items-baseline justify-between gap-2">
+              <h3 className={BLOCK_TITLE}>Traffic scale</h3>
+              <button type="button" onClick={handleResetScale} className={TEXT_ACTION}>
+                Reset to Ledger default
+              </button>
             </div>
-            <button
-              onClick={handleAddBand}
-              className="mt-2 text-2xs text-accent hover:text-accent/80 transition-colors"
-            >
-              + Add Band
-            </button>
-          </div>
+            <p className={HINT}>
+              Link color by utilization. Theme colors follow light, dark and SCADA; keep normal load quiet and
+              use Watch and Incident only for abnormal load.
+            </p>
+
+            <FormField label="Mode">
+              {(id) => (
+                <select
+                  id={id}
+                  value={scaleMode}
+                  onChange={(e) => setScaleMode(e.target.value as "steps" | "gradient")}
+                  className={inputClass}
+                >
+                  <option value="steps">Steps (fixed color per band)</option>
+                  <option value="gradient">Gradient (smooth interpolation)</option>
+                </select>
+              )}
+            </FormField>
+
+            <div>
+              <div className="hidden sm:grid grid-cols-[1fr_4rem_4rem_1fr_1.75rem] gap-2 mb-1 text-sm text-muted-foreground">
+                <span>Color</span>
+                <span>From %</span>
+                <span>To %</span>
+                <span>Label</span>
+                <span />
+              </div>
+              <ul className="divide-y divide-border-soft">
+                {bands.map((band, idx) => {
+                  const token = isColorToken(band.color);
+                  const known = token && band.color in COLOR_TOKENS;
+                  return (
+                    <li
+                      key={band._key}
+                      className="grid grid-cols-[4rem_4rem_1fr_1.75rem] sm:grid-cols-[1fr_4rem_4rem_1fr_1.75rem] items-center gap-2 py-1.5"
+                    >
+                      <div className="col-span-4 sm:col-span-1 flex items-center gap-2 min-w-0">
+                        <span
+                          aria-hidden="true"
+                          className="w-6 h-6 shrink-0 rounded border border-border"
+                          style={{ background: resolveColor(band.color) }}
+                        />
+                        <select
+                          value={token ? band.color : CUSTOM}
+                          onChange={(e) => handleBandColorChoice(idx, e.target.value)}
+                          aria-label={`Band ${idx + 1} color`}
+                          className={`${inputClass} min-w-0`}
+                        >
+                          {Object.entries(COLOR_TOKENS).map(([value, t]) => (
+                            <option key={value} value={value}>
+                              {t.label}
+                            </option>
+                          ))}
+                          {token && !known && <option value={band.color}>{band.color}</option>}
+                          <option value={CUSTOM}>Custom…</option>
+                        </select>
+                        {!token && (
+                          <input
+                            type="color"
+                            value={toHex(band.color)}
+                            onChange={(e) => handleBandChange(idx, "color", e.target.value)}
+                            aria-label={`Band ${idx + 1} custom color`}
+                            className={`${COLOR_INPUT} shrink-0`}
+                          />
+                        )}
+                      </div>
+                      <input
+                        type="number"
+                        value={band.min}
+                        onChange={(e) => handleBandChange(idx, "min", Number(e.target.value))}
+                        className={inputClass}
+                        aria-label={`Band ${idx + 1} from %`}
+                        title="From %"
+                      />
+                      <input
+                        type="number"
+                        value={band.max}
+                        onChange={(e) => handleBandChange(idx, "max", Number(e.target.value))}
+                        className={inputClass}
+                        aria-label={`Band ${idx + 1} to %`}
+                        title="To %"
+                      />
+                      <input
+                        type="text"
+                        value={band.label}
+                        onChange={(e) => handleBandChange(idx, "label", e.target.value)}
+                        placeholder="Label"
+                        aria-label={`Band ${idx + 1} label`}
+                        className={`${inputClass} min-w-0`}
+                      />
+                      <button
+                        onClick={() => handleDeleteBand(idx)}
+                        className="w-7 h-7 inline-flex items-center justify-center rounded text-foreground-secondary hover:bg-muted hover:text-destructive transition-colors"
+                        title="Remove band"
+                        aria-label={`Remove band ${idx + 1}`}
+                      >
+                        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5}>
+                          <path d="M4 4l8 8M12 4l-8 8" />
+                        </svg>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {bands.length === 0 && (
+                <p className={HINT}>No bands: links draw in the muted color. Add a band or reset to the Ledger default.</p>
+              )}
+              <button onClick={handleAddBand} className={`${BUTTON_SM} mt-2`}>
+                Add band
+              </button>
+            </div>
+          </section>
         </div>
 
-        {/* Footer buttons */}
+        {/* Footer */}
         {error && (
-          <p className="mt-4 text-2xs text-node-firewall">{error}</p>
+          <p role="alert" className="mt-4 text-sm text-foreground-secondary">
+            <span className="font-medium text-destructive">Couldn&apos;t save the settings</span>: {error}
+          </p>
         )}
-        <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-noc-border/50">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 text-xs text-noc-text-muted hover:text-noc-text border border-noc-border rounded transition-colors"
-          >
+        <div className="flex justify-end gap-2 mt-5 pt-3 border-t border-border">
+          <button onClick={onClose} className={BUTTON}>
             Cancel
           </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-3 py-1.5 text-xs text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            {saving ? "Saving..." : "Save"}
+          <button onClick={handleSave} disabled={saving} className={BUTTON_PRIMARY}>
+            {saving ? "Saving…" : "Save"}
           </button>
         </div>
       </div>

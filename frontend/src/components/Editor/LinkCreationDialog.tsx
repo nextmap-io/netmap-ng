@@ -3,6 +3,7 @@ import type { MapNode, MapLink, LinkType, ObserviumPort } from "@/types";
 import { parseBandwidth, formatBandwidthLabel } from "@/utils/bandwidth";
 import { portSpeedBps } from "@/utils/portSpeed";
 import { PortPicker } from "./PortPicker";
+import { BACKDROP, BUTTON, BUTTON_PRIMARY, HINT, INPUT, LABEL, SURFACE, TEXT_ACTION, TITLE } from "./ui";
 
 interface LinkCreationDialogProps {
   open: boolean;
@@ -22,6 +23,17 @@ const LINK_TYPES: LinkType[] = [
   "lag",
   "custom",
 ];
+
+const LINK_TYPE_LABELS: Record<LinkType, string> = {
+  internal: "Internal",
+  transit: "Transit",
+  peering_ix: "Peering IX",
+  peering_pni: "Peering PNI",
+  customer: "Customer",
+  trunk: "Trunk",
+  lag: "LAG",
+  custom: "Custom",
+};
 
 export function LinkCreationDialog({
   open,
@@ -147,35 +159,39 @@ export function LinkCreationDialog({
         ...(portB ? { observium_port_id_b: portB.port_id } : {}),
       });
       onClose();
-    } catch {
-      setError("Failed to create link. Please try again.");
+    } catch (e) {
+      setError(e instanceof Error && e.message ? e.message : "the server rejected the request.");
       setCreating(false);
     }
   };
 
-  const selectClass =
-    "w-full bg-noc-bg border border-noc-border rounded px-2 py-1.5 text-2xs text-noc-text focus:border-accent/50 outline-hidden transition-colors";
-  const inputClass = selectClass;
+  const selectClass = INPUT;
+  const inputClass = INPUT;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="noc-card rounded-lg shadow-lg w-96 animate-fade-in">
+    <div role="presentation" className={BACKDROP}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="link-create-title"
+        className={`${SURFACE} w-full max-w-md max-h-[90vh] overflow-y-auto`}
+      >
         {/* Header */}
         <div className="px-4 pt-4 pb-2">
-          <h3 className="text-xs font-semibold text-noc-text">Create Link</h3>
+          <h3 id="link-create-title" className={TITLE}>Create a link</h3>
         </div>
 
         {/* Body */}
         <div className="px-4 pb-4 flex flex-col gap-3">
           {/* Source */}
           <div>
-            <label className="noc-label mb-1 block">Source</label>
+            <label className={LABEL}>Source</label>
             <select
               className={selectClass}
               value={sourceId}
               onChange={(e) => handleSourceChange(e.target.value)}
             >
-              <option value="">Select source node...</option>
+              <option value="">Select source node…</option>
               {availableNodes.map((n) => (
                 <option key={n.id} value={n.id}>
                   {n.label || n.name}
@@ -186,13 +202,13 @@ export function LinkCreationDialog({
 
           {/* Target */}
           <div>
-            <label className="noc-label mb-1 block">Target</label>
+            <label className={LABEL}>Target</label>
             <select
               className={selectClass}
               value={targetId}
               onChange={(e) => handleTargetChange(e.target.value)}
             >
-              <option value="">Select target node...</option>
+              <option value="">Select target node…</option>
               {targetNodes.map((n) => (
                 <option key={n.id} value={n.id}>
                   {n.label || n.name}
@@ -203,7 +219,7 @@ export function LinkCreationDialog({
 
           {/* Name */}
           <div>
-            <label className="noc-label mb-1 block">Name</label>
+            <label className={LABEL}>Name</label>
             <input
               className={inputClass}
               type="text"
@@ -215,7 +231,7 @@ export function LinkCreationDialog({
 
           {/* Type */}
           <div>
-            <label className="noc-label mb-1 block">Type</label>
+            <label className={LABEL}>Type</label>
             <select
               className={selectClass}
               value={linkType}
@@ -223,7 +239,7 @@ export function LinkCreationDialog({
             >
               {LINK_TYPES.map((t) => (
                 <option key={t} value={t}>
-                  {t.replace(/_/g, " ")}
+                  {LINK_TYPE_LABELS[t]}
                 </option>
               ))}
             </select>
@@ -231,7 +247,7 @@ export function LinkCreationDialog({
 
           {/* Optional Observium port binding (only for device-bound endpoints) */}
           {(sourceDevice != null || targetDevice != null) && (
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <PortPicker
                 deviceId={sourceDevice}
                 value={portA?.port_id ?? null}
@@ -249,7 +265,7 @@ export function LinkCreationDialog({
 
           {/* Bandwidth Label */}
           <div>
-            <label className="noc-label mb-1 block">Bandwidth Label</label>
+            <label className={LABEL}>Capacity</label>
             <input
               className={inputClass}
               type="text"
@@ -262,14 +278,14 @@ export function LinkCreationDialog({
             />
             {detectedBps > 0 && (
               <div className="flex items-center justify-between gap-2 mt-1">
-                <span className="text-2xs text-noc-text-dim tabular-nums">
-                  Port speed: {formatBandwidthLabel(detectedBps)}
+                <span className={HINT}>
+                  Port speed {formatBandwidthLabel(detectedBps)}
                 </span>
                 {parseBandwidth(bandwidthLabel) !== detectedBps && (
                   <button
                     type="button"
                     onClick={() => setBandwidthLabel(formatBandwidthLabel(detectedBps))}
-                    className="text-2xs text-accent hover:text-accent/80 whitespace-nowrap"
+                    className={`${TEXT_ACTION} whitespace-nowrap`}
                   >
                     Use port speed ({formatBandwidthLabel(detectedBps)})
                   </button>
@@ -278,27 +294,32 @@ export function LinkCreationDialog({
             )}
           </div>
           {isDuplicate && (
-            <p className="text-2xs text-amber-400">
+            <p className="text-sm text-foreground-secondary">
+              <span className="mr-1 px-1.5 py-px rounded text-sm font-medium text-warning bg-warning-muted">Watch</span>
               A link already connects these two nodes.
             </p>
           )}
-          {error && <p className="text-2xs text-node-firewall">{error}</p>}
+          {error && (
+            <p role="alert" className="text-sm text-foreground-secondary">
+              <span className="font-medium text-destructive">Couldn&apos;t create the link</span>: {error}
+            </p>
+          )}
         </div>
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-2 px-4 pb-4">
           <button
             onClick={onClose}
-            className="px-3 py-1.5 text-2xs font-medium text-noc-text-muted bg-noc-bg border border-noc-border rounded hover:bg-noc-surface transition-colors"
+            className={BUTTON}
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={!canCreate || creating}
-            className="px-3 py-1.5 text-2xs font-medium text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+            className={BUTTON_PRIMARY}
           >
-            {creating ? "Creating..." : "Create"}
+            {creating ? "Creating…" : "Create link"}
           </button>
         </div>
       </div>

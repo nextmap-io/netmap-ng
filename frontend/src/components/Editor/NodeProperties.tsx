@@ -3,6 +3,21 @@ import type { MapNode, NodeType } from "@/types";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { DevicePicker } from "./DevicePicker";
 import { FormField } from "./FormField";
+import {
+  BLOCK,
+  BLOCK_TITLE,
+  BUTTON,
+  BUTTON_DESTRUCTIVE,
+  COLOR_INPUT,
+  INPUT,
+  LABEL,
+  ROW_LABEL,
+  STACK,
+  TEXT_ACTION,
+  pressClass,
+  switchThumb,
+  switchTrack,
+} from "./ui";
 
 const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "router", label: "Router" },
@@ -21,10 +36,9 @@ const NODE_TYPES: { value: NodeType; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
-const inputClass =
-  "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50";
+const inputClass = INPUT;
 
-const labelClass = "noc-label mb-1";
+const labelClass = LABEL;
 
 interface NodePropertiesProps {
   node: MapNode;
@@ -46,11 +60,10 @@ export function NodeProperties({
   );
 
   return (
-    <div className="space-y-4">
+    <div className={STACK}>
       {/* IDENTITY */}
-      <section>
-        <div className={labelClass}>Identity</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Identity</h3>
         <div className="space-y-2">
           <FormField label="Name" labelClassName={labelClass}>
             {(id) => (
@@ -94,9 +107,8 @@ export function NodeProperties({
       </section>
 
       {/* DIMENSIONS */}
-      <section>
-        <div className={labelClass}>Dimensions</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Dimensions</h3>
         <div className="grid grid-cols-2 gap-2">
           <FormField label="Width" labelClassName={labelClass}>
             {(id) => (
@@ -130,11 +142,10 @@ export function NodeProperties({
       </section>
 
       {/* BEHAVIOR */}
-      <section>
-        <div className={labelClass}>Behavior</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Behavior</h3>
         <div className="flex items-center justify-between">
-          <span id="node-locked-label" className="text-2xs text-noc-text-muted uppercase tracking-wider">
+          <span id="node-locked-label" className={ROW_LABEL}>
             Locked
           </span>
           <button
@@ -146,21 +157,15 @@ export function NodeProperties({
               const isLocked = node.locked || !!node.style?.locked;
               onUpdate({ locked: !isLocked, style: { ...node.style, locked: undefined } });
             }}
-            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
-              (node.locked || node.style?.locked) ? "bg-accent" : "bg-noc-border"
-            }`}
+            className={switchTrack(!!(node.locked || node.style?.locked))}
           >
-            <span
-              className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
-                (node.locked || node.style?.locked) ? "translate-x-4" : "translate-x-0.5"
-              }`}
-            />
+            <span className={switchThumb(!!(node.locked || node.style?.locked))} />
           </button>
         </div>
         {node.node_type === "group" && (
           <div className="flex items-center justify-between mt-2">
-            <label htmlFor="node-bg-color" className="text-2xs text-noc-text-muted uppercase tracking-wider">
-              Background Color
+            <label htmlFor="node-bg-color" className={ROW_LABEL}>
+              Background color
             </label>
             <div className="flex items-center gap-1.5">
               <input
@@ -168,12 +173,12 @@ export function NodeProperties({
                 type="color"
                 value={String(node.style?.bg_color || "#1a1f2e")}
                 onChange={(e) => onUpdate({ style: { ...node.style, bg_color: e.target.value } })}
-                className="w-6 h-5 rounded border border-noc-border bg-noc-bg cursor-pointer"
+                className={COLOR_INPUT}
               />
               {node.style?.bg_color ? (
                 <button
                   onClick={() => onUpdate({ style: { ...node.style, bg_color: undefined } })}
-                  className="text-2xs text-noc-text-dim hover:text-noc-text"
+                  className={TEXT_ACTION}
                 >
                   Reset
                 </button>
@@ -182,8 +187,8 @@ export function NodeProperties({
           </div>
         )}
         <div className="flex items-center justify-between mt-2">
-          <span id="node-orthogonal-label" className="text-2xs text-noc-text-muted uppercase tracking-wider">
-            Orthogonal Links
+          <span id="node-orthogonal-label" className={ROW_LABEL}>
+            Orthogonal links
           </span>
           <button
             type="button"
@@ -191,28 +196,21 @@ export function NodeProperties({
             aria-checked={!!node.style?.straight_links}
             aria-labelledby="node-orthogonal-label"
             onClick={() => onUpdate({ style: { ...node.style, straight_links: !node.style?.straight_links } })}
-            className={`relative inline-flex h-4 w-8 items-center rounded-full transition-colors ${
-              node.style?.straight_links ? "bg-accent" : "bg-noc-border"
-            }`}
+            className={switchTrack(!!node.style?.straight_links)}
           >
-            <span
-              className={`inline-block h-3 w-3 rounded-full bg-white transition-transform ${
-                node.style?.straight_links ? "translate-x-4" : "translate-x-0.5"
-              }`}
-            />
+            <span className={switchThumb(!!node.style?.straight_links)} />
           </button>
         </div>
       </section>
 
       {/* TEXT FORMATTING (label nodes only) */}
       {node.node_type === "label" && (
-        <section>
-          <div className={labelClass}>Text Format</div>
-          <div className="h-px bg-noc-border/50 mb-3" />
+        <section className={BLOCK}>
+          <h3 className={BLOCK_TITLE}>Text format</h3>
           <div className="space-y-2">
             <FormField
-              label="Font Size"
-              labelClassName="text-2xs text-noc-text-muted uppercase tracking-wider mb-1 block"
+              label="Font size"
+              labelClassName={LABEL}
             >
               {(id) => (
                 <select
@@ -232,21 +230,17 @@ export function NodeProperties({
             <div className="flex items-center gap-2">
               <button
                 onClick={() => onUpdate({ style: { ...node.style, bold: !node.style?.bold } })}
-                className={`px-2 py-1 rounded text-2xs font-bold border transition-colors ${
-                  node.style?.bold
-                    ? "bg-accent/15 text-accent border-accent/20"
-                    : "text-noc-text-muted border-noc-border hover:text-noc-text"
-                }`}
+                aria-pressed={!!node.style?.bold}
+                title="Bold"
+                className={`${pressClass(!!node.style?.bold)} font-bold`}
               >
                 B
               </button>
               <button
                 onClick={() => onUpdate({ style: { ...node.style, italic: !node.style?.italic } })}
-                className={`px-2 py-1 rounded text-2xs italic border transition-colors ${
-                  node.style?.italic
-                    ? "bg-accent/15 text-accent border-accent/20"
-                    : "text-noc-text-muted border-noc-border hover:text-noc-text"
-                }`}
+                aria-pressed={!!node.style?.italic}
+                title="Italic"
+                className={`${pressClass(!!node.style?.italic)} italic`}
               >
                 I
               </button>
@@ -262,7 +256,7 @@ export function NodeProperties({
             </div>
             <FormField
               label="Color"
-              labelClassName="text-2xs text-noc-text-muted uppercase tracking-wider mb-1 block"
+              labelClassName={LABEL}
             >
               {(id) => (
                 <div className="flex items-center gap-2">
@@ -271,12 +265,12 @@ export function NodeProperties({
                     type="color"
                     value={String(node.style?.color || "#888888")}
                     onChange={(e) => onUpdate({ style: { ...node.style, color: e.target.value } })}
-                    className="w-8 h-6 rounded border border-noc-border bg-noc-bg cursor-pointer"
+                    className={COLOR_INPUT}
                   />
                   {!!node.style?.color && (
                     <button
                       onClick={() => onUpdate({ style: { ...node.style, color: undefined } })}
-                      className="text-2xs text-noc-text-dim hover:text-noc-text"
+                      className={TEXT_ACTION}
                     >
                       Reset
                     </button>
@@ -289,9 +283,8 @@ export function NodeProperties({
       )}
 
       {/* PARENT */}
-      <section>
-        <div className={labelClass}>Parent</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Parent</h3>
         <FormField label="Parent" labelClassName={labelClass}>
           {(id) => (
             <select
@@ -312,10 +305,9 @@ export function NodeProperties({
       </section>
 
       {/* DATASOURCE */}
-      <section>
-        <div className={labelClass}>Datasource</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
-        <div className={labelClass}>Observium Device</div>
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Data source</h3>
+        <div className={labelClass}>Observium device</div>
         <DevicePicker
           value={node.observium_device_id}
           onChange={(deviceId) => onUpdate({ observium_device_id: deviceId })}
@@ -323,9 +315,8 @@ export function NodeProperties({
       </section>
 
       {/* LAYERING */}
-      <section>
-        <div className={labelClass}>Layering</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Layering</h3>
         <div className="flex items-center gap-2">
           <button
             type="button"
@@ -333,9 +324,9 @@ export function NodeProperties({
               const maxZ = Math.max(0, ...allNodes.map((n) => n.z_order || 0));
               onUpdate({ z_order: maxZ + 1 });
             }}
-            className="flex-1 px-2 py-1 text-2xs text-noc-text-muted border border-noc-border rounded hover:bg-noc-surface hover:text-noc-text transition-colors"
+            className={`${BUTTON} flex-1`}
           >
-            Bring to Front
+            Bring to front
           </button>
           <button
             type="button"
@@ -343,12 +334,12 @@ export function NodeProperties({
               const minZ = Math.min(0, ...allNodes.map((n) => n.z_order || 0));
               onUpdate({ z_order: minZ - 1 });
             }}
-            className="flex-1 px-2 py-1 text-2xs text-noc-text-muted border border-noc-border rounded hover:bg-noc-surface hover:text-noc-text transition-colors"
+            className={`${BUTTON} flex-1`}
           >
-            Send to Back
+            Send to back
           </button>
         </div>
-        <p className="text-2xs text-noc-text-dim mt-1 tabular-nums">z-order: {node.z_order ?? 0}</p>
+        <p className="text-sm text-muted-foreground mt-1">Z-order {node.z_order ?? 0}</p>
         <FormField label="Icon" labelClassName={`${labelClass} mt-2`}>
           {(id) => (
             <input
@@ -364,9 +355,8 @@ export function NodeProperties({
       </section>
 
       {/* URL */}
-      <section>
-        <div className={labelClass}>URL</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>URL</h3>
         <FormField label="Info URL" labelClassName={labelClass}>
           {(id) => (
             <input
@@ -382,20 +372,19 @@ export function NodeProperties({
       </section>
 
       {/* DELETE */}
-      <section>
-        <div className={labelClass}>Delete</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Delete</h3>
         <button
           onClick={() => setConfirmDelete(true)}
-          className="w-full px-3 py-1.5 text-2xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors"
+          className={`${BUTTON_DESTRUCTIVE} w-full`}
         >
-          Delete Node
+          Delete node
         </button>
       </section>
 
       <DeleteConfirmDialog
         open={confirmDelete}
-        title="Delete Node"
+        title="Delete node"
         message={`Are you sure you want to delete "${node.label || node.name}"? This will also remove all connected links.`}
         onConfirm={() => {
           setConfirmDelete(false);
