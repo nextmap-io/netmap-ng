@@ -1,13 +1,13 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { useObserviumData } from "@/hooks/useObserviumData";
+import { INPUT, LABEL, TEXT_ACTION } from "./ui";
 import type { ObserviumPort } from "@/types";
 import { formatBandwidthLabel } from "@/utils/bandwidth";
 import { portSpeedBps } from "@/utils/portSpeed";
 
-const inputClass =
-  "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50";
+const inputClass = INPUT;
 
-const labelClass = "noc-label mb-1";
+const labelClass = LABEL;
 
 interface PortPickerProps {
   deviceId: number | null;
@@ -171,16 +171,16 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
               disabled
                 ? "Select device first"
                 : loading
-                  ? "Loading ports..."
-                  : "Search port..."
+                  ? "Loading ports…"
+                  : "Search port…"
             }
-            className={`${inputClass}${disabled ? " opacity-50 cursor-not-allowed" : ""}`}
+            className={`${inputClass}${disabled ? "" : " font-ip"}`}
           />
           {value != null && !disabled && (
             <button
               type="button"
               onClick={handleClear}
-              className="text-2xs text-accent hover:text-accent/80 whitespace-nowrap"
+              className={`${TEXT_ACTION} whitespace-nowrap`}
             >
               Clear
             </button>
@@ -188,7 +188,7 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
         </div>
 
         {open && !disabled && filtered.length > 0 && (
-          <div role="listbox" className="absolute left-0 right-0 top-full mt-1 bg-noc-card border border-noc-border rounded max-h-48 overflow-y-auto z-50">
+          <div role="listbox" className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded max-h-56 overflow-y-auto z-50">
             {filtered.map((port, idx) => (
               <button
                 key={port.port_id}
@@ -197,18 +197,18 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
                 aria-selected={idx === activeIdx}
                 onMouseEnter={() => setActiveIndex(idx)}
                 onMouseDown={() => handleSelect(port)}
-                className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIdx ? "bg-noc-bg/60" : "hover:bg-noc-bg/60"}`}
+                className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIdx ? "bg-muted" : "hover:bg-muted"}`}
               >
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-noc-text">{port.ifName}</span>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-base text-foreground font-ip">{port.ifName}</span>
                   {portSpeedBps(port) > 0 && (
-                    <span className="text-2xs text-noc-text-muted">
+                    <span className="text-sm text-muted-foreground">
                       {formatBandwidthLabel(portSpeedBps(port))}
                     </span>
                   )}
                 </div>
                 {port.ifAlias && (
-                  <div className="text-2xs text-noc-text-dim truncate">{port.ifAlias}</div>
+                  <div className="text-sm text-muted-foreground truncate">{port.ifAlias}</div>
                 )}
               </button>
             ))}
@@ -216,14 +216,15 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
         )}
 
         {open && !disabled && !loading && filtered.length === 0 && (
-          <div className="absolute left-0 right-0 top-full mt-1 bg-noc-card border border-noc-border rounded z-50 px-2 py-2">
-            <span className="text-2xs text-noc-text-dim">No ports found</span>
+          <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded z-50 px-2 py-2">
+            <span className="text-sm text-muted-foreground">No port matches this search.</span>
           </div>
         )}
       </div>
       {staleBinding && (
-        <p className="mt-1 text-2xs text-node-firewall">
-          Binding no longer valid for this device — pick a new port or clear it.
+        <p className="mt-1 text-sm text-foreground-secondary">
+          <span className="font-medium text-destructive">Invalid</span> — this port is not on the
+          device any more. Pick a new port or clear it.
         </p>
       )}
     </div>

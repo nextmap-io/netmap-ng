@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useObserviumData } from "@/hooks/useObserviumData";
+import { INPUT, TEXT_ACTION } from "./ui";
 
-const inputClass =
-  "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50";
+const inputClass = INPUT;
 
 interface DevicePickerProps {
   value: number | null;
@@ -120,14 +120,14 @@ export function DevicePicker({ value, onChange }: DevicePickerProps) {
           aria-expanded={open}
           aria-controls="device-picker-list"
           aria-autocomplete="list"
-          placeholder={loadingDevices ? "Loading devices..." : "Search device..."}
+          placeholder={loadingDevices ? "Loading devices…" : "Search device…"}
           className={inputClass}
         />
         {value != null && (
           <button
             type="button"
             onClick={handleClear}
-            className="text-2xs text-accent hover:text-accent/80 whitespace-nowrap"
+            className={`${TEXT_ACTION} whitespace-nowrap`}
           >
             Clear
           </button>
@@ -139,7 +139,7 @@ export function DevicePicker({ value, onChange }: DevicePickerProps) {
           ref={listRef}
           id="device-picker-list"
           role="listbox"
-          className="absolute left-0 right-0 top-full mt-1 bg-noc-card border border-noc-border rounded max-h-48 overflow-y-auto z-50"
+          className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded max-h-56 overflow-y-auto z-50"
         >
           {filtered.map((device, idx) => (
             <button
@@ -149,11 +149,11 @@ export function DevicePicker({ value, onChange }: DevicePickerProps) {
               aria-selected={idx === activeIdx}
               onMouseEnter={() => setActiveIndex(idx)}
               onMouseDown={() => handleSelect(device.device_id, device.hostname)}
-              className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIdx ? "bg-noc-bg/60" : "hover:bg-noc-bg/60"}`}
+              className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIdx ? "bg-muted" : "hover:bg-muted"}`}
             >
-              <div className="text-xs text-noc-text truncate">{device.hostname}</div>
+              <div className="text-base text-foreground truncate">{device.hostname}</div>
               {device.hardware && (
-                <div className="text-2xs text-noc-text-dim truncate">{device.hardware}</div>
+                <div className="text-sm text-muted-foreground truncate">{device.hardware}</div>
               )}
             </button>
           ))}
@@ -161,8 +161,8 @@ export function DevicePicker({ value, onChange }: DevicePickerProps) {
       )}
 
       {open && !loadingDevices && filtered.length === 0 && (
-        <div className="absolute left-0 right-0 top-full mt-1 bg-noc-card border border-noc-border rounded z-50 px-2 py-2">
-          <span className="text-2xs text-noc-text-dim">No devices found</span>
+        <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded z-50 px-2 py-2">
+          <span className="text-sm text-muted-foreground">No device matches this search.</span>
         </div>
       )}
     </div>

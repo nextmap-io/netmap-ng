@@ -21,19 +21,6 @@ const NODE_TYPES: { value: NodeType; label: string; badge: string }[] = [
   { value: "label", label: "Text Label", badge: "TXT" },
 ];
 
-const BADGE_COLORS: Record<string, string> = {
-  router: "text-node-router",
-  switch_l3: "text-node-switch-l3",
-  switch_l2: "text-node-switch-l2",
-  server: "text-node-server",
-  firewall: "text-node-firewall",
-  customer: "text-node-customer",
-  cloud: "text-node-cloud",
-  internet: "text-node-internet",
-  group: "text-noc-text-muted",
-  label: "text-noc-text-dim",
-};
-
 export function EditorToolbox() {
   const { map, editMode, loadMap } = useMapStore();
   const flow = useReactFlow();
@@ -78,43 +65,27 @@ export function EditorToolbox() {
   if (!editMode || !map) return null;
 
   return (
-    <div className="absolute top-14 left-3 noc-glass rounded z-10 w-60 max-h-[80vh] overflow-auto animate-fade-in">
-      {/* Header */}
-      <div className="px-3 py-2.5 border-b border-noc-border/50">
-        <div className="flex items-center gap-2">
-          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-traffic-out" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
-          </svg>
-          <span className="noc-label">Editor</span>
-        </div>
+    <div className="absolute top-14 left-3 z-10 w-60 max-w-[calc(100vw-32px)] max-h-[80vh] overflow-auto bg-card border border-border rounded">
+      <div className="px-3 pt-3 pb-2">
+        <h2 className="text-lg font-semibold text-foreground">Add a node</h2>
+        <p className="text-sm text-muted-foreground">Drag a type onto the map, or click to add it at the centre.</p>
       </div>
 
-      <div className="p-3 space-y-4">
-        {/* Add Node */}
-        <section>
-          <div className="noc-label mb-2">Add Node <span className="text-noc-text-dim font-normal">(drag to canvas)</span></div>
-          <div className="grid grid-cols-2 gap-1">
-            {NODE_TYPES.map((nt) => (
-              <button
-                key={nt.value}
-                draggable
-                onDragStart={(e) => handleDragStart(e, nt.value, nt.label)}
-                onClick={() => handleAddNode(nt.value, nt.label)}
-                className="group flex items-center gap-1.5 px-2 py-1.5 text-2xs bg-noc-surface/50 border border-noc-border/50 rounded hover:border-noc-muted hover:bg-noc-surface transition-colors text-left cursor-grab active:cursor-grabbing"
-              >
-                <span className={`font-semibold tracking-wider ${BADGE_COLORS[nt.value] ?? ""}`}>
-                  {nt.badge}
-                </span>
-                <span className="text-noc-text-muted group-hover:text-noc-text transition-colors truncate">
-                  {nt.label}
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-
-
+      <div className="px-3 pb-3">
+        <div className="grid grid-cols-2 gap-1">
+          {NODE_TYPES.map((nt) => (
+            <button
+              key={nt.value}
+              draggable
+              onDragStart={(e) => handleDragStart(e, nt.value, nt.label)}
+              onClick={() => handleAddNode(nt.value, nt.label)}
+              title={`${nt.label} (${nt.badge})`}
+              className="px-2 py-1.5 text-sm text-foreground bg-background border border-border rounded hover:bg-muted transition-colors text-left truncate cursor-grab active:cursor-grabbing"
+            >
+              {nt.label}
+            </button>
+          ))}
+        </div>
       </div>
     </div>
   );
