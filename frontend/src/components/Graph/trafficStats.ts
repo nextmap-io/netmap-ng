@@ -48,13 +48,27 @@ export interface ChartScale {
  * peaks above it, the scale extends to the peak and says so. Without a
  * capacity both directions share the larger of the two maxima.
  */
-export function chartScale(peak: number, capacity: number | null, overlayPeak = 0): ChartScale {
+/**
+ * How the y axis is sized: "fit" sizes it to the traffic (readable even on a
+ * lightly used link), "capacity" pins the top to the link capacity (a full
+ * chart means a full pipe). Both use one shared scale for in and out.
+ */
+export type ScaleMode = "fit" | "capacity";
+
+export function chartScale(
+  peak: number,
+  capacity: number | null,
+  overlayPeak = 0,
+  mode: ScaleMode = "capacity",
+): ChartScale {
   const extent = Math.max(peak, overlayPeak);
   let max: number;
   let overCapacity = false;
   if (capacity && capacity > 0) {
     overCapacity = peak > capacity;
-    max = extent > capacity ? niceCeil(extent) : capacity;
+    if (extent > capacity) max = niceCeil(extent);
+    else if (mode === "fit" && extent > 0) max = Math.min(niceCeil(extent), capacity);
+    else max = capacity;
   } else {
     max = niceCeil(extent);
   }

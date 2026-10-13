@@ -11,7 +11,7 @@ import {
   previousWindow,
   type Period,
 } from "./format";
-import { alignShifted, chartScale, seriesStats, type SeriesStats } from "./trafficStats";
+import { alignShifted, chartScale, seriesStats, type ScaleMode, type SeriesStats } from "./trafficStats";
 import type { ChartDatum, PeakAnnotation } from "./TrafficChart";
 import { useKeyedResult } from "./useKeyedResult";
 
@@ -54,6 +54,23 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
   const mapId = useMapStore((s) => s.map?.id);
   const [period, setPeriod] = useState<Period>("-24h");
   const [compare, setCompare] = useState(false);
+  // Fit to traffic by default: pinned to capacity, a lightly used fat link is
+  // a flat line. Remembered per browser.
+  const [scaleMode, setScaleModeState] = useState<ScaleMode>(() => {
+    try {
+      return localStorage.getItem("graphScale") === "capacity" ? "capacity" : "fit";
+    } catch {
+      return "fit";
+    }
+  });
+  const setScaleMode = (m: ScaleMode) => {
+    setScaleModeState(m);
+    try {
+      localStorage.setItem("graphScale", m);
+    } catch {
+      /* storage unavailable */
+    }
+  };
   const [reloadKey, setReloadKey] = useState(0);
 
   const hostname = typeof link.extra?.hostname === "string" ? link.extra.hostname : "";
@@ -159,7 +176,7 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
       : { value: peakOut, direction: "out" }
     : null;
   const overlayPeak = prevHistory ? Math.max(maxOf(prevHistory.in_bps), maxOf(prevHistory.out_bps)) : 0;
-  const scale = chartScale(peak?.value ?? 0, capacity, showPrevious ? overlayPeak : 0);
+  const scale = chartScale(peak?.value ?? 0, capacity, showPrevious ? overlayPeak : 0, scaleMode);
 
   const interfaceA = typeof link.extra?.interface_a === "string" ? link.extra.interface_a : "";
   const interfaceB = typeof link.extra?.interface_b === "string" ? link.extra.interface_b : "";
@@ -169,7 +186,9 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
     capacity
       ? scale.overCapacity
         ? `peaks above the configured ${formatRate(capacity)} capacity`
-        : `${formatRate(capacity)} capacity`
+        : peak && scaleMode === "fit" && scale.max < capacity
+          ? `${formatRate(capacity)} capacity · peak ${formatPercent(peak.value, capacity)} of it`
+          : `${formatRate(capacity)} capacity`
       : "",
     linkType,
   ].filter(Boolean);
@@ -208,6 +227,33 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
                   );
                 })}
               </div>
+              {capacity !== null && (
+                <div role="radiogroup" aria-label="Scale" className="inline-flex rounded bg-muted p-0.5">
+                  {(
+                    [
+                      { value: "fit", label: "Fit", title: "Scale to the traffic" },
+                      { value: "capacity", label: "Capacity", title: "Top of the chart = link capacity" },
+                    ] as const
+                  ).map((o) => {
+                    const active = scaleMode === o.value;
+                    return (
+                      <button
+                        key={o.value}
+                        type="button"
+                        role="radio"
+                        aria-checked={active}
+                        title={o.title}
+                        onClick={() => setScaleMode(o.value)}
+                        className={`rounded px-2.5 py-0.5 text-sm transition-colors duration-100 ${
+                          active ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {o.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
               {canCompare && (
                 <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-foreground-secondary">
                   <input
