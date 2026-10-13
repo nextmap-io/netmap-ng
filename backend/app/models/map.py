@@ -13,6 +13,26 @@ if TYPE_CHECKING:
     from .link import Link
 
 
+# Ledger utilization scale: normal load stays quiet (two neutral steps), only
+# abnormal load gets a status color, each with a word in its label.
+DEFAULT_SCALE: list[dict] = [
+    {"min": 0, "max": 40, "color": "@quiet", "label": "0–40%"},
+    {"min": 40, "max": 70, "color": "@load", "label": "40–70%"},
+    {"min": 70, "max": 90, "color": "@watch", "label": "Watch ≥ 70%"},
+    {"min": 90, "max": 100, "color": "@incident", "label": "Incident ≥ 90%"},
+]
+
+# The pre-Ledger default (blue/cyan/amber/red). Maps still using it unchanged
+# are migrated to DEFAULT_SCALE at startup; customized scales are left alone.
+LEGACY_DEFAULT_SCALE: list[dict] = [
+    {"min": 0, "max": 0, "color": "#c0c0c0"},
+    {"min": 0, "max": 10, "color": "#3366ff"},
+    {"min": 10, "max": 50, "color": "#66ccff"},
+    {"min": 50, "max": 90, "color": "#ffaa00"},
+    {"min": 90, "max": 100, "color": "#ff3300"},
+]
+
+
 class Map(Base):
     __tablename__ = "maps"
 
@@ -25,18 +45,11 @@ class Map(Base):
     height: Mapped[int] = mapped_column(Integer, default=1080)
     background_image: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
-    # Scale definitions: list of {min, max, color1, color2?, label?}
+    # Scale definitions: list of {min, max, color, label?}. Colors are hex or
+    # theme tokens ("@quiet", "@load", "@watch", "@incident") resolved by the UI.
     scales: Mapped[dict] = mapped_column(
         JSON,
-        default=lambda: {
-            "default": [
-                {"min": 0, "max": 0, "color": "#c0c0c0", "label": "0%"},
-                {"min": 0, "max": 10, "color": "#3366ff", "label": "0-10%"},
-                {"min": 10, "max": 50, "color": "#66ccff", "label": "10-50%"},
-                {"min": 50, "max": 90, "color": "#ffaa00", "label": "50-90%"},
-                {"min": 90, "max": 100, "color": "#ff3300", "label": "90-100%"},
-            ]
-        },
+        default=lambda: {"default": [dict(band) for band in DEFAULT_SCALE]},
     )
 
     # Global settings

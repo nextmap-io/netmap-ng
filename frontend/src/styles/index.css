@@ -1,216 +1,312 @@
-@import url("https://fonts.bunny.net/css2?family=JetBrains+Mono:wght@300;400;500;600;700&display=swap");
-
 @import "tailwindcss";
 
-/* Tailwind v3 `darkMode: "class"`. */
-@custom-variant dark (&:is(.dark *));
-
-@theme {
-  --font-mono: JetBrains Mono, SF Mono, Fira Code, ui-monospace, monospace;
-
-  --text-2xs: 0.625rem;
-  --text-2xs--line-height: 0.875rem;
-
-  /* v3 line heights were absolute; v4's are relative to the font size, which
-     changes the line box when another class (e.g. noc-label) overrides it. */
-  --text-xs--line-height: 1rem;
-  --text-sm--line-height: 1.25rem;
-  --text-base--line-height: 1.5rem;
-  --text-lg--line-height: 1.75rem;
-  --text-xl--line-height: 1.75rem;
-  --text-2xl--line-height: 2rem;
-  --text-3xl--line-height: 2.25rem;
-  --text-4xl--line-height: 2.5rem;
-
-  /* Default-palette colors used by the app, pinned to their v3 sRGB values
-     (v4 redefined the palette in oklch, slightly more saturated). */
-  --color-green-500: #22c55e;
-  --color-red-400: #f87171;
-  --color-red-500: #ef4444;
-  --color-amber-400: #fbbf24;
-  --color-yellow-400: #facc15;
-  --color-gray-200: #e5e7eb;
-  --color-gray-400: #9ca3af;
-
-  --color-noc-bg: hsl(220 20% 7%);
-  --color-noc-card: hsl(220 18% 10%);
-  --color-noc-surface: hsl(220 16% 13%);
-  --color-noc-border: hsl(220 15% 16%);
-  --color-noc-border-subtle: hsl(220 15% 12%);
-  --color-noc-muted: hsl(220 15% 24%);
-  --color-noc-text: hsl(210 20% 88%);
-  --color-noc-text-muted: hsl(215 15% 55%);
-  --color-noc-text-dim: hsl(215 12% 40%);
-
-  --color-accent: hsl(190 90% 50%);
-  --color-accent-muted: hsl(190 90% 50% / 0.15);
-  --color-accent-strong: hsl(190 90% 60%);
-
-  --color-traffic-in: hsl(174 72% 46%);
-  --color-traffic-in-muted: hsl(174 72% 46% / 0.15);
-  --color-traffic-out: hsl(36 100% 55%);
-  --color-traffic-out-muted: hsl(36 100% 55% / 0.15);
-
-  --color-node-router: hsl(36 100% 55%);
-  --color-node-switch-l3: hsl(270 60% 60%);
-  --color-node-switch-l2: hsl(210 80% 55%);
-  --color-node-server: hsl(152 60% 44%);
-  --color-node-firewall: hsl(0 72% 50%);
-  --color-node-cloud: hsl(190 90% 50%);
-  --color-node-internet: hsl(340 65% 55%);
-  --color-node-customer: hsl(45 85% 50%);
-
-  --radius: 0.375rem;
-
-  --animate-fade-in: fade-in 0.3s ease-out forwards;
-  --animate-shimmer: shimmer 1.5s ease-in-out infinite;
-  --animate-pulse-subtle: pulse-subtle 2s ease-in-out infinite;
-  --animate-spin-slow: spin 1.2s linear infinite;
-
-  @keyframes fade-in {
-    0% {
-      opacity: 0;
-      transform: translateY(4px);
-    }
-    100% {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
-  @keyframes shimmer {
-    0% {
-      background-position: -200% 0;
-    }
-    100% {
-      background-position: 200% 0;
-    }
-  }
-  @keyframes pulse-subtle {
-    0%,
-    100% {
-      opacity: 0.4;
-    }
-    50% {
-      opacity: 0.7;
-    }
-  }
-}
+/* Tailwind `dark:` variant follows the theme class on <html>. */
+@custom-variant dark (&:is(.dark *, .scada *));
 
 /*
-  Tailwind v3 compatibility. v4 changed some preflight defaults; keep the v3
-  look until each element sets these explicitly.
+  "Ledger" design system — see docs/DESIGN.md.
+  Ink on a calm grey ground, one accent (cobalt), amber for "watch", red only
+  for an incident. Structure comes from rules and space, never boxes.
+
+  `static`: every token is emitted even if no class uses it, because map and
+  chart colors are read from these variables at runtime.
 */
+@theme static {
+  --font-sans: "Archivo Variable", "Archivo", "Helvetica Neue", Arial, system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Absolute sizes (the root is 14px): 12px is the floor. */
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 21px;
+  --text-lg: 15px;
+  --text-lg--line-height: 22px;
+  --text-xl: 22px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 28px;
+  --text-2xl--line-height: 34px;
+
+  --radius: 4px;
+  --radius-sm: 4px;
+  --radius-md: 4px;
+
+  /* Dark is the default palette; .light and .scada override below. */
+  --color-background: #191c20;
+  --color-card: #20242a;
+  --color-foreground: #eceef1;
+  --color-foreground-secondary: #aab1ba;
+  --color-muted: #2a2e35;
+  --color-muted-foreground: #8c949e;
+  --color-border: #333840;
+  --color-border-soft: #2a2e35;
+  --color-ring: #8ea8ff;
+  --color-link: #8ea8ff;
+  --color-series-a: #d3d8de;
+  --color-series-b: #7d9bff;
+  --color-warning: #f2b852;
+  --color-warning-mark: #f2b852;
+  --color-warning-muted: #3a2f19;
+  --color-destructive: #ff6f64;
+  --color-destructive-muted: #3d2321;
+  --color-success: #63c08a;
+  --color-on-destructive: #191c20;
+
+  /* Traffic scale tokens (map links): normal load stays quiet. */
+  --color-scale-quiet: #5f6771;
+  --color-scale-load: #c9cfd6;
+
+  /* Ordinal palette (8 series), muted and evenly spaced, no pure red. */
+  --color-ordinal-1: #7d9bff;
+  --color-ordinal-2: #4cc3b9;
+  --color-ordinal-3: #e2ae4a;
+  --color-ordinal-4: #c08dda;
+  --color-ordinal-5: #7fc1ee;
+  --color-ordinal-6: #a3aeba;
+  --color-ordinal-7: #a9c25e;
+  --color-ordinal-8: #e68aae;
+
+  /* ── Transitional aliases for the pre-Ledger classes. Removed once every
+        component uses the tokens above. ── */
+  --color-noc-bg: var(--color-background);
+  --color-noc-card: var(--color-card);
+  --color-noc-surface: var(--color-muted);
+  --color-noc-border: var(--color-border);
+  --color-noc-border-subtle: var(--color-border-soft);
+  --color-noc-muted: var(--color-border);
+  --color-noc-text: var(--color-foreground);
+  --color-noc-text-muted: var(--color-foreground-secondary);
+  --color-noc-text-dim: var(--color-muted-foreground);
+  --color-accent: var(--color-link);
+  --color-accent-muted: color-mix(in srgb, var(--color-link) 15%, transparent);
+  --color-accent-strong: var(--color-link);
+  --color-traffic-in: var(--color-series-a);
+  --color-traffic-in-muted: color-mix(in srgb, var(--color-series-a) 15%, transparent);
+  --color-traffic-out: var(--color-series-b);
+  --color-traffic-out-muted: color-mix(in srgb, var(--color-series-b) 15%, transparent);
+  --color-node-router: var(--color-foreground-secondary);
+  --color-node-switch-l3: var(--color-foreground-secondary);
+  --color-node-switch-l2: var(--color-foreground-secondary);
+  --color-node-server: var(--color-foreground-secondary);
+  --color-node-firewall: var(--color-destructive);
+  --color-node-cloud: var(--color-foreground-secondary);
+  --color-node-internet: var(--color-foreground-secondary);
+  --color-node-customer: var(--color-foreground-secondary);
+  --text-2xs: 12px;
+  --text-2xs--line-height: 16px;
+}
+
 @layer base {
-  /* v4 default border color is currentcolor (v3: gray-200). */
+  .light {
+    --color-background: #f5f6f7;
+    --color-card: #ffffff;
+    --color-foreground: #15181c;
+    --color-foreground-secondary: #4b525c;
+    --color-muted: #e8ebee;
+    --color-muted-foreground: #687079;
+    --color-border: #d9dde2;
+    --color-border-soft: #e8ebee;
+    --color-ring: #2f55d4;
+    --color-link: #2f55d4;
+    --color-series-a: #2a2f36;
+    --color-series-b: #2f55d4;
+    --color-warning: #9a5b00;
+    --color-warning-mark: #e39b1b;
+    --color-warning-muted: #fff4df;
+    --color-destructive: #c62828;
+    --color-destructive-muted: #fdecea;
+    --color-success: #2e7d4f;
+    --color-on-destructive: #ffffff;
+    --color-scale-quiet: #a3aab3;
+    --color-scale-load: #3b424b;
+    --color-ordinal-1: #2f55d4;
+    --color-ordinal-2: #12857f;
+    --color-ordinal-3: #a8730f;
+    --color-ordinal-4: #8a4fa3;
+    --color-ordinal-5: #3d8fc8;
+    --color-ordinal-6: #5e6b78;
+    --color-ordinal-7: #66812a;
+    --color-ordinal-8: #b94d76;
+  }
+
+  /* SCADA: the Ledger rules on a near-black, high-contrast ground for wall
+     screens. Phosphor-green ink and accent; no glow, no scanlines. */
+  .scada {
+    --color-background: #0b0d0c;
+    --color-card: #121614;
+    --color-foreground: #e3f3e7;
+    --color-foreground-secondary: #b3c9b9;
+    --color-muted: #1a201c;
+    --color-muted-foreground: #8fa898;
+    --color-border: #2f3b33;
+    --color-border-soft: #1f2722;
+    --color-ring: #5fe39a;
+    --color-link: #5fe39a;
+    --color-series-a: #e3f3e7;
+    --color-series-b: #5fe39a;
+    --color-warning: #ffc24d;
+    --color-warning-mark: #ffc24d;
+    --color-warning-muted: #3a2f12;
+    --color-destructive: #ff6b5e;
+    --color-destructive-muted: #3d1f1c;
+    --color-success: #5fe39a;
+    --color-on-destructive: #0b0d0c;
+    --color-scale-quiet: #4f6457;
+    --color-scale-load: #cfe8d6;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    font-size: 14px;
+    background: var(--color-background);
+    color: var(--color-foreground);
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    min-height: 100vh;
+    overflow: hidden;
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-size: 14px;
+    line-height: 1.5;
+    font-variant-numeric: tabular-nums lining-nums;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1 {
+    font-stretch: 108%;
+  }
+
+  code,
+  kbd,
+  pre,
+  samp {
+    font-family: var(--font-mono);
+  }
+
+  ::selection {
+    background: color-mix(in srgb, var(--color-link) 30%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-border);
+    border-radius: 4px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-muted-foreground);
+  }
+
+  /* Tailwind v4 preflight compatibility. */
   *,
   ::after,
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentcolor);
+    border-color: var(--color-border);
   }
-
-  /* v4 placeholders use the text color at 50% (v3: gray-400). */
   input::placeholder,
   textarea::placeholder {
-    color: var(--color-gray-400);
+    color: var(--color-muted-foreground);
   }
-
-  /* v4 buttons use the default cursor (v3: pointer). */
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
   }
-}
 
-@layer base {
-  * {
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  html {
-    font-family: "JetBrains Mono", "SF Mono", "Fira Code", ui-monospace, monospace;
-    font-size: 14px;
-    font-variant-numeric: tabular-nums;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-    color: hsl(210 20% 88%);
-    background: hsl(220 20% 7%);
-    overscroll-behavior: none;
-  }
-
-  body {
-    background: hsl(220 20% 7%);
-    min-height: 100vh;
-    overflow: hidden;
-  }
-
-  ::selection {
-    background: hsl(190 90% 50% / 0.3);
-    color: white;
-  }
-
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-
-  ::-webkit-scrollbar-track {
-    background: hsl(220 15% 10%);
-  }
-
-  ::-webkit-scrollbar-thumb {
-    background: hsl(220 15% 24%);
-    border-radius: 3px;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    background: hsl(220 15% 30%);
-  }
-
-  :focus-visible {
-    outline: none;
-    box-shadow: 0 0 0 1px hsl(190 90% 50% / 0.6);
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    ::before,
+    ::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 }
 
-/* ─── NOC-themed ReactFlow overrides ─── */
+@layer utilities {
+  /* Hero figures: wide, light, tight. */
+  .font-display {
+    font-stretch: 115%;
+    font-weight: 300;
+    letter-spacing: -0.03em;
+  }
+  /* Addresses, prefixes, long identifiers: compact but tabular. */
+  .font-ip {
+    font-stretch: 88%;
+  }
+
+  /* ── Transitional aliases (see @theme). ── */
+  .noc-glass {
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+  }
+  .noc-card {
+    background: var(--color-card);
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+  }
+  .noc-label {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-muted-foreground);
+  }
+}
+
+/* ─── ReactFlow ─── */
 
 .react-flow__background {
-  background-color: hsl(220 20% 7%) !important;
+  background-color: var(--color-background) !important;
 }
 
 .react-flow__minimap {
-  background-color: hsl(220 18% 10%) !important;
-  border: 1px solid hsl(220 15% 16%) !important;
-  border-radius: 6px !important;
+  background-color: var(--color-card) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 4px !important;
 }
 
 .react-flow__controls {
-  border-radius: 6px !important;
+  border-radius: 4px !important;
   overflow: hidden;
-  border: 1px solid hsl(220 15% 16%) !important;
+  border: 1px solid var(--color-border) !important;
   box-shadow: none !important;
 }
 
 .react-flow__controls button {
-  background-color: hsl(220 18% 10%) !important;
-  color: hsl(210 20% 88%) !important;
-  border-color: hsl(220 15% 16%) !important;
+  background-color: var(--color-background) !important;
+  color: var(--color-foreground) !important;
+  border-color: var(--color-border) !important;
   width: 28px !important;
   height: 28px !important;
 }
 
 .react-flow__controls button:hover {
-  background-color: hsl(220 16% 13%) !important;
+  background-color: var(--color-muted) !important;
 }
 
 .react-flow__controls button svg {
-  fill: hsl(215 15% 55%) !important;
+  fill: var(--color-foreground-secondary) !important;
 }
 
 .react-flow__controls button:hover svg {
-  fill: hsl(210 20% 88%) !important;
+  fill: var(--color-foreground) !important;
 }
 
 .react-flow__attribution {
@@ -226,465 +322,37 @@
   pointer-events: auto;
 }
 
-.react-flow__edge.selected .react-flow__edge-path {
-  filter: drop-shadow(0 0 6px hsl(190 90% 50% / 0.5));
+/* Handles: discreet, shown on hover in edit mode. */
+.edit-mode .react-flow__handle {
+  opacity: 0.3;
+}
+.edit-mode .react-flow__handle:hover {
+  opacity: 1;
+  background: var(--color-link) !important;
+  width: 8px !important;
+  height: 8px !important;
+  border: 1px solid var(--color-background) !important;
+  border-radius: 50%;
 }
 
-/* ─── Recharts dark tooltip ─── */
+/* Selected node: a plain cobalt ring, no glow. */
+.react-flow__node.selected .rounded {
+  box-shadow: 0 0 0 2px var(--color-ring);
+}
+
+/* ─── Recharts tooltip ─── */
 
 .recharts-default-tooltip {
-  background: hsl(220 18% 10%) !important;
-  border: 1px solid hsl(220 15% 16%) !important;
-  border-radius: 6px !important;
-  box-shadow: 0 4px 24px hsl(220 20% 4% / 0.5) !important;
-  font-family: "JetBrains Mono", monospace !important;
-  font-size: 11px !important;
+  background: var(--color-card) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 4px !important;
+  box-shadow: none !important;
+  font-size: 13px !important;
+  color: var(--color-foreground) !important;
 }
 
 .recharts-tooltip-label {
-  color: hsl(215 15% 55%) !important;
-  font-size: 10px !important;
+  color: var(--color-muted-foreground) !important;
+  font-size: 12px !important;
   margin-bottom: 4px !important;
-}
-
-/* ─── Utility ─── */
-
-/* Plain classes in @layer utilities are emitted after Tailwind's own utilities,
-   so they win ties exactly as in v3 (e.g. noc-label over text-sm). */
-@layer utilities {
-  .noc-glass {
-    background: hsl(220 18% 10% / 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid hsl(220 15% 16%);
-  }
-
-  .noc-card {
-    background: hsl(220 18% 10%);
-    border: 1px solid hsl(220 15% 16%);
-    border-radius: 6px;
-  }
-
-  .noc-label {
-    font-size: 10px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: hsl(215 15% 55%);
-  }
-
-  .stagger-1 { animation-delay: 0.05s; }
-  .stagger-2 { animation-delay: 0.10s; }
-  .stagger-3 { animation-delay: 0.15s; }
-  .stagger-4 { animation-delay: 0.20s; }
-  .stagger-5 { animation-delay: 0.25s; }
-  .stagger-6 { animation-delay: 0.30s; }
-
-  /* Handles visible on hover in edit mode */
-  .edit-mode .react-flow__handle:hover {
-    background: hsl(190 90% 50% / 0.6) !important;
-    width: 8px !important;
-    height: 8px !important;
-    border: 1px solid hsl(190 90% 50%) !important;
-    border-radius: 50%;
-    transition: all 0.15s;
-  }
-
-  .edit-mode .react-flow__handle {
-    opacity: 0.3;
-  }
-
-  .edit-mode .react-flow__handle:hover {
-    opacity: 1;
-  }
-}
-
-/* ─── Selection highlight for selected nodes ─── */
-
-.react-flow__node.selected .rounded {
-  box-shadow: 0 0 0 2px hsl(190 90% 50% / 0.4);
-}
-
-/* ─── Light theme overrides ───
-   Clean engineering schematic aesthetic.
-   Warm off-whites, paper-like canvas, crisp shadows.
-   ─────────────────────────────────────────────────── */
-
-html.light {
-  background: hsl(38 12% 95%);
-  color: hsl(30 8% 18%);
-}
-
-html.light body {
-  background: hsl(38 12% 95%);
-}
-
-/* ── Base NOC color overrides ── */
-html.light .bg-noc-bg { background-color: hsl(38 12% 95%) !important; }
-html.light .bg-noc-card { background-color: #ffffff !important; }
-html.light .bg-noc-surface { background-color: hsl(36 10% 92%) !important; }
-html.light .border-noc-border { border-color: hsl(36 8% 80%) !important; }
-html.light .text-noc-text { color: hsl(30 8% 18%) !important; }
-html.light .text-noc-text-muted { color: hsl(30 6% 40%) !important; }
-html.light .text-noc-text-dim { color: hsl(30 4% 52%) !important; }
-
-/* ── Panels & cards ── */
-html.light .noc-glass {
-  background: hsl(0 0% 100% / 0.92) !important;
-  backdrop-filter: blur(16px) !important;
-  border-color: hsl(36 8% 80%) !important;
-  box-shadow: 0 1px 3px hsl(30 10% 50% / 0.08), 0 4px 12px hsl(30 10% 50% / 0.06) !important;
-}
-html.light .noc-card {
-  background: #ffffff !important;
-  border-color: hsl(36 8% 80%) !important;
-  box-shadow: 0 1px 3px hsl(30 10% 50% / 0.08) !important;
-}
-html.light .noc-label {
-  color: hsl(30 6% 40%) !important;
-}
-
-/* ── Node cards: white with warm shadow ── */
-html.light .react-flow__node .rounded {
-  box-shadow: 0 1px 2px hsl(30 10% 40% / 0.08), 0 2px 6px hsl(30 10% 40% / 0.06);
-  border-color: hsl(36 8% 78%) !important;
-}
-html.light .react-flow__node .bg-noc-card {
-  background-color: #ffffff !important;
-}
-
-/* ── Group / datacenter blocks: subtle warm tint ── */
-html.light .react-flow__node-group > div {
-  background: hsl(38 10% 91%) !important;
-  border-color: hsl(36 8% 76%) !important;
-  border-style: solid !important;
-  border-width: 1.5px !important;
-  box-shadow: inset 0 1px 4px hsl(30 10% 50% / 0.04) !important;
-}
-
-/* ── Link labels: paper-white with crisp border ── */
-html.light .bg-noc-bg\/80,
-html.light .bg-noc-bg\/90 {
-  background-color: hsl(0 0% 100% / 0.96) !important;
-  border-color: hsl(36 8% 76%) !important;
-  box-shadow: 0 1px 2px hsl(30 10% 40% / 0.08) !important;
-}
-
-/* ── ReactFlow canvas ── */
-html.light .react-flow__background {
-  background-color: hsl(38 12% 95%) !important;
-}
-html.light .react-flow__minimap {
-  background-color: hsl(38 8% 93%) !important;
-  border-color: hsl(36 8% 78%) !important;
-  box-shadow: 0 1px 4px hsl(30 10% 40% / 0.1) !important;
-}
-html.light .react-flow__controls {
-  border-color: hsl(36 8% 78%) !important;
-  box-shadow: 0 1px 4px hsl(30 10% 40% / 0.1) !important;
-}
-html.light .react-flow__controls button {
-  background-color: #ffffff !important;
-  color: hsl(30 8% 18%) !important;
-  border-color: hsl(36 8% 80%) !important;
-}
-html.light .react-flow__controls button:hover {
-  background-color: hsl(36 10% 94%) !important;
-}
-html.light .react-flow__controls button svg {
-  fill: hsl(30 6% 38%) !important;
-}
-html.light .react-flow__controls button:hover svg {
-  fill: hsl(30 8% 18%) !important;
-}
-
-/* ── Header: solid white bar ── */
-html.light .sticky {
-  background: hsl(0 0% 100% / 0.95) !important;
-  border-bottom-color: hsl(36 8% 80%) !important;
-  box-shadow: 0 1px 2px hsl(30 10% 50% / 0.06) !important;
-}
-
-/* Public map header bar */
-html.light .border-b {
-  border-bottom-color: hsl(36 8% 80%) !important;
-}
-
-/* ── Recharts tooltip ── */
-html.light .recharts-default-tooltip {
-  background: #ffffff !important;
-  border-color: hsl(36 8% 78%) !important;
-  box-shadow: 0 2px 10px hsl(30 10% 40% / 0.12) !important;
-}
-html.light .recharts-tooltip-label {
-  color: hsl(30 6% 40%) !important;
-}
-
-/* ── Scrollbar ── */
-html.light ::-webkit-scrollbar-track { background: hsl(36 8% 93%); }
-html.light ::-webkit-scrollbar-thumb { background: hsl(36 6% 74%); }
-html.light ::-webkit-scrollbar-thumb:hover { background: hsl(36 6% 60%); }
-
-/* ── Selection ── */
-html.light ::selection {
-  background: hsl(185 60% 40% / 0.18);
-  color: hsl(30 8% 12%);
-}
-
-/* ── Edges: no filter needed, scale colors work on light bg ── */
-html.light .react-flow__edge path {
-  opacity: 0.95 !important;
-}
-html.light .react-flow__edge polygon {
-  stroke: transparent !important;
-}
-html.light .react-flow__edge.selected path {
-  filter: saturate(1.2) !important;
-}
-
-/* ── Accent: deeper teal for readability ── */
-html.light .text-accent { color: hsl(185 65% 30%) !important; }
-
-/* ── Node type badges: bright type colors on near-white are low-contrast.
-   Darken text + deepen the tint uniformly (works for every hue, including the
-   arbitrary hsl() badges), matching the deeper-accent treatment above. ── */
-html.light .node-badge {
-  filter: brightness(0.72) saturate(1.35);
-}
-
-/* ── Inputs & selects ── */
-html.light input, html.light select, html.light textarea {
-  background: #ffffff !important;
-  color: hsl(30 8% 18%) !important;
-  border-color: hsl(36 8% 78%) !important;
-}
-html.light input::placeholder, html.light textarea::placeholder {
-  color: hsl(30 4% 60%) !important;
-}
-html.light input:focus, html.light select:focus, html.light textarea:focus {
-  border-color: hsl(185 50% 45%) !important;
-  box-shadow: 0 0 0 2px hsl(185 60% 45% / 0.15) !important;
-}
-
-/* ── Buttons ── */
-html.light button {
-  border-color: hsl(36 8% 80%) !important;
-}
-html.light button:hover {
-  border-color: hsl(36 6% 68%) !important;
-}
-
-/* ── ReactFlow background dots: warm gray ── */
-html.light .react-flow__background pattern circle {
-  fill: hsl(30 6% 78%) !important;
-}
-
-/* ── Selected node highlight ── */
-html.light .react-flow__node.selected .rounded {
-  box-shadow: 0 0 0 2px hsl(185 60% 45% / 0.35) !important;
-}
-
-/* ═══════════════════════════════════════════════════
-   SCADA / Industrial Synoptic Theme (Easter Egg)
-   Long-press LIVE indicator for 3 seconds to activate.
-   Inspired by nuclear plant control room synoptics.
-   ═══════════════════════════════════════════════════ */
-
-html.scada {
-  background: #0a0a0a;
-  color: #00ff88;
-  font-family: "JetBrains Mono", "Courier New", monospace;
-}
-html.scada body {
-  background: #0a0a0a;
-}
-
-/* Scanline overlay effect */
-html.scada::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
-  pointer-events: none;
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 2px,
-    rgba(0, 0, 0, 0.08) 2px,
-    rgba(0, 0, 0, 0.08) 4px
-  );
-}
-
-/* Base NOC colors → SCADA overrides */
-html.scada .bg-noc-bg { background-color: #0a0a0a !important; }
-html.scada .bg-noc-card { background-color: #0d1a0d !important; }
-html.scada .bg-noc-surface { background-color: #111 !important; }
-html.scada .border-noc-border { border-color: #1a3a1a !important; }
-html.scada .text-noc-text { color: #00ff88 !important; }
-html.scada .text-noc-text-muted { color: #00aa55 !important; }
-html.scada .text-noc-text-dim { color: #006633 !important; }
-
-/* Accent → amber warning color */
-html.scada .text-accent { color: #ffaa00 !important; }
-
-/* Panels */
-html.scada .noc-glass {
-  background: #0d1a0d !important;
-  border-color: #1a3a1a !important;
-  backdrop-filter: none !important;
-  box-shadow: 0 0 8px rgba(0, 255, 136, 0.05), inset 0 0 30px rgba(0, 0, 0, 0.5) !important;
-}
-html.scada .noc-card {
-  background: #0d1a0d !important;
-  border-color: #1a3a1a !important;
-  box-shadow: 0 0 4px rgba(0, 255, 136, 0.03) !important;
-}
-html.scada .noc-label {
-  color: #ffaa00 !important;
-  letter-spacing: 0.15em !important;
-}
-
-/* Node cards: dark green tint with phosphor border */
-html.scada .react-flow__node .rounded {
-  background: #0d1a0d !important;
-  border-color: #00aa55 !important;
-  box-shadow: 0 0 6px rgba(0, 255, 136, 0.08) !important;
-}
-html.scada .react-flow__node .bg-noc-card {
-  background: #0d1a0d !important;
-}
-html.scada .react-flow__node .text-noc-text {
-  color: #00ff88 !important;
-  text-shadow: 0 0 4px rgba(0, 255, 136, 0.3);
-}
-
-/* Selected node: amber glow */
-html.scada .react-flow__node.selected .rounded {
-  box-shadow: 0 0 12px rgba(255, 170, 0, 0.4) !important;
-  border-color: #ffaa00 !important;
-}
-
-/* Group nodes: technical grid pattern */
-html.scada .react-flow__node-group > div {
-  background: repeating-linear-gradient(
-    0deg,
-    transparent,
-    transparent 19px,
-    #1a3a1a 19px,
-    #1a3a1a 20px
-  ),
-  repeating-linear-gradient(
-    90deg,
-    transparent,
-    transparent 19px,
-    #1a3a1a 19px,
-    #1a3a1a 20px
-  ) !important;
-  background-color: #080808 !important;
-  border: 1px solid #1a3a1a !important;
-}
-html.scada .react-flow__node-group .text-noc-text-dim,
-html.scada .react-flow__node-group .noc-label {
-  color: #006633 !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.2em !important;
-}
-
-/* Type badges: monochrome phosphor */
-html.scada .react-flow__node span[class*="bg-node-"] {
-  background: #002a11 !important;
-  color: #00ff88 !important;
-  border: 1px solid #00aa55;
-}
-
-/* Links: remap the blue/amber load scale onto a phosphor green→amber ramp so
-   edges read against the green synoptic canvas instead of clashing. The
-   grayscale→sepia→hue-rotate chain tints arbitrary scale colors toward green
-   while preserving the low→high luminance ordering (dim = light load). */
-html.scada .react-flow__edge path {
-  filter: grayscale(0.5) sepia(0.6) hue-rotate(58deg) saturate(2.4) brightness(1.05) !important;
-  opacity: 0.9 !important;
-}
-html.scada .react-flow__edge polygon {
-  filter: grayscale(0.5) sepia(0.6) hue-rotate(58deg) saturate(2.4) brightness(1.15) !important;
-}
-
-/* Link labels */
-html.scada .bg-noc-bg\/80,
-html.scada .bg-noc-bg\/90 {
-  background: #0a0a0a !important;
-  border: 1px solid #1a3a1a !important;
-  color: #00ff88 !important;
-}
-
-/* ReactFlow canvas */
-html.scada .react-flow__background {
-  background-color: #0a0a0a !important;
-}
-html.scada .react-flow__minimap {
-  background-color: #0d1a0d !important;
-  border: 1px solid #1a3a1a !important;
-}
-html.scada .react-flow__controls button {
-  background: #0d1a0d !important;
-  color: #00ff88 !important;
-  border-color: #1a3a1a !important;
-}
-html.scada .react-flow__controls button:hover {
-  background: #1a3a1a !important;
-}
-html.scada .react-flow__controls button svg {
-  fill: #00aa55 !important;
-}
-
-/* Header */
-html.scada .sticky {
-  background: #0a0a0a !important;
-  border-bottom-color: #1a3a1a !important;
-}
-
-/* Scrollbar */
-html.scada ::-webkit-scrollbar-track { background: #0a0a0a; }
-html.scada ::-webkit-scrollbar-thumb { background: #1a3a1a; }
-html.scada ::-webkit-scrollbar-thumb:hover { background: #00aa55; }
-
-/* Selection */
-html.scada ::selection {
-  background: rgba(0, 255, 136, 0.2);
-  color: #00ff88;
-}
-
-/* Inputs in SCADA mode */
-html.scada input, html.scada select, html.scada textarea {
-  background: #080808 !important;
-  color: #00ff88 !important;
-  border-color: #1a3a1a !important;
-  caret-color: #00ff88;
-}
-html.scada input::placeholder, html.scada textarea::placeholder {
-  color: #006633 !important;
-}
-html.scada input:focus, html.scada select:focus, html.scada textarea:focus {
-  border-color: #00aa55 !important;
-  box-shadow: 0 0 4px rgba(0, 255, 136, 0.2) !important;
-}
-
-/* Buttons */
-html.scada button {
-  border-color: #1a3a1a !important;
-}
-html.scada button:hover {
-  border-color: #00aa55 !important;
-}
-
-/* Traffic legend */
-html.scada .react-flow__node .text-2xs {
-  text-shadow: 0 0 3px rgba(0, 255, 136, 0.2);
-}
-
-/* Recharts tooltip */
-html.scada .recharts-default-tooltip {
-  background: #0d1a0d !important;
-  border-color: #1a3a1a !important;
-  color: #00ff88 !important;
 }

@@ -2,12 +2,12 @@ import type { LinkStatus } from "@/types";
 
 /**
  * Visual treatment of non-"ok" link states. Shared by the edge renderer and
- * the legend so both always agree. Colours are deliberately outside the load
- * scale (no blue/green/yellow) so a dead link never reads as "lightly loaded".
+ * the legend so both always agree. Values are theme tokens: resolve them with
+ * resolveColor() from utils/scaleColor before drawing.
  */
-export const LINK_DOWN_COLOR = "#ff3300";
-export const LINK_ADMIN_DOWN_COLOR = "hsl(220 6% 54%)";
-export const LINK_NODATA_COLOR = "hsl(220 6% 46%)";
+export const LINK_DOWN_COLOR = "@incident";
+export const LINK_ADMIN_DOWN_COLOR = "@muted";
+export const LINK_NODATA_COLOR = "@muted";
 
 interface StatusStyle {
   color: string;
@@ -31,7 +31,7 @@ export const LINK_STATUS_OPACITY: Partial<Record<LinkStatus, number>> = {
 };
 
 export const NODE_DOWN_COLOR = LINK_DOWN_COLOR;
-export const NODE_UNKNOWN_COLOR = "hsl(220 6% 52%)";
+export const NODE_UNKNOWN_COLOR = "@muted";
 
 /** Normalise an epoch value that may be in seconds or milliseconds to ms. */
 export function epochToMs(ts: number): number {
