@@ -30,6 +30,12 @@ export function PublicIndex() {
       .finally(() => setLoading(false));
   }, []);
 
+  // No public index: send the visitor to the login page (a side effect, so it
+  // belongs in an effect rather than in render).
+  useEffect(() => {
+    if (!loading && !enabled) window.location.assign("/auth/login");
+  }, [loading, enabled]);
+
   if (loading) {
     return (
       <div className="min-h-screen bg-noc-bg flex items-center justify-center">
@@ -38,11 +44,7 @@ export function PublicIndex() {
     );
   }
 
-  if (!enabled) {
-    // Redirect to login
-    window.location.href = "/auth/login";
-    return null;
-  }
+  if (!enabled) return null;
 
   return (
     <div className="min-h-screen bg-noc-bg text-noc-text">

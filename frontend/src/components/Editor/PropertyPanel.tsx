@@ -60,9 +60,10 @@ export function PropertyPanel() {
   // Tick once a second so the "Saved Xs ago" label stays current instead of
   // freezing at the value captured on the render that set lastSaved.
   const [now, setNow] = useState(() => Date.now());
+  // savedAgo clamps at 0, so a `now` older than lastSaved just reads "0s"
+  // until the first tick.
   useEffect(() => {
     if (!lastSaved) return;
-    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
   }, [lastSaved]);

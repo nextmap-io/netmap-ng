@@ -59,28 +59,35 @@ function mapNodeToFlow(n: MapNode, usedHandles: string[] = [], status?: string):
 
 function PublicMapInner() {
   const { token } = useParams<{ token: string }>();
-  const [map, setMap] = useState<NetmapData | null>(null);
+  // Map load result, keyed by the token it was fetched for: a token change
+  // shows the spinner until that map arrives, without resetting state
+  // synchronously in an effect.
+  const [loaded, setLoaded] = useState<{
+    token: string;
+    map: NetmapData | null;
+    error: string | null;
+    errorStatus: number | null;
+  } | null>(null);
   const [traffic, setTraffic] = useState<TrafficData>({});
   const [nodeStatus, setNodeStatus] = useState<NodeStatusData>({});
   const [lastPoll, setLastPoll] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const { theme, cycle } = useTheme();
 
+  const current = token && loaded?.token === token ? loaded : null;
+  const map = current?.map ?? null;
+  const error = current?.error ?? null;
+  const errorStatus = current?.errorStatus ?? null;
+  const loading = !!token && current === null;
+
   useEffect(() => {
     if (!token) return;
-    setLoading(true);
-    setError(null);
-    setErrorStatus(null);
     let interval: ReturnType<typeof setInterval> | undefined;
     let cancelled = false;
     api.getPublicMap(token)
       .then((data) => {
         if (cancelled) return;
-        setMap(data);
-        setLoading(false);
+        setLoaded({ token, map: data, error: null, errorStatus: null });
         const fetchTraffic = () => {
           api.getPublicTraffic(token)
             .then((t) => {
@@ -101,9 +108,7 @@ function PublicMapInner() {
         if (cancelled) return;
         const message = e instanceof Error ? e.message : "Failed to load map";
         const status = e instanceof ApiError ? e.status : null;
-        setError(message);
-        setErrorStatus(status);
-        setLoading(false);
+        setLoaded({ token, map: null, error: message, errorStatus: status });
       });
     return () => {
       cancelled = true;

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { MapLink, MapNode, LinkType, NodeType, ObserviumPort } from "@/types";
 import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from "@/types";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
@@ -79,9 +79,13 @@ export function LinkProperties({
   const [customBandwidth, setCustomBandwidth] = useState(
     !BANDWIDTH_PRESETS.includes(link.bandwidth),
   );
-  useEffect(() => {
+  // Re-derive it when another link is shown or its capacity changes.
+  const bandwidthKey = `${link.id}|${link.bandwidth}`;
+  const [syncedBandwidthKey, setSyncedBandwidthKey] = useState(bandwidthKey);
+  if (bandwidthKey !== syncedBandwidthKey) {
+    setSyncedBandwidthKey(bandwidthKey);
     setCustomBandwidth(!BANDWIDTH_PRESETS.includes(link.bandwidth));
-  }, [link.id, link.bandwidth]);
+  }
 
   // Ports bound on each side, as resolved by the pickers — used to compare the
   // configured capacity with the real interface speed. The pickers re-report

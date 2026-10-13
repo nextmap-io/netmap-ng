@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import type { MapNode, MapLink, LinkType, ObserviumPort } from "@/types";
 import { parseBandwidth, formatBandwidthLabel } from "@/utils/bandwidth";
 import { portSpeedBps } from "@/utils/portSpeed";
@@ -54,8 +54,11 @@ export function LinkCreationDialog({
     [availableNodes, sourceId],
   );
 
-  // Reset form when dialog opens
-  useEffect(() => {
+  // Reset the form each time the dialog opens (adjusted during render, React's
+  // "adjust state when a prop changes" pattern, instead of an effect).
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setSourceId("");
       setTargetId("");
@@ -68,7 +71,7 @@ export function LinkCreationDialog({
       setCreating(false);
       setError(null);
     }
-  }, [open]);
+  }
 
   // Warn if a link already connects this (unordered) pair of endpoints.
   const isDuplicate = useMemo(() => {

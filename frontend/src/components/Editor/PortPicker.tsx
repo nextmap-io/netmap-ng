@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useLayoutEffect, useRef, useMemo } from "react";
 import { useObserviumData } from "@/hooks/useObserviumData";
 import type { ObserviumPort } from "@/types";
 import { formatBandwidthLabel } from "@/utils/bandwidth";
@@ -21,8 +21,10 @@ interface PortPickerProps {
 
 export function PortPicker({ deviceId, value, onChange, onPortResolved, label }: PortPickerProps) {
   const { getDevicePorts } = useObserviumData();
-  const [ports, setPorts] = useState<ObserviumPort[]>([]);
-  const [loading, setLoading] = useState(false);
+  // Ports keyed by the device they were fetched for: switching device shows
+  // "loading" (no ports) until that device's list arrives, without resetting
+  // state synchronously in an effect.
+  const [fetched, setFetched] = useState<{ deviceId: number; ports: ObserviumPort[] } | null>(null);
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -30,23 +32,24 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
   const blurTimeout = useRef<ReturnType<typeof setTimeout>>();
 
   // Fetch ports when deviceId changes
-  const fetchPorts = useCallback(async () => {
-    if (deviceId == null) {
-      setPorts([]);
-      return;
-    }
-    setLoading(true);
-    try {
-      const data = await getDevicePorts(deviceId);
-      setPorts(data);
-    } finally {
-      setLoading(false);
-    }
+  useEffect(() => {
+    if (deviceId == null) return;
+    let cancelled = false;
+    getDevicePorts(deviceId)
+      .then((data) => {
+        if (!cancelled) setFetched({ deviceId, ports: data });
+      })
+      .catch(() => {
+        if (!cancelled) setFetched({ deviceId, ports: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [deviceId, getDevicePorts]);
 
-  useEffect(() => {
-    fetchPorts();
-  }, [fetchPorts]);
+  const current = deviceId != null && fetched?.deviceId === deviceId ? fetched : null;
+  const ports = useMemo(() => current?.ports ?? [], [current]);
+  const loading = deviceId != null && current === null;
 
   // Resolve the currently selected port for display
   const selectedPort = useMemo(
@@ -57,17 +60,21 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
   // Report the resolved bound port (e.g. so the editor can compare capacity
   // against the port speed). Ref keeps an inline callback from re-firing it.
   const onPortResolvedRef = useRef(onPortResolved);
-  onPortResolvedRef.current = onPortResolved;
+  useLayoutEffect(() => {
+    onPortResolvedRef.current = onPortResolved;
+  });
   useEffect(() => {
     onPortResolvedRef.current?.(selectedPort ?? null);
   }, [selectedPort]);
 
-  // Sync the input text when value or ports change
-  useEffect(() => {
-    if (!open) {
-      setQuery(selectedPort?.ifName ?? "");
-    }
-  }, [selectedPort, open]);
+  // While closed, the input mirrors the selected port (adjusted during render,
+  // see DevicePicker).
+  const closedText = open ? null : (selectedPort?.ifName ?? "");
+  const [syncedText, setSyncedText] = useState<string | null | undefined>(undefined);
+  if (closedText !== syncedText) {
+    setSyncedText(closedText);
+    if (closedText !== null) setQuery(closedText);
+  }
 
   // Debounce filtering text.
   useEffect(() => {
@@ -85,9 +92,8 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
     );
   }, [ports, debouncedQuery]);
 
-  useEffect(() => {
-    setActiveIndex((i) => Math.min(i, Math.max(0, filtered.length - 1)));
-  }, [filtered]);
+  // Active option, kept in range as the filtered list shrinks.
+  const activeIdx = Math.min(activeIndex, Math.max(0, filtered.length - 1));
 
   // A stored port id that isn't in the fetched port list means the underlying
   // device was rebound and the binding is stale (still used for traffic).
@@ -127,12 +133,12 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setActiveIndex(Math.min(activeIdx + 1, filtered.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      setActiveIndex(Math.max(activeIdx - 1, 0));
     } else if (e.key === "Enter") {
-      const p = filtered[activeIndex];
+      const p = filtered[activeIdx];
       if (p) {
         e.preventDefault();
         handleSelect(p);
@@ -188,10 +194,10 @@ export function PortPicker({ deviceId, value, onChange, onPortResolved, label }:
                 key={port.port_id}
                 type="button"
                 role="option"
-                aria-selected={idx === activeIndex}
+                aria-selected={idx === activeIdx}
                 onMouseEnter={() => setActiveIndex(idx)}
                 onMouseDown={() => handleSelect(port)}
-                className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIndex ? "bg-noc-bg/60" : "hover:bg-noc-bg/60"}`}
+                className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIdx ? "bg-noc-bg/60" : "hover:bg-noc-bg/60"}`}
               >
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-noc-text">{port.ifName}</span>
