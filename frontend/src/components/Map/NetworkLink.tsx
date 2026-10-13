@@ -11,7 +11,7 @@ import type { LinkStatus } from "@/types";
 import { formatBps } from "./MapView";
 import { analyzePath, type Pt } from "./pathGeometry";
 import { LINK_STATUS_OPACITY, LINK_STATUS_STYLE, epochToMs } from "./linkStatus";
-import "./linkStatus.css";
+import { resolveColor } from "@/utils/scaleColor";
 
 /** Build a straight-segment (angled) path through source → waypoints → target. */
 function angledPath(pts: Pt[]): string {
@@ -31,6 +31,10 @@ function curvedPath(pts: Pt[]): string {
   return d;
 }
 
+/** Edge value label: 12px tabular ink on the card surface, soft rule, flat. */
+const EDGE_VALUE_CLASS =
+  "bg-card border border-border-soft rounded-sm px-1 text-xs leading-4 text-foreground whitespace-nowrap tabular-nums";
+
 const LINK_STATUSES: readonly LinkStatus[] = ["ok", "down", "admin_down", "nodata", "unbound", "stale"];
 
 function toLinkStatus(v: unknown): LinkStatus {
@@ -46,7 +50,7 @@ function ClockIcon({ className }: { className?: string }) {
   );
 }
 
-// Below this zoom the 10px bps labels collapse into an unreadable smear.
+// Below this zoom the bps labels collapse into an unreadable smear.
 const MIN_BPS_LABEL_ZOOM = 0.5;
 // Minimum on-screen (pixel) length before bps labels are worth showing.
 const MIN_LABEL_SCREEN_DIST = 80;
@@ -62,8 +66,10 @@ function TrafficEdgeComponent({
   data,
   selected,
 }: EdgeProps) {
-  const inColor = String(data?.inColor || "hsl(220 10% 46%)");
-  const outColor = String(data?.outColor || "hsl(220 10% 46%)");
+  // Colors arrive resolved from buildEdges (rebuilt on theme change); status
+  // and override colors may be tokens and are resolved here.
+  const inColor = String(data?.inColor || resolveColor("@muted"));
+  const outColor = String(data?.outColor || resolveColor("@muted"));
   const inBps = Number(data?.inBps) || 0;
   const outBps = Number(data?.outBps) || 0;
   const inPct = Number(data?.inPct) || 0;
@@ -161,8 +167,10 @@ function TrafficEdgeComponent({
   const showBpsLabels =
     !statusStyle && zoom >= MIN_BPS_LABEL_ZOOM && flowDist * zoom > MIN_LABEL_SCREEN_DIST;
 
-  const strokeOut = statusStyle?.color ?? colorOverride ?? outColor;
-  const strokeIn = statusStyle?.color ?? colorOverride ?? inColor;
+  const statusColor = statusStyle ? resolveColor(statusStyle.color) : null;
+  const overrideColor = colorOverride ? resolveColor(colorOverride) : null;
+  const strokeOut = statusColor ?? overrideColor ?? outColor;
+  const strokeIn = statusColor ?? overrideColor ?? inColor;
 
   // Label position override: "above" (default), "below", "left", "right"
   const labelPos = String(extra?.label_position || "above");
@@ -202,15 +210,12 @@ function TrafficEdgeComponent({
     ? new Date(epochToMs(updatedAt)).toLocaleString()
     : null;
   const tooltip = statusStyle?.title
-    ?? (isStale ? `Stale data${staleSince ? ` — last update ${staleSince}` : ""}` : null);
+    ?? (isStale ? `Stale${staleSince ? ` — last update ${staleSince}` : ""}` : null);
 
   const pathCommon = {
     fill: "none",
     strokeWidth: width,
-    opacity: selected ? 1 : 0.8,
-    className: statusStyle ? "netmap-link-state" : undefined,
-    filter: selected ? "drop-shadow(0 0 6px hsl(190 90% 50% / 0.4))" : undefined,
-    style: { transition: "opacity 0.15s" },
+    opacity: selected ? 1 : 0.85,
   } as const;
 
   // Fallback gradient (chord-based) is only used when the path couldn't be analysed.
@@ -220,6 +225,17 @@ function TrafficEdgeComponent({
     <>
       <g opacity={groupOpacity}>
         {tooltip && <title>{tooltip}</title>}
+        {/* Selection: a cobalt underlay line beneath the link, no glow. */}
+        {selected && (
+          <path
+            d={edgePath}
+            fill="none"
+            stroke={resolveColor("@accent")}
+            strokeWidth={width + 6}
+            strokeOpacity={0.35}
+            strokeLinecap="round"
+          />
+        )}
         {geom ? (
           <>
             {/* Out colour on the source half, in colour on the target half,
@@ -287,16 +303,10 @@ function TrafficEdgeComponent({
               <polygon
                 points={`${outTipX},${outTipY} ${outBaseX + px * s * 0.5},${outBaseY + py * s * 0.5} ${outBaseX - px * s * 0.5},${outBaseY - py * s * 0.5}`}
                 fill={strokeOut}
-                stroke="hsl(220 15% 30%)"
-                strokeWidth={0.5}
-                opacity={0.9}
               />
               <polygon
                 points={`${inTipX},${inTipY} ${inBaseX + px * s * 0.5},${inBaseY + py * s * 0.5} ${inBaseX - px * s * 0.5},${inBaseY - py * s * 0.5}`}
                 fill={strokeIn}
-                stroke="hsl(220 15% 30%)"
-                strokeWidth={0.5}
-                opacity={0.9}
               />
             </>
           );
@@ -312,7 +322,7 @@ function TrafficEdgeComponent({
               opacity: isStale ? 0.6 : undefined,
               transform: `${labelTranslate} translate(${outLabelX}px, ${outLabelY}px)`,
             }}>
-              <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
+              <div className={EDGE_VALUE_CLASS}>
                 {outBps > 0 ? formatBps(outBps) : outPct > 0 ? `${outPct.toFixed(1)}%` : "0"}
               </div>
             </div>
@@ -322,26 +332,25 @@ function TrafficEdgeComponent({
               opacity: isStale ? 0.6 : undefined,
               transform: `${labelTranslate} translate(${inLabelX}px, ${inLabelY}px)`,
             }}>
-              <div className="bg-noc-bg/90 rounded px-1 py-px text-2xs text-noc-text whitespace-nowrap tabular-nums border border-noc-border/30">
+              <div className={EDGE_VALUE_CLASS}>
                 {inBps > 0 ? formatBps(inBps) : inPct > 0 ? `${inPct.toFixed(1)}%` : "0"}
               </div>
             </div>
           </>
         )}
         {statusStyle?.label ? (
-          // DOWN / ADMIN DOWN badge at the path midpoint (replaces the arrows).
+          // "Down" / "Admin down" word at the path midpoint (replaces the arrows).
           <div className="nodrag nopan pointer-events-auto" title={statusStyle.title} style={{
             position: "absolute",
             zIndex: 11,
             transform: `translate(-50%, -50%) translate(${midX}px, ${midY}px)`,
           }}>
             <div
-              className="bg-noc-card rounded px-1 py-px font-bold tracking-wider whitespace-nowrap leading-tight"
-              style={{
-                fontSize: status === "down" ? "9px" : "8px",
-                color: statusStyle.color,
-                border: `1px solid ${statusStyle.color}`,
-              }}
+              className={
+                statusStyle.tone === "incident"
+                  ? "rounded-sm px-1 text-xs leading-4 font-semibold whitespace-nowrap bg-destructive text-on-destructive"
+                  : "rounded-sm px-1 text-xs leading-4 whitespace-nowrap bg-card text-muted-foreground border border-border"
+              }
             >
               {statusStyle.label}
             </div>
@@ -352,9 +361,9 @@ function TrafficEdgeComponent({
             transform: `${labelTranslate} translate(${midX + offX}px, ${midY + offY}px)`,
             pointerEvents: isStale ? "auto" : undefined,
           }}>
-            <div className="flex items-center gap-0.5 whitespace-nowrap opacity-40" style={{ fontSize: "8px" }}>
-              {isStale && <ClockIcon className="w-2 h-2" />}
-              {typeLabel && <span className="font-semibold tracking-wider">{typeLabel}</span>}
+            <div className="flex items-center gap-1 whitespace-nowrap text-xs leading-4 text-muted-foreground">
+              {isStale && <ClockIcon className="w-3 h-3" />}
+              {typeLabel && <span className="font-semibold">{typeLabel}</span>}
               <span className="tabular-nums">{bandwidthLabel}</span>
             </div>
           </div>

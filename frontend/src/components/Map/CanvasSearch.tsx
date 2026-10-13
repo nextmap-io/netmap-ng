@@ -116,7 +116,7 @@ export function CanvasSearch() {
           setOpen(true);
           requestAnimationFrame(() => inputRef.current?.focus());
         }}
-        className="absolute top-3 left-3 z-20 noc-glass rounded p-1.5 text-noc-text-muted hover:text-noc-text transition-colors"
+        className="absolute top-3 left-3 z-20 bg-card border border-border rounded p-1.5 text-foreground-secondary hover:text-foreground hover:bg-muted transition-colors"
         title="Search nodes (/)"
         aria-label="Search nodes"
       >
@@ -129,9 +129,9 @@ export function CanvasSearch() {
   }
 
   return (
-    <div className="absolute top-3 left-3 z-30 w-64 noc-glass rounded flex flex-col overflow-hidden">
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-noc-border/50">
-        <svg viewBox="0 0 16 16" className="w-3.5 h-3.5 text-noc-text-dim shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5}>
+    <div className="absolute top-3 left-3 z-30 w-72 max-w-[calc(100%-1.5rem)] bg-card border border-border rounded flex flex-col overflow-hidden">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border-soft">
+        <svg viewBox="0 0 16 16" className="w-4 h-4 text-muted-foreground shrink-0" fill="none" stroke="currentColor" strokeWidth={1.5}>
           <circle cx={7} cy={7} r={4.5} />
           <line x1={10.5} y1={10.5} x2={14} y2={14} strokeLinecap="round" />
         </svg>
@@ -141,12 +141,12 @@ export function CanvasSearch() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search nodes…"
-          className="flex-1 bg-transparent text-xs text-noc-text placeholder:text-noc-text-dim focus:outline-hidden"
+          className="flex-1 min-w-0 bg-transparent text-base text-foreground placeholder:text-muted-foreground focus:outline-hidden"
           aria-label="Search nodes by name, label or type"
         />
         <button
           onClick={handleClose}
-          className="text-noc-text-dim hover:text-noc-text transition-colors shrink-0"
+          className="rounded-sm text-muted-foreground hover:text-foreground transition-colors shrink-0"
           aria-label="Close search"
         >
           <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round">
@@ -157,7 +157,7 @@ export function CanvasSearch() {
 
       {/* Type filter chips */}
       {availableTypes.length > 0 && (
-        <div className="flex flex-wrap gap-1 px-2 py-1.5 border-b border-noc-border/50">
+        <div className="flex flex-wrap gap-1 px-2 py-1.5 border-b border-border-soft">
           {availableTypes.map((t) => {
             const active = activeTypeFilters.includes(t);
             return (
@@ -165,10 +165,10 @@ export function CanvasSearch() {
                 key={t}
                 onClick={() => toggleTypeFilter(t)}
                 aria-pressed={active}
-                className={`px-1.5 py-0.5 rounded text-[10px] tracking-wide border transition-colors ${
+                className={`px-1.5 rounded-sm text-xs leading-5 border transition-colors ${
                   active
-                    ? "bg-accent/15 text-accent border-accent/30"
-                    : "text-noc-text-muted border-noc-border hover:text-noc-text"
+                    ? "bg-link/10 text-link border-link"
+                    : "text-foreground-secondary border-border hover:text-foreground"
                 }`}
               >
                 {TYPE_LABELS[t] || t}
@@ -185,12 +185,12 @@ export function CanvasSearch() {
             <li key={n.id}>
               <button
                 onClick={() => focusNode(n)}
-                className="w-full flex items-center gap-2 px-2 py-1 text-left hover:bg-noc-surface/60 transition-colors"
+                className="w-full flex items-center gap-2 px-2 py-1 text-left hover:bg-muted transition-colors"
               >
-                <span className="text-[9px] uppercase tracking-wider text-noc-text-dim w-12 shrink-0 truncate">
+                <span className="text-xs text-muted-foreground w-16 shrink-0 truncate">
                   {TYPE_LABELS[n.node_type] || n.node_type}
                 </span>
-                <span className="text-xs text-noc-text truncate">{n.label || n.name}</span>
+                <span className="text-sm text-foreground truncate">{n.label || n.name}</span>
               </button>
             </li>
           ))}
@@ -198,7 +198,7 @@ export function CanvasSearch() {
       )}
       {results.length === 0 &&
         (searchQuery.trim().length > 0 || activeTypeFilters.length > 0) && (
-          <div className="px-2 py-2 text-2xs text-noc-text-dim">No matching nodes</div>
+          <div className="px-2 py-2 text-sm text-muted-foreground">No node matches this search.</div>
         )}
     </div>
   );

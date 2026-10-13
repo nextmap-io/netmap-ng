@@ -12,9 +12,7 @@ function LabelNodeComponent({ data, selected }: NodeProps) {
 
   return (
     <div
-      className={`px-1 py-0.5 select-none transition-all duration-150 ${
-        selected ? "ring-1 ring-accent/50" : ""
-      }`}
+      className={`px-1 py-0.5 select-none rounded-sm ${selected ? "ring-1 ring-ring" : ""}`}
       style={{
         fontSize: `${fontSize}px`,
         fontWeight,
@@ -26,7 +24,7 @@ function LabelNodeComponent({ data, selected }: NodeProps) {
         minWidth: 20,
       }}
     >
-      <span className={color ? "" : "text-noc-text-muted"}>{label}</span>
+      <span className={color ? "" : "text-foreground-secondary"}>{label}</span>
     </div>
   );
 }

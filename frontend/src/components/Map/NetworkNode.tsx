@@ -2,46 +2,20 @@ import { memo, useMemo, useState } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import clsx from "clsx";
 import type { NodeStatus, NodeType } from "@/types";
-import { NODE_DOWN_COLOR, NODE_UNKNOWN_COLOR } from "./linkStatus";
-import "./linkStatus.css";
 
+/** Neutral short type code (no per-type colour: the type is named, not tinted). */
 const NODE_ICONS: Record<NodeType, string> = {
   router: "RTR", switch_l3: "L3", switch_l2: "L2", server: "SRV",
   firewall: "FW", cloud: "CLD", internet: "NET",
   ix: "IX", transit: "TR", pni: "PNI", provider: "PRV",
-  customer: "CST", group: "GRP", label: "TXT", custom: "---",
+  customer: "CST", group: "GRP", label: "TXT", custom: "—",
 };
 
-const NODE_BORDER: Record<NodeType, string> = {
-  router: "border-node-router/40 hover:border-node-router/70",
-  switch_l3: "border-node-switch-l3/40 hover:border-node-switch-l3/70",
-  switch_l2: "border-node-switch-l2/40 hover:border-node-switch-l2/70",
-  server: "border-node-server/40 hover:border-node-server/70",
-  firewall: "border-node-firewall/40 hover:border-node-firewall/70",
-  cloud: "border-node-cloud/40 hover:border-node-cloud/70",
-  internet: "border-node-internet/40 hover:border-node-internet/70",
-  ix: "border-[hsl(280,60%,55%)]/40 hover:border-[hsl(280,60%,55%)]/70",
-  transit: "border-node-internet/40 hover:border-node-internet/70",
-  pni: "border-[hsl(160,60%,45%)]/40 hover:border-[hsl(160,60%,45%)]/70",
-  provider: "border-node-cloud/40 hover:border-node-cloud/70",
-  customer: "border-node-customer/40 hover:border-node-customer/70",
-  group: "border-noc-border", label: "border-transparent", custom: "border-noc-border",
-};
-
-const NODE_BADGE_BG: Record<NodeType, string> = {
-  router: "bg-node-router/20 text-node-router",
-  switch_l3: "bg-node-switch-l3/20 text-node-switch-l3",
-  switch_l2: "bg-node-switch-l2/20 text-node-switch-l2",
-  server: "bg-node-server/20 text-node-server",
-  firewall: "bg-node-firewall/20 text-node-firewall",
-  cloud: "bg-node-cloud/20 text-node-cloud",
-  internet: "bg-node-internet/20 text-node-internet",
-  ix: "bg-[hsl(280,60%,55%)]/20 text-[hsl(280,60%,55%)]",
-  transit: "bg-node-internet/20 text-node-internet",
-  pni: "bg-[hsl(160,60%,45%)]/20 text-[hsl(160,60%,45%)]",
-  provider: "bg-node-cloud/20 text-node-cloud",
-  customer: "bg-node-customer/20 text-node-customer",
-  group: "bg-noc-muted/20 text-noc-text-muted", label: "bg-transparent text-noc-text-muted", custom: "bg-noc-muted/20 text-noc-text-muted",
+const NODE_TYPE_NAMES: Record<NodeType, string> = {
+  router: "Router", switch_l3: "L3 switch", switch_l2: "L2 switch", server: "Server",
+  firewall: "Firewall", cloud: "Cloud", internet: "Internet",
+  ix: "Internet exchange", transit: "Transit", pni: "Private interconnect", provider: "Provider",
+  customer: "Customer", group: "Group", label: "Label", custom: "Custom",
 };
 
 const hStyle = "bg-transparent! border-0! w-[3px]! h-[3px]! min-w-0! min-h-0!";
@@ -109,68 +83,57 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
     [data.usedHandles],
   );
 
+  // Inner elements use `rounded-sm` (same 4px): the selection ring in
+  // index.css targets `.react-flow__node.selected .rounded`, i.e. the surface.
   return (
     <div
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={clsx(
-        "relative rounded bg-noc-card border transition-all duration-150 flex items-center justify-center",
-        NODE_BORDER[nodeType] || NODE_BORDER.custom,
-        selected && "ring-1 ring-accent/50 border-accent/40",
-        isBound && !selected && "ring-1 ring-accent/20",
-        isLarge ? "flex-col gap-1 p-2" : "px-2.5 py-1.5 min-w-[72px]",
+        "relative rounded bg-card border border-border hover:border-muted-foreground transition-colors duration-100 flex items-center justify-center",
+        isLarge ? "flex-col gap-1 p-2" : "px-2 py-1 min-w-[72px]",
       )}
       style={isLarge ? { width: nodeWidth, height: nodeHeight } : undefined}
     >
       <AllHandles showAll={!!selected || hovered} usedHandles={usedHandles} />
 
-      {/* Device status: red ring + (motion-safe) pulsing dot when down, a
-          subtle grey dot when unknown, nothing when up. Inline colours and a
-          separate ring element so theme overrides on the card don't hide it. */}
+      {/* Device status: a 2px incident ring plus the word "Down" when down, a
+          subtle muted dot when unknown, nothing when up. No animation. */}
       {isDown && (
-        <span
-          aria-hidden
-          className="absolute inset-[-3px] rounded-md pointer-events-none"
-          style={{ border: `2px solid ${NODE_DOWN_COLOR}`, boxShadow: `0 0 8px ${NODE_DOWN_COLOR}66` }}
-        />
-      )}
-      {(isDown || isUnknown) && (
-        <span
-          title={isDown ? "Device down" : "Device status unknown"}
-          className="absolute -top-1 -left-1 flex w-2 h-2"
-        >
-          {isDown && (
-            <span
-              aria-hidden
-              className="netmap-status-ping absolute inset-0 rounded-full"
-              style={{ backgroundColor: NODE_DOWN_COLOR }}
-            />
-          )}
+        <>
           <span
-            className="relative w-2 h-2 rounded-full"
-            style={{
-              backgroundColor: isDown ? NODE_DOWN_COLOR : NODE_UNKNOWN_COLOR,
-              opacity: isDown ? 1 : 0.7,
-              boxShadow: "0 0 0 1.5px hsl(220 18% 10% / 0.6)",
-            }}
+            aria-hidden
+            className="absolute -inset-[3px] rounded-md border-2 border-destructive pointer-events-none"
           />
-        </span>
+          <span
+            title="Device down"
+            className="absolute -top-2.5 left-1 rounded-sm px-1 text-xs leading-4 font-semibold bg-destructive text-on-destructive"
+          >
+            Down
+          </span>
+        </>
+      )}
+      {isUnknown && (
+        <span
+          title="Device status unknown"
+          className="absolute -top-1 -left-1 w-2 h-2 rounded-full bg-muted-foreground border border-card"
+        />
       )}
 
       {/* Status glyphs: locked / bound-group member */}
       {(locked || isBound) && (
         <div className="absolute -top-1.5 -right-1.5 flex items-center gap-0.5">
           {locked && (
-            <span title="Locked" className="text-noc-text-dim bg-noc-card rounded-full p-px">
-              <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5}>
+            <span title="Locked" className="text-muted-foreground bg-card rounded-full p-px">
+              <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5}>
                 <rect x="5" y="11" width="14" height="10" rx="2" />
                 <path d="M8 11V7a4 4 0 0 1 8 0v4" />
               </svg>
             </span>
           )}
           {isBound && (
-            <span title="Bound group (moves together)" className="text-accent/70 bg-noc-card rounded-full p-px">
-              <svg viewBox="0 0 24 24" className="w-2.5 h-2.5" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+            <span title="Bound group (moves together)" className="text-link bg-card rounded-full p-px">
+              <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
                 <path d="M9 12H7a3 3 0 0 1 0-6h2M15 6h2a3 3 0 0 1 0 6h-2M8 9h8" />
               </svg>
             </span>
@@ -178,14 +141,17 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-1.5">
-        <span className={clsx("node-badge text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider", NODE_BADGE_BG[nodeType] || NODE_BADGE_BG.custom)}>
-          {NODE_ICONS[nodeType] || "---"}
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span
+          title={NODE_TYPE_NAMES[nodeType] || "Custom"}
+          className="shrink-0 rounded-sm border border-border px-1 text-xs leading-4 text-muted-foreground"
+        >
+          {NODE_ICONS[nodeType] || "—"}
         </span>
-        <span title={label} className="text-2xs font-medium text-noc-text truncate max-w-[110px]">{label}</span>
+        <span title={label} className="text-sm leading-[18px] font-medium text-foreground truncate max-w-[120px]">{label}</span>
       </div>
       {data.bandwidthLabel ? (
-        <div title={String(data.bandwidthLabel)} className="text-2xs text-noc-text-dim mt-0.5 tracking-wide">{String(data.bandwidthLabel)}</div>
+        <div title={String(data.bandwidthLabel)} className="text-xs leading-4 text-muted-foreground">{String(data.bandwidthLabel)}</div>
       ) : null}
     </div>
   );
