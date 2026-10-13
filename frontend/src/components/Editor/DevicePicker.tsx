@@ -25,12 +25,15 @@ export function DevicePicker({ value, onChange }: DevicePickerProps) {
     [devices, value],
   );
 
-  // Sync the input text when the value or devices list changes
-  useEffect(() => {
-    if (!open) {
-      setQuery(selectedDevice?.hostname ?? "");
-    }
-  }, [selectedDevice, open]);
+  // While closed, the input mirrors the selected device. Adjusted during render
+  // (React's "adjust state when a prop changes" pattern) rather than in an
+  // effect, which would render the stale text once first.
+  const closedText = open ? null : (selectedDevice?.hostname ?? "");
+  const [syncedText, setSyncedText] = useState<string | null | undefined>(undefined);
+  if (closedText !== syncedText) {
+    setSyncedText(closedText);
+    if (closedText !== null) setQuery(closedText);
+  }
 
   // Debounce the text used for filtering to avoid churning a long device list.
   useEffect(() => {
@@ -49,10 +52,8 @@ export function DevicePicker({ value, onChange }: DevicePickerProps) {
     return devices.filter((d) => d.hostname.toLowerCase().includes(q));
   }, [devices, debouncedQuery]);
 
-  // Keep the active option index in range as the filtered list changes.
-  useEffect(() => {
-    setActiveIndex((i) => Math.min(i, Math.max(0, filtered.length - 1)));
-  }, [filtered]);
+  // Active option, kept in range as the filtered list shrinks.
+  const activeIdx = Math.min(activeIndex, Math.max(0, filtered.length - 1));
 
   const handleFocus = () => {
     fetchDevices();
@@ -88,12 +89,12 @@ export function DevicePicker({ value, onChange }: DevicePickerProps) {
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      setActiveIndex((i) => Math.min(i + 1, filtered.length - 1));
+      setActiveIndex(Math.min(activeIdx + 1, filtered.length - 1));
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
-      setActiveIndex((i) => Math.max(i - 1, 0));
+      setActiveIndex(Math.max(activeIdx - 1, 0));
     } else if (e.key === "Enter") {
-      const d = filtered[activeIndex];
+      const d = filtered[activeIdx];
       if (d) {
         e.preventDefault();
         handleSelect(d.device_id, d.hostname);
@@ -145,10 +146,10 @@ export function DevicePicker({ value, onChange }: DevicePickerProps) {
               key={device.device_id}
               type="button"
               role="option"
-              aria-selected={idx === activeIndex}
+              aria-selected={idx === activeIdx}
               onMouseEnter={() => setActiveIndex(idx)}
               onMouseDown={() => handleSelect(device.device_id, device.hostname)}
-              className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIndex ? "bg-noc-bg/60" : "hover:bg-noc-bg/60"}`}
+              className={`w-full text-left px-2 py-1.5 transition-colors ${idx === activeIdx ? "bg-noc-bg/60" : "hover:bg-noc-bg/60"}`}
             >
               <div className="text-xs text-noc-text truncate">{device.hostname}</div>
               {device.hardware && (

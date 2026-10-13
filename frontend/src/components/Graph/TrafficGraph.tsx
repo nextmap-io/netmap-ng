@@ -32,14 +32,8 @@ const swapDirections = (h: TrafficHistory): TrafficHistory => ({
 
 export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelProps) {
   const mapId = useMapStore((s) => s.map?.id);
-  const [history, setHistory] = useState<TrafficHistory | null>(null);
   const [timeRange, setTimeRange] = useState("-24h");
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  // Set when side A returned nothing and the graph fell back to side B,
-  // mirroring the live-traffic fallback.
-  const [fellBackToB, setFellBackToB] = useState(false);
 
   const hostname = typeof link.extra?.hostname === "string" ? link.extra.hostname : "";
   const portIdentifier =
@@ -47,64 +41,73 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
   const hasExplicitRrd = !!hostname && !!portIdentifier;
   const portA = link.observium_port_id_a;
   const portB = link.observium_port_id_b;
+  const hasSource = !!fetcher || hasExplicitRrd || portA != null || portB != null;
+
+  // Identity of the current request: a result is only shown if it was fetched
+  // for exactly this link/period/source, so switching link or period can never
+  // show a stale chart, and "loading" is simply "no result for this request".
+  const request = useMemo(
+    () => ({ linkId: link.id, hostname, portIdentifier, portA, portB, mapId, timeRange, fetcher, reloadKey }),
+    [link.id, hostname, portIdentifier, portA, portB, mapId, timeRange, fetcher, reloadKey],
+  );
+  const [result, setResult] = useState<{
+    request: typeof request;
+    history: TrafficHistory | null;
+    error: string | null;
+    // Side A returned nothing and the graph fell back to side B, mirroring
+    // the live-traffic fallback.
+    fellBackToB: boolean;
+  } | null>(null);
+  const current = result?.request === request ? result : null;
+  const history = current?.history ?? null;
+  const error = current?.error ?? null;
   // B-only binding: B's counters are measured from the other end, so its
   // in/out are swapped to keep the graph in the link's A→B orientation.
   const usesPortB =
-    fellBackToB || (!fetcher && !hasExplicitRrd && portA == null && portB != null);
-  const hasSource = !!fetcher || hasExplicitRrd || portA != null || portB != null;
+    !!current?.fellBackToB || (!fetcher && !hasExplicitRrd && portA == null && portB != null);
+
+  const fetchHistory = useMemo((): (() => Promise<{ h: TrafficHistory; onB: boolean }>) | null => {
+    if (fetcher) return () => fetcher(timeRange).then((h) => ({ h, onB: false }));
+    if (mapId && hasExplicitRrd) {
+      return () =>
+        api.getTrafficHistory(hostname, portIdentifier, mapId, timeRange).then((h) => ({ h, onB: false }));
+    }
+    if (mapId && portA != null) {
+      return () =>
+        api.getTrafficHistoryByPort(portA, mapId, timeRange).then((h) => {
+          if (hasData(h) || portB == null) return { h, onB: false };
+          return api.getTrafficHistoryByPort(portB, mapId, timeRange).then((hb) =>
+            hasData(hb) ? { h: swapDirections(hb), onB: true } : { h, onB: false },
+          );
+        });
+    }
+    if (mapId && portB != null) {
+      return () =>
+        api.getTrafficHistoryByPort(portB, mapId, timeRange).then((h) => ({ h: swapDirections(h), onB: false }));
+    }
+    return null;
+  }, [fetcher, mapId, hasExplicitRrd, hostname, portIdentifier, portA, portB, timeRange]);
+  const loading = fetchHistory !== null && current === null;
 
   useEffect(() => {
-    // Always drop the previous link's/period's graph first so a stale chart
-    // can never show under a different selection.
-    setHistory(null);
-    setError(null);
-    setFellBackToB(false);
-
-    let onB = false;
-    let request: (() => Promise<TrafficHistory>) | null = null;
-    if (fetcher) {
-      request = () => fetcher(timeRange);
-    } else if (mapId && hasExplicitRrd) {
-      request = () => api.getTrafficHistory(hostname, portIdentifier, mapId, timeRange);
-    } else if (mapId && portA != null) {
-      request = () =>
-        api.getTrafficHistoryByPort(portA, mapId, timeRange).then((h) => {
-          if (hasData(h) || portB == null) return h;
-          return api.getTrafficHistoryByPort(portB, mapId, timeRange).then((hb) => {
-            if (!hasData(hb)) return h;
-            onB = true;
-            return swapDirections(hb);
-          });
-        });
-    } else if (mapId && portB != null) {
-      request = () => api.getTrafficHistoryByPort(portB, mapId, timeRange).then(swapDirections);
-    }
-
-    if (!request) {
-      setLoading(false);
-      return;
-    }
-
+    if (!fetchHistory) return;
     // Ignore late responses: selecting link B while A's request is in flight
     // must not let A's result overwrite B.
     let cancelled = false;
-    setLoading(true);
-    request()
-      .then((h) => {
-        if (cancelled) return;
-        setHistory(h);
-        setFellBackToB(onB);
+    fetchHistory()
+      .then(({ h, onB }) => {
+        if (!cancelled) setResult({ request, history: h, error: null, fellBackToB: onB });
       })
       .catch((e: unknown) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load traffic history");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          const message = e instanceof Error ? e.message : "Failed to load traffic history";
+          setResult({ request, history: null, error: message, fellBackToB: false });
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [link.id, hostname, portIdentifier, hasExplicitRrd, portA, portB, mapId, timeRange, fetcher, reloadKey]);
+  }, [request, fetchHistory]);
 
   const chartData = useMemo(
     () =>

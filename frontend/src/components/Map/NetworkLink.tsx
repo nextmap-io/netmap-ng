@@ -80,9 +80,10 @@ function TrafficEdgeComponent({
   const routing = String(extra?.routing || "auto");
 
   // Waypoint routing (via_points / via_style) overrides the auto/step/bezier path.
+  const rawViaPoints = data?.viaPoints;
   const viaPoints = useMemo(
-    () => (Array.isArray(data?.viaPoints) ? (data.viaPoints as Pt[]) : []),
-    [data?.viaPoints],
+    () => (Array.isArray(rawViaPoints) ? (rawViaPoints as Pt[]) : []),
+    [rawViaPoints],
   );
   const viaStyle = String(data?.viaStyle || "curved");
   const arrowStyle = String(data?.arrowStyle || "");

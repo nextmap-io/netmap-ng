@@ -14,10 +14,9 @@ export default tseslint.config(
     },
     plugins: { "react-hooks": reactHooks },
     rules: {
-      // Classic hooks rules (same as the former plugin:react-hooks/recommended).
-      // The React Compiler rules added to the v7 preset are not enabled here.
-      "react-hooks/rules-of-hooks": "error",
-      "react-hooks/exhaustive-deps": "warn",
+      // Full v7 preset: classic hooks rules plus the React Compiler checks
+      // (no setState in effect bodies, no ref access during render, ...).
+      ...reactHooks.configs["recommended-latest"].rules,
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": ["warn", { argsIgnorePattern: "^_" }],
     },

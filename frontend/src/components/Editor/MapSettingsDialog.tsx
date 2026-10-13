@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
 import type { ScaleBand } from "@/types";
@@ -56,9 +56,14 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
     }
   };
 
-  // Sync local state when dialog opens
-  useEffect(() => {
-    if (open && map) {
+  // Load the form from the map when the dialog opens, and again if the map
+  // changes while it is open (adjusted during render instead of an effect).
+  const formSource = open ? map : null;
+  const [loadedFrom, setLoadedFrom] = useState<typeof map>(null);
+  if (formSource !== loadedFrom) {
+    setLoadedFrom(formSource);
+    if (formSource) {
+      const map = formSource;
       setName(map.name);
       setDescription(map.description);
       setWidth(map.width);
@@ -76,7 +81,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
         map.scales.default?.map((b) => ({ ...b, _key: nextBandKey() })) ?? [],
       );
     }
-  }, [open, map]);
+  }
 
   if (!open || !map) return null;
 
