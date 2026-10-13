@@ -1,9 +1,19 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
 import type { MapLink, TrafficHistory } from "@/types";
-import { formatBps } from "../Map/MapView";
-import { seriesStats, type SeriesStats } from "./trafficStats";
+import {
+  CHART_HEIGHT,
+  PERIODS,
+  formatPercent,
+  formatRate,
+  periodSeconds,
+  previousWindow,
+  type Period,
+} from "./format";
+import { alignShifted, chartScale, seriesStats, type SeriesStats } from "./trafficStats";
+import type { ChartDatum, PeakAnnotation } from "./TrafficChart";
+import { useKeyedResult } from "./useKeyedResult";
 
 const TrafficChart = lazy(() => import("./TrafficChart"));
 
@@ -15,10 +25,17 @@ interface TrafficGraphPanelProps {
   onClose: () => void;
   /**
    * Optional history source (e.g. a public, token-scoped endpoint). When set
-   * it replaces the default Observium/RRD lookup. Keep it referentially
-   * stable (useCallback): a new identity triggers a refetch.
+   * it replaces the default Observium/RRD lookup, and the previous-period
+   * comparison is hidden (the fetcher only takes a period). Keep it
+   * referentially stable (useCallback): a new identity triggers a refetch.
    */
   fetcher?: TrafficHistoryFetcher;
+}
+
+interface Loaded {
+  h: TrafficHistory;
+  /** Side A returned nothing and the graph fell back to side B. */
+  onB: boolean;
 }
 
 const hasData = (h: TrafficHistory): boolean =>
@@ -30,9 +47,13 @@ const swapDirections = (h: TrafficHistory): TrafficHistory => ({
   out_bps: h.in_bps,
 });
 
+const maxOf = (xs: readonly (number | null | undefined)[]): number =>
+  xs.reduce<number>((m, v) => (v != null && Number.isFinite(v) && v > m ? v : m), 0);
+
 export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelProps) {
   const mapId = useMapStore((s) => s.map?.id);
-  const [timeRange, setTimeRange] = useState("-24h");
+  const [period, setPeriod] = useState<Period>("-24h");
+  const [compare, setCompare] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
   const hostname = typeof link.extra?.hostname === "string" ? link.extra.hostname : "";
@@ -42,89 +63,63 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
   const portA = link.observium_port_id_a;
   const portB = link.observium_port_id_b;
   const hasSource = !!fetcher || hasExplicitRrd || portA != null || portB != null;
+  const capacity = typeof link.bandwidth === "number" && link.bandwidth > 0 ? link.bandwidth : null;
 
-  // Identity of the current request: a result is only shown if it was fetched
-  // for exactly this link/period/source, so switching link or period can never
-  // show a stale chart, and "loading" is simply "no result for this request".
-  const request = useMemo(
-    () => ({ linkId: link.id, hostname, portIdentifier, portA, portB, mapId, timeRange, fetcher, reloadKey }),
-    [link.id, hostname, portIdentifier, portA, portB, mapId, timeRange, fetcher, reloadKey],
+  /**
+   * Build the loader for one window. `forceB` reads side B directly (used for
+   * the previous period when the current one already fell back to B).
+   * B's counters are measured from the other end, so its in/out are swapped
+   * to keep the graph in the link's A→B orientation.
+   */
+  const makeLoader = useCallback(
+    (start: string, end: string, forceB: boolean): (() => Promise<Loaded>) | null => {
+      if (fetcher) return () => fetcher(start).then((h) => ({ h, onB: false }));
+      if (!mapId) return null;
+      if (hasExplicitRrd) {
+        return () =>
+          api.getTrafficHistory(hostname, portIdentifier, mapId, start, end).then((h) => ({ h, onB: false }));
+      }
+      if (portB != null && (forceB || portA == null)) {
+        return () =>
+          api
+            .getTrafficHistoryByPort(portB, mapId, start, end)
+            .then((h) => ({ h: swapDirections(h), onB: portA != null }));
+      }
+      if (portA != null) {
+        return () =>
+          api.getTrafficHistoryByPort(portA, mapId, start, end).then((h) => {
+            if (hasData(h) || portB == null) return { h, onB: false };
+            return api
+              .getTrafficHistoryByPort(portB, mapId, start, end)
+              .then((hb) => (hasData(hb) ? { h: swapDirections(hb), onB: true } : { h, onB: false }));
+          });
+      }
+      return null;
+    },
+    [fetcher, mapId, hasExplicitRrd, hostname, portIdentifier, portA, portB],
   );
-  const [result, setResult] = useState<{
-    request: typeof request;
-    history: TrafficHistory | null;
-    error: string | null;
-    // Side A returned nothing and the graph fell back to side B, mirroring
-    // the live-traffic fallback.
-    fellBackToB: boolean;
-  } | null>(null);
-  const current = result?.request === request ? result : null;
-  const history = current?.history ?? null;
-  const error = current?.error ?? null;
-  // B-only binding: B's counters are measured from the other end, so its
-  // in/out are swapped to keep the graph in the link's A→B orientation.
-  const usesPortB =
-    !!current?.fellBackToB || (!fetcher && !hasExplicitRrd && portA == null && portB != null);
 
-  const fetchHistory = useMemo((): (() => Promise<{ h: TrafficHistory; onB: boolean }>) | null => {
-    if (fetcher) return () => fetcher(timeRange).then((h) => ({ h, onB: false }));
-    if (mapId && hasExplicitRrd) {
-      return () =>
-        api.getTrafficHistory(hostname, portIdentifier, mapId, timeRange).then((h) => ({ h, onB: false }));
-    }
-    if (mapId && portA != null) {
-      return () =>
-        api.getTrafficHistoryByPort(portA, mapId, timeRange).then((h) => {
-          if (hasData(h) || portB == null) return { h, onB: false };
-          return api.getTrafficHistoryByPort(portB, mapId, timeRange).then((hb) =>
-            hasData(hb) ? { h: swapDirections(hb), onB: true } : { h, onB: false },
-          );
-        });
-    }
-    if (mapId && portB != null) {
-      return () =>
-        api.getTrafficHistoryByPort(portB, mapId, timeRange).then((h) => ({ h: swapDirections(h), onB: false }));
-    }
-    return null;
-  }, [fetcher, mapId, hasExplicitRrd, hostname, portIdentifier, portA, portB, timeRange]);
-  const loading = fetchHistory !== null && current === null;
+  // Current window. The key carries the loader (link/period/source) and the
+  // retry counter, so a result is only shown for exactly this request.
+  const run = useMemo(() => makeLoader(period, "now", false), [makeLoader, period]);
+  const mainKey = useMemo(() => ({ run, reloadKey }), [run, reloadKey]);
+  const main = useKeyedResult(mainKey, run);
+  const loaded = main.data;
+  const history = loaded?.h ?? null;
+  const usesPortB = !!loaded?.onB || (!fetcher && !hasExplicitRrd && portA == null && portB != null);
 
-  useEffect(() => {
-    if (!fetchHistory) return;
-    // Ignore late responses: selecting link B while A's request is in flight
-    // must not let A's result overwrite B.
-    let cancelled = false;
-    fetchHistory()
-      .then(({ h, onB }) => {
-        if (!cancelled) setResult({ request, history: h, error: null, fellBackToB: onB });
-      })
-      .catch((e: unknown) => {
-        if (!cancelled) {
-          const message = e instanceof Error ? e.message : "Failed to load traffic history";
-          setResult({ request, history: null, error: message, fellBackToB: false });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [request, fetchHistory]);
-
-  const chartData = useMemo(
-    () =>
-      history
-        ? history.timestamps.map((ts, i) => {
-            const vin = history.in_bps[i];
-            const vout = history.out_bps[i];
-            // Keep nulls (RRD gaps) as nulls so the chart draws a gap, not a drop to 0.
-            return {
-              time: ts * 1000,
-              in: vin == null ? null : vin,
-              out: vout == null ? null : -vout,
-            };
-          })
-        : [],
-    [history],
-  );
+  // Previous window of the same length, read from the same side, fetched
+  // once the current one is in (private view only).
+  const canCompare = !fetcher;
+  const showPrevious = canCompare && compare;
+  const prevRun = useMemo(() => {
+    if (!showPrevious || !loaded) return null;
+    const w = previousWindow(period);
+    return makeLoader(w.start, w.end, loaded.onB);
+  }, [showPrevious, loaded, period, makeLoader]);
+  const prevKey = useMemo(() => ({ prevRun, reloadKey }), [prevRun, reloadKey]);
+  const prev = useKeyedResult(prevKey, prevRun);
+  const prevHistory = prev.data?.h ?? null;
 
   const stats = useMemo(
     () =>
@@ -135,125 +130,165 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
   );
   const hasSamples = !!stats.in || !!stats.out;
 
-  const interfaceA = (link.extra?.interface_a as string) || "";
-  const interfaceB = (link.extra?.interface_b as string) || "";
+  const chartData = useMemo((): ChartDatum[] => {
+    if (!history) return [];
+    const shift = periodSeconds(period);
+    const prevIn = prevHistory ? alignShifted(history.timestamps, prevHistory.timestamps, prevHistory.in_bps, shift) : null;
+    const prevOut = prevHistory ? alignShifted(history.timestamps, prevHistory.timestamps, prevHistory.out_bps, shift) : null;
+    return history.timestamps.map((ts, i) => {
+      const vin = history.in_bps[i];
+      const vout = history.out_bps[i];
+      const pin = prevIn?.[i];
+      const pout = prevOut?.[i];
+      // Keep nulls (RRD gaps) as nulls so the chart draws a gap, not a drop to 0.
+      return {
+        time: ts * 1000,
+        in: vin == null ? null : vin,
+        out: vout == null ? null : -vout,
+        prevIn: pin == null ? null : pin,
+        prevOut: pout == null ? null : -pout,
+      };
+    });
+  }, [history, prevHistory, period]);
 
-  const timeRanges = [
-    { value: "-6h", label: "6H" },
-    { value: "-24h", label: "24H" },
-    { value: "-7d", label: "7D" },
-    { value: "-30d", label: "30D" },
-  ];
+  const peakIn = stats.in?.max ?? 0;
+  const peakOut = stats.out?.max ?? 0;
+  const peak: PeakAnnotation | null = hasSamples
+    ? peakIn >= peakOut
+      ? { value: peakIn, direction: "in" }
+      : { value: peakOut, direction: "out" }
+    : null;
+  const overlayPeak = prevHistory ? Math.max(maxOf(prevHistory.in_bps), maxOf(prevHistory.out_bps)) : 0;
+  const scale = chartScale(peak?.value ?? 0, capacity, showPrevious ? overlayPeak : 0);
+
+  const interfaceA = typeof link.extra?.interface_a === "string" ? link.extra.interface_a : "";
+  const interfaceB = typeof link.extra?.interface_b === "string" ? link.extra.interface_b : "";
+  const linkType = link.link_type ? String(link.link_type).replace(/_/g, " ") : "";
+  const secondary = [
+    interfaceA && interfaceB ? `${interfaceA} ↔ ${interfaceB}` : "",
+    capacity
+      ? scale.overCapacity
+        ? `peaks above the configured ${formatRate(capacity)} capacity`
+        : `${formatRate(capacity)} capacity`
+      : "",
+    linkType,
+  ].filter(Boolean);
+
+  const placeholder = { height: CHART_HEIGHT };
 
   return (
-    <div className="absolute bottom-0 left-0 right-0 noc-glass border-t border-noc-border z-20 max-h-[50vh] overflow-auto animate-fade-in">
-      <div className="p-4 sm:p-5">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <div className="w-7 h-7 rounded bg-accent/10 flex items-center justify-center shrink-0">
-              <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth={2}>
-                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-              </svg>
+    <div className="absolute bottom-0 left-0 right-0 z-20 max-h-[60vh] overflow-y-auto overflow-x-hidden bg-card border-t border-border">
+      <div className="px-4 py-3 sm:px-5 sm:py-4">
+        {/* Header: name and context, then the controls; close stays top-right. */}
+        <div className="flex items-start gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-start justify-between gap-x-6 gap-y-2">
+            <div className="min-w-0">
+              <h2 className="truncate text-lg font-semibold text-foreground">{link.name}</h2>
+              {secondary.length > 0 && (
+                <p className="text-sm text-foreground-secondary">{secondary.join(" · ")}</p>
+              )}
             </div>
-            <div>
-              <h3 className="text-xs font-medium text-noc-text">{link.name}</h3>
-              <p className="text-2xs text-noc-text-dim">
-                {interfaceA && interfaceB
-                  ? `${interfaceA} \u2194 ${interfaceB}`
-                  : `${link.bandwidth_label} ${link.link_type}`}
-              </p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <div role="radiogroup" aria-label="Period" className="inline-flex rounded bg-muted p-0.5">
+                {PERIODS.map((p) => {
+                  const active = period === p.value;
+                  return (
+                    <button
+                      key={p.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      onClick={() => setPeriod(p.value)}
+                      className={`rounded px-2.5 py-0.5 text-sm transition-colors duration-100 ${
+                        active ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  );
+                })}
+              </div>
+              {canCompare && (
+                <label className="inline-flex cursor-pointer items-center gap-2 text-sm text-foreground-secondary">
+                  <input
+                    type="checkbox"
+                    checked={compare}
+                    onChange={(e) => setCompare(e.target.checked)}
+                    style={{ accentColor: "var(--color-link)" }}
+                  />
+                  Compare with previous period
+                </label>
+              )}
             </div>
           </div>
-
-          <div className="flex items-center gap-1.5">
-            {/* Traffic direction indicators */}
-            <div className="flex items-center gap-3 mr-3 hidden sm:flex">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-1 rounded-full bg-traffic-in" />
-                <span className="text-2xs text-noc-text-muted">In</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2.5 h-1 rounded-full bg-traffic-out" />
-                <span className="text-2xs text-noc-text-muted">Out</span>
-              </div>
-            </div>
-
-            <div className="h-4 w-px bg-noc-border hidden sm:block" />
-
-            {/* Time range buttons */}
-            {timeRanges.map((range) => (
-              <button
-                key={range.value}
-                onClick={() => setTimeRange(range.value)}
-                className={`px-2 py-1 text-2xs rounded font-medium tracking-wider transition-colors ${
-                  timeRange === range.value
-                    ? "bg-accent/15 text-accent border border-accent/20"
-                    : "text-noc-text-dim border border-transparent hover:text-noc-text-muted hover:bg-noc-surface"
-                }`}
-              >
-                {range.label}
-              </button>
-            ))}
-
-            <div className="h-4 w-px bg-noc-border ml-1" />
-
-            <button
-              onClick={onClose}
-              className="p-1.5 text-noc-text-dim hover:text-noc-text rounded hover:bg-noc-surface transition-colors"
-            >
-              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
-                <path d="M18 6L6 18M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close graph"
+            title="Close"
+            className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors duration-100 hover:bg-muted hover:text-foreground"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
-        {/* Chart */}
-        {loading ? (
-          <div className="flex items-center justify-center h-44">
-            <div className="w-5 h-5 border border-accent/40 border-t-accent rounded-full animate-spin-slow" />
-          </div>
-        ) : error ? (
-          <div className="flex flex-col items-center justify-center h-44 text-center">
-            <p className="text-2xs text-node-firewall">Failed to load traffic history</p>
-            <p className="text-2xs text-noc-text-dim mt-0.5 max-w-sm truncate" title={error}>{error}</p>
-            <button
-              type="button"
-              onClick={() => setReloadKey((k) => k + 1)}
-              className="mt-2 px-2 py-1 text-2xs text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 transition-colors"
-            >
-              Retry
-            </button>
-          </div>
-        ) : !hasSamples ? (
-          <div className="flex flex-col items-center justify-center h-44 text-center">
-            <svg viewBox="0 0 24 24" className="w-6 h-6 mb-2 text-noc-text-dim opacity-40" fill="none" stroke="currentColor" strokeWidth={1}>
-              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-            </svg>
-            <p className="text-2xs text-noc-text-dim">
-              No historical data available
-            </p>
-            {!hasSource && (
-              <p className="text-2xs text-noc-text-dim mt-0.5">
-                Configure an RRD datasource for this link
+        <div className="mt-3">
+          {main.loading ? (
+            <div className="rounded bg-muted" style={placeholder} aria-busy="true" aria-label="Loading history" />
+          ) : main.error ? (
+            <div className="flex flex-col items-start justify-center gap-2" style={placeholder}>
+              <p className="text-sm">
+                <span className="font-medium text-destructive">Couldn't load history</span>
+                <span className="text-foreground-secondary"> — {main.error}</span>
               </p>
-            )}
-          </div>
-        ) : (
-          <>
-            <Suspense
-              fallback={
-                <div className="flex items-center justify-center h-44">
-                  <div className="w-5 h-5 border border-accent/40 border-t-accent rounded-full animate-spin-slow" />
-                </div>
-              }
-            >
-              <TrafficChart data={chartData} />
-            </Suspense>
-            <TrafficStatsTable inStats={stats.in} outStats={stats.out} note={usesPortB ? "measured on port B" : null} />
-          </>
-        )}
+              <button
+                type="button"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="rounded border border-border bg-background px-3 py-1 text-sm text-foreground transition-colors duration-100 hover:bg-muted"
+              >
+                Retry
+              </button>
+            </div>
+          ) : !hasSamples ? (
+            <div className="flex items-center" style={placeholder}>
+              <p className="text-sm text-foreground-secondary">
+                {!hasSource
+                  ? "No history for this link — bind an Observium port to record traffic."
+                  : fetcher
+                    ? "No traffic recorded for this period — try a longer period."
+                    : "No traffic recorded for this period — try a longer period, or check that Observium polls this port."}
+              </p>
+            </div>
+          ) : (
+            <>
+              <Suspense fallback={<div className="rounded bg-muted" style={placeholder} />}>
+                <TrafficChart
+                  data={chartData}
+                  period={period}
+                  scale={scale}
+                  peak={peak}
+                  showPrevious={showPrevious && !!prevHistory}
+                />
+              </Suspense>
+              <TrafficStatsTable inStats={stats.in} outStats={stats.out} capacity={capacity} />
+              <p className="mt-2 text-sm text-muted-foreground">
+                In above the zero line, out below
+                {showPrevious && prevHistory ? "; the dashed lines are the previous period" : ""}
+                {usesPortB ? ". Measured on port B, with in and out swapped to keep the A → B direction." : "."}
+              </p>
+              {showPrevious && prev.loading && (
+                <p className="text-sm text-muted-foreground">Loading the previous period…</p>
+              )}
+              {showPrevious && prev.error && (
+                <p className="text-sm text-foreground-secondary">
+                  <span className="font-medium text-destructive">Couldn't load the previous period</span> — {prev.error}
+                </p>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -262,45 +297,55 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
 function TrafficStatsTable({
   inStats,
   outStats,
-  note,
+  capacity,
 }: {
   inStats: SeriesStats | null;
   outStats: SeriesStats | null;
-  note: string | null;
+  capacity: number | null;
 }) {
-  const cell = (s: SeriesStats | null, k: keyof SeriesStats) => (s ? formatBps(s[k]) : "—");
+  const cols: Array<{ key: keyof SeriesStats; label: string; title?: string }> = [
+    { key: "max", label: "Max" },
+    { key: "avg", label: "Avg" },
+    { key: "p95", label: "95th", title: "95th percentile (nearest rank) over the displayed period" },
+  ];
   const rows = [
-    { label: "In", dot: "bg-traffic-in", s: inStats },
-    { label: "Out", dot: "bg-traffic-out", s: outStats },
+    { label: "In", swatch: "bg-series-a", s: inStats },
+    { label: "Out", swatch: "bg-series-b", s: outStats },
   ];
   return (
-    <div className="mt-2 flex items-end justify-between gap-4">
-      <table className="text-2xs tabular-nums">
+    <div className="mt-3 overflow-x-auto">
+      <table className="text-sm">
         <thead>
-          <tr className="text-noc-text-dim">
-            <th className="font-normal text-left pr-4" />
-            <th className="font-normal text-right pr-4">Max</th>
-            <th className="font-normal text-right pr-4">Avg</th>
-            <th className="font-normal text-right" title="95th percentile (nearest rank) over the displayed period">95th</th>
+          <tr className="text-muted-foreground">
+            <th className="py-1 pr-6 text-left font-normal">Direction</th>
+            {cols.map((c) => (
+              <th key={c.key} className="py-1 pr-6 text-right font-normal last:pr-0" title={c.title}>
+                {c.label}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.label} className="text-noc-text-muted">
-              <td className="pr-4">
-                <span className="inline-flex items-center gap-1.5">
-                  <span className={`w-2.5 h-1 rounded-full ${r.dot}`} />
+            <tr key={r.label} className="border-t border-border-soft">
+              <td className="py-1 pr-6 text-foreground">
+                <span className="inline-flex items-center gap-2">
+                  <span className={`inline-block h-0.5 w-3 ${r.swatch}`} aria-hidden="true" />
                   {r.label}
                 </span>
               </td>
-              <td className="text-right pr-4 text-noc-text">{cell(r.s, "max")}</td>
-              <td className="text-right pr-4">{cell(r.s, "avg")}</td>
-              <td className="text-right text-noc-text">{cell(r.s, "p95")}</td>
+              {cols.map((c) => (
+                <td key={c.key} className="whitespace-nowrap py-1 pr-6 text-right text-foreground last:pr-0">
+                  {r.s ? formatRate(r.s[c.key]) : "—"}
+                  {r.s && capacity ? (
+                    <span className="text-muted-foreground"> · {formatPercent(r.s[c.key], capacity)}</span>
+                  ) : null}
+                </td>
+              ))}
             </tr>
           ))}
         </tbody>
       </table>
-      {note && <span className="text-2xs text-noc-text-dim italic">{note}</span>}
     </div>
   );
 }
