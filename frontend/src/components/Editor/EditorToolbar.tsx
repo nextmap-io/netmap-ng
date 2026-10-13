@@ -206,13 +206,13 @@ export function EditorToolbar() {
                 role="menuitem" className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-muted transition-colors"
                 onClick={() => runAutoLayout("force")}
               >
-                Organique
+                Organic
               </button>
               <button
                 role="menuitem" className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-muted transition-colors"
                 onClick={() => runAutoLayout("layered")}
               >
-                Hiérarchique
+                Layered
               </button>
             </div>
           )}

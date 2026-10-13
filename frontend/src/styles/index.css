@@ -67,35 +67,6 @@
   --color-ordinal-6: #a3aeba;
   --color-ordinal-7: #a9c25e;
   --color-ordinal-8: #e68aae;
-
-  /* ── Transitional aliases for the pre-Ledger classes. Removed once every
-        component uses the tokens above. ── */
-  --color-noc-bg: var(--color-background);
-  --color-noc-card: var(--color-card);
-  --color-noc-surface: var(--color-muted);
-  --color-noc-border: var(--color-border);
-  --color-noc-border-subtle: var(--color-border-soft);
-  --color-noc-muted: var(--color-border);
-  --color-noc-text: var(--color-foreground);
-  --color-noc-text-muted: var(--color-foreground-secondary);
-  --color-noc-text-dim: var(--color-muted-foreground);
-  --color-accent: var(--color-link);
-  --color-accent-muted: color-mix(in srgb, var(--color-link) 15%, transparent);
-  --color-accent-strong: var(--color-link);
-  --color-traffic-in: var(--color-series-a);
-  --color-traffic-in-muted: color-mix(in srgb, var(--color-series-a) 15%, transparent);
-  --color-traffic-out: var(--color-series-b);
-  --color-traffic-out-muted: color-mix(in srgb, var(--color-series-b) 15%, transparent);
-  --color-node-router: var(--color-foreground-secondary);
-  --color-node-switch-l3: var(--color-foreground-secondary);
-  --color-node-switch-l2: var(--color-foreground-secondary);
-  --color-node-server: var(--color-foreground-secondary);
-  --color-node-firewall: var(--color-destructive);
-  --color-node-cloud: var(--color-foreground-secondary);
-  --color-node-internet: var(--color-foreground-secondary);
-  --color-node-customer: var(--color-foreground-secondary);
-  --text-2xs: 12px;
-  --text-2xs--line-height: 16px;
 }
 
 @layer base {
@@ -251,22 +222,6 @@
   /* Addresses, prefixes, long identifiers: compact but tabular. */
   .font-ip {
     font-stretch: 88%;
-  }
-
-  /* ── Transitional aliases (see @theme). ── */
-  .noc-glass {
-    background: var(--color-card);
-    border: 1px solid var(--color-border);
-  }
-  .noc-card {
-    background: var(--color-card);
-    border: 1px solid var(--color-border);
-    border-radius: 4px;
-  }
-  .noc-label {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-muted-foreground);
   }
 }
 
