@@ -141,7 +141,7 @@ export function CanvasSearch() {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search nodes…"
-          className="flex-1 bg-transparent text-xs text-noc-text placeholder:text-noc-text-dim focus:outline-none"
+          className="flex-1 bg-transparent text-xs text-noc-text placeholder:text-noc-text-dim focus:outline-hidden"
           aria-label="Search nodes by name, label or type"
         />
         <button

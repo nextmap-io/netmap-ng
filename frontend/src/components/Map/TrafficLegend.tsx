@@ -17,7 +17,7 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
       (s.selectedNodeIds.length > 0 || s.selectedLinkIds.length > 0),
   );
   // top-16 keeps clear of the header; right offset dodges the property panel.
-  const posClass = panelOpen ? "fixed top-16 right-[19rem] z-40" : "fixed top-16 right-3 z-40";
+  const posClass = panelOpen ? "fixed top-16 right-76 z-40" : "fixed top-16 right-3 z-40";
 
   if (!scales.length) return null;
 
@@ -55,7 +55,7 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
         {sorted.map((band) => (
           <div key={`${band.min}-${band.max}`} className="flex items-center gap-1.5 sm:gap-2">
             <div
-              className="w-4 sm:w-5 h-2 sm:h-2.5 rounded-sm"
+              className="w-4 sm:w-5 h-2 sm:h-2.5 rounded-xs"
               style={{ backgroundColor: band.color }}
             />
             <span className="text-[9px] sm:text-2xs text-noc-text-muted tabular-nums">{band.label}</span>

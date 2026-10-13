@@ -81,7 +81,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
   if (!open || !map) return null;
 
   const inputClass =
-    "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent/50";
+    "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50";
 
   const handleBandChange = (idx: number, field: keyof ScaleBand, value: string | number) => {
     setBands((prev) =>
@@ -229,7 +229,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
           </FormField>
 
           {/* Separator */}
-          <div className="h-px bg-noc-border/50 my-2" />
+          <div className="h-px bg-noc-border/50" />
 
           {/* Scale Mode */}
           <FormField label="Scale Mode">
@@ -292,7 +292,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
                 ) : (
                   <p className="text-2xs text-noc-text-dim">Save to generate the public share link.</p>
                 )}
-                <div className="noc-label mb-1">Public Data Visibility</div>
+                <div className="noc-label">Public Data Visibility</div>
                 <div className="space-y-1.5">
                   <label className="flex items-center gap-2 text-xs text-noc-text">
                     <input type="checkbox" checked={showPercentage} onChange={(e) => setShowPercentage(e.target.checked)} className="accent-accent" />
@@ -331,7 +331,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
                     type="number"
                     value={band.min}
                     onChange={(e) => handleBandChange(idx, "min", Number(e.target.value))}
-                    className={`w-16 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent/50`}
+                    className={`w-16 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50`}
                     title="Min %"
                   />
                   <span className="text-noc-text-muted text-xs">-</span>
@@ -339,7 +339,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
                     type="number"
                     value={band.max}
                     onChange={(e) => handleBandChange(idx, "max", Number(e.target.value))}
-                    className={`w-16 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent/50`}
+                    className={`w-16 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50`}
                     title="Max %"
                   />
                   <input
@@ -347,7 +347,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
                     value={band.label}
                     onChange={(e) => handleBandChange(idx, "label", e.target.value)}
                     placeholder="Label"
-                    className={`flex-1 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-none focus:ring-1 focus:ring-accent/50`}
+                    className={`flex-1 bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50`}
                   />
                   <button
                     onClick={() => handleDeleteBand(idx)}

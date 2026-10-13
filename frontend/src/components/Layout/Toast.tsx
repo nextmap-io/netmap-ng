@@ -12,7 +12,7 @@ export function ToastViewport() {
 
   return (
     <div
-      className="fixed bottom-4 right-4 z-[60] flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)] pointer-events-none"
+      className="fixed bottom-4 right-4 z-60 flex flex-col gap-2 w-80 max-w-[calc(100vw-2rem)] pointer-events-none"
       aria-live="polite"
     >
       {toasts.map((t) => {
@@ -28,7 +28,7 @@ export function ToastViewport() {
             <span
               className={`mt-1 w-1.5 h-1.5 shrink-0 rounded-full ${isError ? "bg-node-firewall" : "bg-node-server"}`}
             />
-            <p className="flex-1 text-2xs text-noc-text leading-relaxed break-words">{t.message}</p>
+            <p className="flex-1 text-2xs text-noc-text leading-relaxed wrap-break-word">{t.message}</p>
             <button
               onClick={() => dismiss(t.id)}
               className="shrink-0 text-noc-text-dim hover:text-noc-text transition-colors text-xs leading-none"

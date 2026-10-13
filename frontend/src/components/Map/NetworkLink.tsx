@@ -126,7 +126,6 @@ function TrafficEdgeComponent({
       sourceX, sourceY, targetX, targetY,
       sourcePosition, targetPosition, borderRadius: 6, offset: 15,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceX, sourceY, targetX, targetY, routing, isHorizontal, sourcePosition, targetPosition, viaPoints, viaStyle]);
 
   // Derive label anchors, arrow direction and the in/out colour split from the
