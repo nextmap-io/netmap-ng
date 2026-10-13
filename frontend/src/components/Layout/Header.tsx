@@ -1,92 +1,190 @@
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { useMapStore } from "@/hooks/useMapStore";
-import { useTheme } from "@/hooks/useTheme";
+import { useTheme, type Theme } from "@/hooks/useTheme";
+
+const THEME_LABEL: Record<Theme, string> = {
+  system: "System",
+  dark: "Dark",
+  light: "Light",
+  scada: "SCADA",
+};
+const THEME_ORDER: Theme[] = ["system", "dark", "light", "scada"];
+
+/** App mark: two nodes joined by a line (same drawing as the favicon). */
+export function AppMark({ className = "w-5 h-5" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+      <circle cx="6" cy="17" r="3" />
+      <circle cx="18" cy="7" r="3" />
+      <path d="M8.4 15.2l7.2-6.4" />
+    </svg>
+  );
+}
+
+/** Theme cycle button (system → dark → light → scada), labelled with the current theme. */
+export function ThemeToggle() {
+  const { theme, cycle } = useTheme();
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(theme) + 1) % THEME_ORDER.length];
+  const label = `Theme: ${THEME_LABEL[theme]}. Switch to ${THEME_LABEL[next]}`;
+
+  return (
+    <button
+      type="button"
+      onClick={cycle}
+      className="flex items-center gap-1.5 h-7 px-2 rounded border border-border text-sm text-foreground-secondary hover:text-foreground hover:bg-muted transition-colors"
+      title={label}
+      aria-label={label}
+    >
+      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+        {theme === "dark" && <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />}
+        {theme === "light" && (
+          <>
+            <circle cx="12" cy="12" r="5" />
+            <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+          </>
+        )}
+        {theme === "scada" && <path d="M18 20V10M12 20V4M6 20v-6" />}
+        {theme === "system" && (
+          <>
+            <rect x="2" y="3" width="20" height="14" rx="2" />
+            <path d="M8 21h8M12 17v4" />
+          </>
+        )}
+      </svg>
+      <span className="hidden sm:inline">{THEME_LABEL[theme]}</span>
+    </button>
+  );
+}
+
+type Health = { tone: "ok" | "watch" | "incident"; word: string; detail: string };
+
+/**
+ * Live-data health. With no map open the app is simply live; with a map open
+ * it follows the traffic poll: a failed poll is an incident, a last successful
+ * poll older than two refresh intervals is a watch.
+ */
+function useHealth(): Health {
+  const map = useMapStore((s) => s.map);
+  const trafficError = useMapStore((s) => s.trafficError);
+  const lastTrafficAt = useMapStore((s) => s.lastTrafficAt);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
+  if (!map) {
+    return { tone: "ok", word: "Live", detail: "Connected. Traffic health is shown when a map is open." };
+  }
+  if (trafficError) {
+    return {
+      tone: "incident",
+      word: "Offline",
+      detail: "The last live traffic poll failed; the map shows the last known values.",
+    };
+  }
+  const interval = Math.max((map.settings?.refresh_interval ?? 300) * 1000, 30000);
+  if (lastTrafficAt !== null && now - lastTrafficAt > interval * 2) {
+    const minutes = Math.round((now - lastTrafficAt) / 60000);
+    return {
+      tone: "watch",
+      word: "Stale",
+      detail: `No successful traffic poll for ${minutes} min (refresh every ${Math.round(interval / 1000)} s).`,
+    };
+  }
+  return {
+    tone: "ok",
+    word: "Live",
+    detail:
+      lastTrafficAt !== null
+        ? `Live traffic polled at ${new Date(lastTrafficAt).toLocaleTimeString()}.`
+        : "Waiting for the first live traffic poll.",
+  };
+}
+
+const DOT: Record<Health["tone"], string> = {
+  ok: "bg-success",
+  watch: "bg-warning-mark",
+  incident: "bg-destructive",
+};
+const WORD: Record<Health["tone"], string> = {
+  ok: "text-foreground-secondary",
+  watch: "text-warning",
+  incident: "text-destructive",
+};
 
 export function Header() {
   const { map, editMode, setEditMode } = useMapStore();
-  const { theme, cycle } = useTheme();
+  const { pathname } = useLocation();
+  const health = useHealth();
+  const onMaps = pathname === "/";
 
   return (
-    <header className="sticky top-0 z-50 h-12 border-b border-noc-border bg-noc-bg/80 backdrop-blur-md flex items-center justify-between px-4 shrink-0">
-      <Link to="/" className="flex items-center gap-2.5 group">
-        <svg viewBox="0 0 24 24" className="w-5 h-5 text-accent transition-colors" fill="none" stroke="currentColor" strokeWidth={1.5}>
-          <circle cx="12" cy="5" r="2" />
-          <circle cx="5" cy="19" r="2" />
-          <circle cx="19" cy="19" r="2" />
-          <path d="M12 7v4M10.5 12.5l-4 5M13.5 12.5l4 5" />
-          <rect x="9" y="11" width="6" height="3" rx="1" />
-        </svg>
-        <span className="text-xs font-semibold tracking-wider text-accent hidden sm:block">
-          {theme === "scada" ? "NETMAP // SCADA" : "NETMAP"}
-        </span>
-      </Link>
+    <header className="sticky top-0 z-50 h-12 shrink-0 border-b border-border bg-background flex items-center justify-between gap-3 px-4">
+      <div className="flex items-center gap-5 min-w-0">
+        <Link to="/" className="flex items-center gap-2 text-foreground shrink-0" aria-label="Netmap home">
+          <AppMark />
+          <span className="text-base font-semibold hidden sm:block" style={{ fontStretch: "112%" }}>
+            Netmap
+          </span>
+        </Link>
 
-      <div className="flex items-center gap-3">
-        {map && (
-          <>
-            <span className="text-2xs text-noc-text-muted tracking-wide hidden sm:block">
+        <nav className="flex items-center gap-4 min-w-0 text-sm" aria-label="Main">
+          <Link
+            to="/"
+            aria-current={onMaps ? "page" : undefined}
+            className={`py-1 transition-colors ${
+              onMaps
+                ? "text-foreground underline decoration-foreground decoration-1 underline-offset-[6px]"
+                : "text-foreground-secondary hover:text-foreground"
+            }`}
+          >
+            Maps
+          </Link>
+          {map && (
+            <span
+              className="py-1 text-foreground underline decoration-foreground decoration-1 underline-offset-[6px] truncate hidden sm:block"
+              aria-current="page"
+            >
               {map.name}
             </span>
-            <div className="h-4 w-px bg-noc-border hidden sm:block" />
-            <button
-              onClick={() => setEditMode(!editMode)}
-              className={`px-2.5 py-1 rounded text-2xs font-medium tracking-wider uppercase transition-colors focus-visible:ring-1 focus-visible:ring-accent ${
-                editMode
-                  ? "bg-traffic-out/15 text-traffic-out border border-traffic-out/30"
-                  : "text-noc-text-muted border border-noc-border hover:text-noc-text hover:border-noc-muted"
-              }`}
-            >
-              {editMode ? "Editing" : "Edit"}
-            </button>
-          </>
+          )}
+        </nav>
+      </div>
+
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="flex items-center gap-1.5 text-sm" title={health.detail}>
+          <span className={`w-2 h-2 rounded-full ${DOT[health.tone]}`} aria-hidden="true" />
+          <span className={`${WORD[health.tone]} ${health.tone === "ok" ? "hidden md:inline" : ""}`}>{health.word}</span>
+          <span className="sr-only">{health.detail}</span>
+        </span>
+
+        {map && (
+          <button
+            type="button"
+            onClick={() => setEditMode(!editMode)}
+            aria-pressed={editMode}
+            className={`h-7 px-2.5 rounded border text-sm transition-colors ${
+              editMode
+                ? "bg-foreground text-background border-foreground font-semibold"
+                : "border-border text-foreground hover:bg-muted"
+            }`}
+            title={editMode ? "Leave edit mode" : "Edit this map"}
+          >
+            {editMode ? "Editing" : "Edit"}
+          </button>
         )}
 
-        {/* Theme toggle: system → dark → light → scada */}
-        <button
-          onClick={cycle}
-          className="p-1.5 rounded text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors"
-          title={`Theme: ${theme}`}
+        <ThemeToggle />
+
+        <a
+          href="/auth/logout"
+          className="hidden md:inline text-sm text-foreground-secondary hover:text-foreground transition-colors"
         >
-          {theme === "dark" && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          )}
-          {theme === "light" && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-            </svg>
-          )}
-          {theme === "scada" && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M18 20V10M12 20V4M6 20v-6" />
-            </svg>
-          )}
-          {theme === "system" && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
-            </svg>
-          )}
-        </button>
-
-        {/* User info (when authenticated) */}
-        <div className="hidden md:flex items-center gap-1.5">
-          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-noc-text-dim" fill="none" stroke="currentColor" strokeWidth={2}>
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
-          <a href="/auth/logout" className="text-2xs text-noc-text-dim hover:text-noc-text transition-colors">
-            Logout
-          </a>
-        </div>
-
-        {/* LIVE indicator */}
-        <div className="flex items-center gap-1.5">
-          <div className={`w-1.5 h-1.5 rounded-full animate-pulse-subtle ${
-            theme === "scada" ? "bg-yellow-400" : "bg-green-500"
-          }`} />
-          <span className="text-2xs text-noc-text-dim hidden md:block">LIVE</span>
-        </div>
+          Log out
+        </a>
       </div>
     </header>
   );

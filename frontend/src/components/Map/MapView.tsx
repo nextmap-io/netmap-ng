@@ -27,14 +27,14 @@ import { LabelNode } from "./LabelNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { CanvasSearch } from "./CanvasSearch";
-import { UpdatedIndicator } from "./UpdatedIndicator";
+import { RightNowBand } from "./RightNowBand";
+import { canvasColors, useThemeKey } from "./canvasTheme";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { EditorToolbox } from "../Editor/EditorToolbox";
 import { EditorToolbar } from "../Editor/EditorToolbar";
 import { PropertyPanel } from "../Editor/PropertyPanel";
 import { DeleteConfirmDialog } from "../Editor/DeleteConfirmDialog";
 import { ToastViewport } from "../Layout/Toast";
-import { useTheme } from "@/hooks/useTheme";
 import { NotFound } from "../Layout/NotFound";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import type { MapNode, MapLink, NodeType } from "@/types";
@@ -167,7 +167,12 @@ function MapViewInner() {
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
-  const { resolvedTheme } = useTheme();
+  // Theme key (the <html> class): resolved canvas colors depend on it.
+  const themeKey = useThemeKey();
+  const colors = useMemo(() => canvasColors(themeKey), [themeKey]);
+  const panelOpen = useMapStore(
+    (s) => s.editMode && (s.selectedNodeIds.length > 0 || s.selectedLinkIds.length > 0),
+  );
   const flow = useReactFlow();
   const dragStartPos = useRef<Map<string, { x: number; y: number }>>(new Map());
   const showShortcutsRef = useRef(false);
@@ -351,8 +356,8 @@ function MapViewInner() {
   // ReactFlow moves connected edges natively (node positions live in RF state).
   const useGradientScale = map?.settings?.scale_mode === "gradient";
   const builtEdges = useMemo(
-    () => (map ? buildEdges(map.links, linkHandles, { scales, traffic, gradient: useGradientScale }) : []),
-    [map, linkHandles, scales, traffic, useGradientScale],
+    () => (map ? buildEdges(map.links, linkHandles, { scales, traffic, gradient: useGradientScale, themeKey }) : []),
+    [map, linkHandles, scales, traffic, useGradientScale, themeKey],
   );
   useEffect(() => {
     setEdges((prev) => {
@@ -554,11 +559,8 @@ function MapViewInner() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-48px)] bg-noc-bg">
-        <div className="flex flex-col items-center gap-3 animate-fade-in">
-          <div className="w-6 h-6 border border-accent/40 border-t-accent rounded-full animate-spin-slow" />
-          <span className="text-2xs text-noc-text-dim tracking-wider uppercase">Loading map</span>
-        </div>
+      <div className="flex items-center justify-center h-[calc(100vh-48px)] bg-background">
+        <span className="text-sm text-muted-foreground">Loading map…</span>
       </div>
     );
   }
@@ -576,10 +578,10 @@ function MapViewInner() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center h-[calc(100vh-48px)] bg-noc-bg">
-        <div className="noc-card p-6 max-w-xs text-center animate-fade-in border-node-firewall/30">
-          <p className="text-xs text-noc-text mb-1">Failed to load map</p>
-          <p className="text-2xs text-noc-text-dim">Check your connection and try again</p>
+      <div className="flex items-center justify-center h-[calc(100vh-48px)] bg-background px-4">
+        <div className="max-w-sm text-center">
+          <p className="text-base text-foreground mb-1">Couldn't load this map.</p>
+          <p className="text-sm text-muted-foreground">Check your connection and try again.</p>
         </div>
       </div>
     );
@@ -603,8 +605,21 @@ function MapViewInner() {
     : "";
 
   return (
-    <div className="h-[calc(100vh-48px)] relative bg-noc-bg flex">
-      <div className={`flex-1 relative${editMode ? " edit-mode" : ""}`} style={{ touchAction: "none" }}>
+    <div className="h-[calc(100vh-48px)] relative bg-background flex">
+      <div className="flex-1 min-w-0 flex flex-col">
+      <RightNowBand
+        nodes={map.nodes}
+        links={map.links}
+        traffic={traffic}
+        nodeStatus={nodeStatus}
+        scales={scales}
+        lastPoll={lastTrafficAt}
+        liveDataError={!!trafficError}
+        refreshInterval={map.settings?.refresh_interval}
+        // The property panel is fixed over the right edge in edit mode.
+        className={panelOpen ? "md:pr-76" : ""}
+      />
+      <div className={`flex-1 min-h-0 relative${editMode ? " edit-mode" : ""}`} style={{ touchAction: "none" }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -638,56 +653,25 @@ function MapViewInner() {
           minZoom={0.1}
           maxZoom={3}
         >
-          <Background gap={24} size={snapToGrid ? 1.5 : 0.5} color={
-            resolvedTheme === "light"
-              ? snapToGrid ? "hsl(30 6% 65%)" : "hsl(30 6% 78%)"
-              : resolvedTheme === "scada"
-                ? snapToGrid ? "#2a5a2a" : "#1a3a1a"
-                : snapToGrid ? "hsl(220 15% 22%)" : "hsl(220 15% 12%)"
-          } />
+          <Background gap={24} size={snapToGrid ? 1.5 : 1} color={snapToGrid ? colors.dotsStrong : colors.dots} />
           <Controls showInteractive={false} />
           <MiniMap
+            className="max-md:hidden"
             pannable
             zoomable
-            nodeColor={(n) => {
-              const type = String(n.data?.nodeType || "");
-              if (type === "router") return "hsl(36 100% 55%)";
-              if (type === "switch_l3") return "hsl(270 60% 60%)";
-              if (type === "switch_l2") return "hsl(210 80% 55%)";
-              if (type === "server") return "hsl(152 60% 44%)";
-              if (type === "firewall") return "hsl(0 72% 50%)";
-              if (type === "ix") return "hsl(280 60% 55%)";
-              if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
-              if (type === "pni") return "hsl(160 60% 45%)";
-              // provider shares the cloud palette entry in the node badges
-              if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
-              if (type === "customer") return "hsl(45 85% 50%)";
-              if (type === "group") return "hsl(220 15% 24%)";
-              if (type === "label") return "hsl(215 12% 40%)";
-              return "hsl(220 10% 46%)";
-            }}
-            maskColor={
-              resolvedTheme === "light"
-                ? "hsl(38 12% 95% / 0.75)"
-                : resolvedTheme === "scada"
-                  ? "rgba(10, 10, 10, 0.8)"
-                  : "hsl(220 20% 7% / 0.8)"
+            // Neutral: node types are named on the canvas, not colored.
+            nodeColor={(n) =>
+              n.type === "group" ? colors.group : n.type === "label" ? "transparent" : colors.node
             }
+            nodeStrokeWidth={0}
+            maskColor={colors.mask}
           />
         </ReactFlow>
         <TrafficLegend scales={scales} />
         <CanvasSearch />
 
-        {/* Data freshness + live-data error, right of the zoom controls */}
-        <div className="absolute bottom-3 left-14 z-20 flex flex-col items-start gap-1.5">
-          {trafficError && (
-            <div className="flex items-center gap-1.5 noc-glass rounded px-2 py-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-node-firewall animate-pulse" />
-              <span className="text-2xs text-noc-text-muted">Live data unavailable</span>
-            </div>
-          )}
-          <UpdatedIndicator traffic={traffic} lastPoll={lastTrafficAt} />
-        </div>
+        {/* Data freshness and live-data errors are reported by the
+            "Right now" band above the canvas. */}
 
         <EditorToolbox />
         <EditorToolbar />
@@ -704,6 +688,7 @@ function MapViewInner() {
             }}
           />
         )}
+      </div>
       </div>
       {editMode && <PropertyPanel />}
       <DeleteConfirmDialog

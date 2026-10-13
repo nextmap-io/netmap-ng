@@ -129,6 +129,12 @@ export interface BuildEdgesOptions {
   traffic: TrafficData;
   /** settings.scale_mode === "gradient" */
   gradient?: boolean;
+  /**
+   * Current theme (e.g. the <html> class). Scale colors may be "@tokens"
+   * resolved here against the active theme, so callers pass it to memoize
+   * on it and rebuild edges when the theme changes. Not read otherwise.
+   */
+  themeKey?: string;
 }
 
 /** Build ReactFlow edges for the traffic edge type from links + live traffic. */

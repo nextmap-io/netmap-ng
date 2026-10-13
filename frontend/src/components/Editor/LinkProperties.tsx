@@ -3,6 +3,7 @@ import type { MapLink, MapNode, LinkType, NodeType, ObserviumPort } from "@/type
 import { DEFAULT_NODE_WIDTH, DEFAULT_NODE_HEIGHT } from "@/types";
 import { DeleteConfirmDialog } from "./DeleteConfirmDialog";
 import { PortPicker } from "./PortPicker";
+import { BLOCK, BLOCK_TITLE, BUTTON_SM, BUTTON_DESTRUCTIVE, COLOR_INPUT, INPUT, LABEL, STACK } from "./ui";
 import { parseBandwidth, formatBandwidthLabel } from "@/utils/bandwidth";
 import { portSpeedBps } from "@/utils/portSpeed";
 
@@ -26,35 +27,17 @@ const LINK_TYPES: { value: LinkType; label: string }[] = [
   { value: "custom", label: "Custom" },
 ];
 
-const NODE_ICONS: Record<NodeType, string> = {
-  router: "RTR", switch_l3: "L3", switch_l2: "L2", server: "SRV",
-  firewall: "FW", cloud: "CLD", internet: "NET",
-  ix: "IX", transit: "TR", pni: "PNI", provider: "PRV",
-  customer: "CST", group: "GRP", label: "TXT", custom: "---",
+/** Node types are neutral and named by their word (docs/DESIGN.md). */
+const NODE_TYPE_WORD: Record<NodeType, string> = {
+  router: "Router", switch_l3: "Switch L3", switch_l2: "Switch L2", server: "Server",
+  firewall: "Firewall", cloud: "Cloud", internet: "External",
+  ix: "IX", transit: "Transit", pni: "PNI", provider: "Provider",
+  customer: "Customer", group: "Group", label: "Label", custom: "Custom",
 };
 
-const NODE_BADGE_BG: Record<NodeType, string> = {
-  router: "bg-node-router/20 text-node-router",
-  switch_l3: "bg-node-switch-l3/20 text-node-switch-l3",
-  switch_l2: "bg-node-switch-l2/20 text-node-switch-l2",
-  server: "bg-node-server/20 text-node-server",
-  firewall: "bg-node-firewall/20 text-node-firewall",
-  cloud: "bg-node-cloud/20 text-node-cloud",
-  internet: "bg-node-internet/20 text-node-internet",
-  ix: "bg-[hsl(280,60%,55%)]/20 text-[hsl(280,60%,55%)]",
-  transit: "bg-node-internet/20 text-node-internet",
-  pni: "bg-[hsl(160,60%,45%)]/20 text-[hsl(160,60%,45%)]",
-  provider: "bg-node-cloud/20 text-node-cloud",
-  customer: "bg-node-customer/20 text-node-customer",
-  group: "bg-noc-muted/20 text-noc-text-muted",
-  label: "bg-transparent text-noc-text-muted",
-  custom: "bg-noc-muted/20 text-noc-text-muted",
-};
+const inputClass = INPUT;
 
-const inputClass =
-  "w-full bg-noc-bg text-xs text-noc-text rounded border border-noc-border px-2 py-1 focus:outline-hidden focus:ring-1 focus:ring-accent/50";
-
-const labelClass = "noc-label mb-1";
+const labelClass = LABEL;
 
 interface LinkPropertiesProps {
   link: MapLink;
@@ -124,11 +107,10 @@ export function LinkProperties({
   };
 
   return (
-    <div className="space-y-4">
+    <div className={STACK}>
       {/* IDENTITY */}
-      <section>
-        <div className={labelClass}>Identity</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Identity</h3>
         <div className="space-y-2">
           <div>
             <label className={labelClass}>Name</label>
@@ -159,58 +141,49 @@ export function LinkProperties({
       </section>
 
       {/* ENDPOINTS */}
-      <section>
-        <div className={labelClass}>Endpoints</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Endpoints</h3>
         <div className="space-y-2">
           <div>
             <label className={labelClass}>Source</label>
-            <div className="flex items-center gap-1.5 px-2 py-1.5 bg-noc-bg rounded border border-noc-border">
+            <div className="flex items-baseline gap-2 px-2 py-1.5 bg-background rounded border border-border">
               {sourceNode && (
                 <>
-                  <span
-                    className={`text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider ${
-                      NODE_BADGE_BG[sourceNode.node_type] || NODE_BADGE_BG.custom
-                    }`}
-                  >
-                    {NODE_ICONS[sourceNode.node_type] || "---"}
-                  </span>
-                  <span className="text-2xs text-noc-text truncate">
+                  <span className="text-base text-foreground truncate">
                     {sourceNode.label || sourceNode.name}
+                  </span>
+                  <span className="ml-auto shrink-0 text-sm text-muted-foreground">
+                    {NODE_TYPE_WORD[sourceNode.node_type] || "Custom"}
                   </span>
                 </>
               )}
               {!sourceNode && (
-                <span className="text-2xs text-noc-text-dim">Unknown</span>
+                <span className="text-sm text-muted-foreground">Unknown</span>
               )}
             </div>
           </div>
           <div>
             <label className={labelClass}>Target</label>
-            <div className="flex items-center gap-1.5 px-2 py-1.5 bg-noc-bg rounded border border-noc-border">
+            <div className="flex items-baseline gap-2 px-2 py-1.5 bg-background rounded border border-border">
               {targetNode && (
                 <>
-                  <span
-                    className={`text-2xs font-semibold rounded px-1 py-px leading-tight tracking-wider ${
-                      NODE_BADGE_BG[targetNode.node_type] || NODE_BADGE_BG.custom
-                    }`}
-                  >
-                    {NODE_ICONS[targetNode.node_type] || "---"}
-                  </span>
-                  <span className="text-2xs text-noc-text truncate">
+                  <span className="text-base text-foreground truncate">
                     {targetNode.label || targetNode.name}
+                  </span>
+                  <span className="ml-auto shrink-0 text-sm text-muted-foreground">
+                    {NODE_TYPE_WORD[targetNode.node_type] || "Custom"}
                   </span>
                 </>
               )}
               {!targetNode && (
-                <span className="text-2xs text-noc-text-dim">Unknown</span>
+                <span className="text-sm text-muted-foreground">Unknown</span>
               )}
             </div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-2 mt-2">
           <div>
-            <label className={labelClass}>Source Anchor</label>
+            <label className={labelClass}>Source anchor</label>
             <input
               type="text"
               value={link.source_anchor ?? ""}
@@ -220,7 +193,7 @@ export function LinkProperties({
             />
           </div>
           <div>
-            <label className={labelClass}>Target Anchor</label>
+            <label className={labelClass}>Target anchor</label>
             <input
               type="text"
               value={link.target_anchor ?? ""}
@@ -230,15 +203,14 @@ export function LinkProperties({
             />
           </div>
         </div>
-        <p className="text-2xs text-noc-text-dim mt-1">
-          Format: E:90, W:10, N:50, S:25 (side:percent)
+        <p className="text-sm text-muted-foreground mt-1">
+          Side and percent, e.g. E:90, W:10, N:50, S:25.
         </p>
       </section>
 
       {/* CAPACITY */}
-      <section>
-        <div className={labelClass}>Capacity</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Capacity</h3>
         <div className="space-y-2">
           <div>
             <label className={labelClass}>Bandwidth</label>
@@ -279,8 +251,8 @@ export function LinkProperties({
             )}
             {detectedBps > 0 && (
               <div className="flex items-center justify-between gap-2 mt-1">
-                <span className="text-2xs text-noc-text-dim tabular-nums">
-                  Port speed: {formatBandwidthLabel(detectedBps)}
+                <span className="text-sm text-muted-foreground">
+                  Port speed {formatBandwidthLabel(detectedBps)}
                   {!capacityDiffers && " (matches)"}
                 </span>
                 {capacityDiffers && (
@@ -289,7 +261,7 @@ export function LinkProperties({
                     onClick={() =>
                       onUpdate({ bandwidth: detectedBps, bandwidth_label: formatBandwidthLabel(detectedBps) })
                     }
-                    className="px-1.5 py-0.5 text-2xs text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 transition-colors whitespace-nowrap"
+                    className={`${BUTTON_SM} whitespace-nowrap`}
                   >
                     Use port speed ({formatBandwidthLabel(detectedBps)})
                   </button>
@@ -308,9 +280,10 @@ export function LinkProperties({
                 onChange={(e) =>
                   onUpdate({ width: parseInt(e.target.value, 10) })
                 }
-                className="flex-1 accent-accent"
+                className="flex-1"
+                style={{ accentColor: "var(--color-foreground)" }}
               />
-              <span className="text-2xs text-noc-text-muted tabular-nums w-5 text-right">
+              <span className="text-sm text-foreground-secondary w-6 text-right">
                 {link.width}
               </span>
             </div>
@@ -319,12 +292,11 @@ export function LinkProperties({
       </section>
 
       {/* VISUAL */}
-      <section>
-        <div className={labelClass}>Visual</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Visual</h3>
         <div className="space-y-2">
           <div>
-            <label className={labelClass}>Label Position</label>
+            <label className={labelClass}>Label position</label>
             <select
               value={String(link.extra?.label_position || "above")}
               onChange={(e) =>
@@ -367,7 +339,7 @@ export function LinkProperties({
             </select>
           </div>
           <div>
-            <label className={labelClass}>Line Style</label>
+            <label className={labelClass}>Line style</label>
             <select
               value={String(link.extra?.line_style || "auto")}
               onChange={(e) =>
@@ -382,9 +354,9 @@ export function LinkProperties({
             </select>
           </div>
           <div>
-            <label className={labelClass}>Color Override</label>
+            <label className={labelClass}>Color override</label>
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-2xs text-noc-text-muted">
+              <label className="flex items-center gap-1.5 text-sm text-foreground-secondary">
                 <input
                   type="checkbox"
                   checked={!!link.extra?.color_override}
@@ -396,7 +368,7 @@ export function LinkProperties({
                       },
                     })
                   }
-                  className="accent-accent"
+                  style={{ accentColor: "var(--color-foreground)" }}
                 />
                 Override
               </label>
@@ -407,7 +379,7 @@ export function LinkProperties({
                   onChange={(e) =>
                     onUpdate({ extra: { ...link.extra, color_override: e.target.value } })
                   }
-                  className="w-8 h-6 rounded border border-noc-border bg-noc-bg cursor-pointer"
+                  className={COLOR_INPUT}
                 />
               )}
             </div>
@@ -427,12 +399,11 @@ export function LinkProperties({
       </section>
 
       {/* WAYPOINTS */}
-      <section>
-        <div className={labelClass}>Waypoints</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Waypoints</h3>
         <div className="space-y-2">
           <div>
-            <label className={labelClass}>Waypoint Style</label>
+            <label className={labelClass}>Waypoint style</label>
             <select
               value={link.via_style || "curved"}
               onChange={(e) => onUpdate({ via_style: e.target.value as "curved" | "angled" })}
@@ -443,7 +414,7 @@ export function LinkProperties({
             </select>
           </div>
           <div className="flex items-center justify-between gap-2">
-            <span className="text-2xs text-noc-text-dim tabular-nums">
+            <span className="text-sm text-muted-foreground">
               {viaPoints.length} waypoint{viaPoints.length === 1 ? "" : "s"}
             </span>
             <div className="flex items-center gap-1.5">
@@ -451,15 +422,15 @@ export function LinkProperties({
                 type="button"
                 onClick={addWaypoint}
                 disabled={!sourceNode || !targetNode}
-                className="px-2 py-1 text-2xs text-accent bg-accent/10 border border-accent/20 rounded hover:bg-accent/20 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className={BUTTON_SM}
               >
-                + Add
+                Add
               </button>
               <button
                 type="button"
                 onClick={() => onUpdate({ via_points: [] })}
                 disabled={viaPoints.length === 0}
-                className="px-2 py-1 text-2xs text-noc-text-muted border border-noc-border rounded hover:bg-noc-surface transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                className={BUTTON_SM}
               >
                 Clear
               </button>
@@ -469,7 +440,7 @@ export function LinkProperties({
             <div className="space-y-1">
               {viaPoints.map((p, i) => (
                 <div key={i} className="flex items-center gap-1.5">
-                  <span className="text-2xs text-noc-text-dim w-4 tabular-nums">{i + 1}</span>
+                  <span className="text-sm text-muted-foreground w-4">{i + 1}</span>
                   <input
                     type="number"
                     value={Math.round(p.x)}
@@ -493,7 +464,7 @@ export function LinkProperties({
                   <button
                     type="button"
                     onClick={() => onUpdate({ via_points: viaPoints.filter((_, j) => j !== i) })}
-                    className="text-noc-text-muted hover:text-node-firewall transition-colors p-0.5"
+                    className="w-7 h-7 inline-flex items-center justify-center rounded text-foreground-secondary hover:bg-muted hover:text-destructive transition-colors"
                     title="Remove waypoint"
                   >
                     <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5}>
@@ -508,9 +479,8 @@ export function LinkProperties({
       </section>
 
       {/* DATASOURCE */}
-      <section>
-        <div className={labelClass}>Datasource</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Data source</h3>
         <PortPicker
           deviceId={sourceNode?.observium_device_id ?? null}
           value={link.observium_port_id_a}
@@ -529,9 +499,8 @@ export function LinkProperties({
       </section>
 
       {/* URLS */}
-      <section>
-        <div className={labelClass}>URLs</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>URLs</h3>
         <div className="space-y-2">
           <div>
             <label className={labelClass}>In URL</label>
@@ -561,20 +530,19 @@ export function LinkProperties({
       </section>
 
       {/* DELETE */}
-      <section>
-        <div className={labelClass}>Delete</div>
-        <div className="h-px bg-noc-border/50 mb-3" />
+      <section className={BLOCK}>
+        <h3 className={BLOCK_TITLE}>Delete</h3>
         <button
           onClick={() => setConfirmDelete(true)}
-          className="w-full px-3 py-1.5 text-2xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors"
+          className={`${BUTTON_DESTRUCTIVE} w-full`}
         >
-          Delete Link
+          Delete link
         </button>
       </section>
 
       <DeleteConfirmDialog
         open={confirmDelete}
-        title="Delete Link"
+        title="Delete link"
         message={`Are you sure you want to delete "${link.name}"? This action cannot be undone.`}
         onConfirm={() => {
           setConfirmDelete(false);

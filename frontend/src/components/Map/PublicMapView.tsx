@@ -20,7 +20,8 @@ import { GroupNode } from "./GroupNode";
 import { LabelNode } from "./LabelNode";
 import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
-import { UpdatedIndicator } from "./UpdatedIndicator";
+import { RightNowBand } from "./RightNowBand";
+import { canvasColors, useThemeKey } from "./canvasTheme";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { NotFound } from "../Layout/NotFound";
 import type { NetmapData, MapNode, NodeStatusData, TrafficData } from "@/types";
@@ -71,8 +72,12 @@ function PublicMapInner() {
   const [traffic, setTraffic] = useState<TrafficData>({});
   const [nodeStatus, setNodeStatus] = useState<NodeStatusData>({});
   const [lastPoll, setLastPoll] = useState<number | null>(null);
+  const [trafficFailed, setTrafficFailed] = useState(false);
   const [selectedLinkId, setSelectedLinkId] = useState<string | null>(null);
   const { theme, cycle } = useTheme();
+  // Theme key (the <html> class): resolved canvas colors depend on it.
+  const themeKey = useThemeKey();
+  const colors = useMemo(() => canvasColors(themeKey), [themeKey]);
 
   const current = token && loaded?.token === token ? loaded : null;
   const map = current?.map ?? null;
@@ -94,8 +99,9 @@ function PublicMapInner() {
               if (cancelled) return;
               setTraffic(t);
               setLastPoll(Date.now());
+              setTrafficFailed(false);
             })
-            .catch(() => {});
+            .catch(() => { if (!cancelled) setTrafficFailed(true); });
           // Older backends have no nodes-status route (404): just no status.
           api.getPublicNodeStatus(token)
             .then((ns) => { if (!cancelled) setNodeStatus(ns); })
@@ -140,8 +146,8 @@ function PublicMapInner() {
   const useGradientScale = map?.settings?.scale_mode === "gradient";
   useEffect(() => {
     if (!map) return;
-    setEdges(buildEdges(map.links, linkHandles, { scales, traffic, gradient: useGradientScale }));
-  }, [map, linkHandles, scales, traffic, useGradientScale, setEdges]);
+    setEdges(buildEdges(map.links, linkHandles, { scales, traffic, gradient: useGradientScale, themeKey }));
+  }, [map, linkHandles, scales, traffic, useGradientScale, themeKey, setEdges]);
 
   const showGraph = map?.public_settings?.show_graph === true;
   const selectedLink = showGraph && selectedLinkId
@@ -155,8 +161,8 @@ function PublicMapInner() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen bg-noc-bg">
-        <div className="w-6 h-6 border border-accent/40 border-t-accent rounded-full animate-spin-slow" />
+      <div className="flex items-center justify-center h-screen bg-background">
+        <span className="text-sm text-muted-foreground">Loading map…</span>
       </div>
     );
   }
@@ -175,60 +181,73 @@ function PublicMapInner() {
 
   if (error || !map) {
     return (
-      <div className="flex items-center justify-center h-screen bg-noc-bg">
-        <div className="noc-card p-6 text-center">
-          <p className="text-xs text-noc-text mb-1">Map not available</p>
-          <p className="text-2xs text-noc-text-dim">{error || "Not found"}</p>
+      <div className="flex items-center justify-center h-screen bg-background px-4">
+        <div className="max-w-sm text-center">
+          <p className="text-base text-foreground mb-1">This map isn't available.</p>
+          <p className="text-sm text-muted-foreground">{error || "Not found"}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-noc-bg">
-      <div className="h-10 border-b border-noc-border bg-noc-bg/80 backdrop-blur-md flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold tracking-wider text-accent">NETMAP</span>
-          <span className="text-2xs text-noc-text-muted">{map.name}</span>
+    <div className="h-screen flex flex-col bg-background">
+      <header className="h-12 shrink-0 border-b border-border bg-background flex items-center justify-between gap-3 px-4">
+        <div className="flex items-baseline gap-3 min-w-0">
+          <span className="text-sm font-semibold text-foreground-secondary shrink-0">Netmap</span>
+          <h1 title={map.name} className="text-base font-semibold text-foreground truncate">{map.name}</h1>
         </div>
-        <div className="flex items-center gap-2">
-        <button
-          onClick={cycle}
-          className="p-1.5 rounded text-noc-text-muted hover:text-noc-text hover:bg-noc-surface transition-colors"
-          title={`Theme: ${theme}`}
-        >
-          {theme === "dark" && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-            </svg>
-          )}
-          {theme === "light" && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
-            </svg>
-          )}
-          {theme === "scada" && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <path d="M18 20V10M12 20V4M6 20v-6" />
-            </svg>
-          )}
-          {theme === "system" && (
-            <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
-              <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
-            </svg>
-          )}
-        </button>
-        <a
-          href="/auth/login"
-          className="px-2.5 py-1 rounded text-2xs font-medium tracking-wider uppercase bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-colors"
-          title="Sign in"
-        >
-          Login
-        </a>
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            onClick={cycle}
+            className="p-1.5 rounded border border-border text-foreground-secondary hover:text-foreground hover:bg-muted transition-colors"
+            title={`Theme: ${theme}`}
+            aria-label={`Theme: ${theme}`}
+          >
+            {theme === "dark" && (
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            )}
+            {theme === "light" && (
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="5" /><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+            )}
+            {theme === "scada" && (
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                <path d="M18 20V10M12 20V4M6 20v-6" />
+              </svg>
+            )}
+            {theme === "system" && (
+              <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2}>
+                <rect x="2" y="3" width="20" height="14" rx="2" /><path d="M8 21h8M12 17v4" />
+              </svg>
+            )}
+          </button>
+          <a
+            href="/auth/login"
+            className="px-2.5 py-1 rounded border border-border text-sm text-foreground hover:bg-muted transition-colors"
+          >
+            Sign in
+          </a>
         </div>
-      </div>
+      </header>
 
-      <div className="h-[calc(100vh-40px)] relative" style={{ touchAction: "none" }}>
+      <RightNowBand
+        nodes={map.nodes}
+        links={map.links}
+        traffic={traffic}
+        nodeStatus={nodeStatus}
+        scales={scales}
+        lastPoll={lastPoll}
+        liveDataError={trafficFailed}
+        refreshInterval={map.settings?.refresh_interval}
+        // Respect the public settings: no bit rates unless show_bps.
+        showBps={map.public_settings?.show_bps === true}
+      />
+
+      <div className="flex-1 min-h-0 relative" style={{ touchAction: "none" }}>
         <ReactFlow
           nodes={nodes}
           edges={edges}
@@ -249,42 +268,21 @@ function PublicMapInner() {
           minZoom={0.1}
           maxZoom={3}
         >
-          <Background gap={24} size={0.5} color={
-            theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
-              ? "hsl(30 6% 78%)"
-              : theme === "scada"
-                ? "#1a3a1a"
-                : "hsl(220 15% 12%)"
-          } />
+          <Background gap={24} size={1} color={colors.dots} />
           <Controls showInteractive={false} />
           <MiniMap
+            className="max-md:hidden"
             pannable
             zoomable
-            nodeColor={(n) => {
-              const type = String(n.data?.nodeType || "");
-              if (type === "router") return "hsl(36 100% 55%)";
-              if (type === "switch_l3") return "hsl(270 60% 60%)";
-              if (type === "switch_l2") return "hsl(210 80% 55%)";
-              if (type === "server") return "hsl(152 60% 44%)";
-              if (type === "ix") return "hsl(280 60% 55%)";
-              if (type === "transit" || type === "internet") return "hsl(340 65% 55%)";
-              if (type === "pni") return "hsl(160 60% 45%)";
-              if (type === "cloud" || type === "provider") return "hsl(190 90% 50%)";
-              return "hsl(220 10% 46%)";
-            }}
-            maskColor={
-              theme === "light" || (theme === "system" && !window.matchMedia("(prefers-color-scheme: dark)").matches)
-                ? "hsl(38 12% 95% / 0.75)"
-                : theme === "scada"
-                  ? "rgba(10, 10, 10, 0.8)"
-                  : "hsl(220 20% 7% / 0.8)"
+            // Neutral: node types are named on the canvas, not colored.
+            nodeColor={(n) =>
+              n.type === "group" ? colors.group : n.type === "label" ? "transparent" : colors.node
             }
+            nodeStrokeWidth={0}
+            maskColor={colors.mask}
           />
         </ReactFlow>
         <TrafficLegend scales={scales} />
-        <div className="absolute bottom-3 left-14 z-20">
-          <UpdatedIndicator traffic={traffic} lastPoll={lastPoll} />
-        </div>
         {selectedLink && (
           <TrafficGraphPanel
             link={selectedLink}

@@ -33,6 +33,14 @@ async def init_db(attempts: int = 5) -> None:
             await asyncio.sleep(0.05 * attempt)
 
 
+async def run_data_migrations() -> None:
+    """Idempotent data fixes that must run after the schema exists."""
+    from .migrations import migrate_default_scales
+
+    async with async_session() as session:
+        await migrate_default_scales(session)
+
+
 async def get_db():
     async with async_session() as session:
         yield session

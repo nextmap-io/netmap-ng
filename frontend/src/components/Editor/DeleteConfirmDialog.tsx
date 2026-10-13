@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { BACKDROP, BUTTON, BUTTON_DESTRUCTIVE, SURFACE, TITLE } from "./ui";
 
 interface DeleteConfirmDialogProps {
   open: boolean;
@@ -38,42 +39,34 @@ export function DeleteConfirmDialog({
   if (!open) return null;
 
   return (
-    <div
-      role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-      onClick={onCancel}
-    >
+    <div role="presentation" className={BACKDROP} onClick={onCancel}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="delete-confirm-title"
-        className="noc-card rounded-lg shadow-lg w-80 animate-fade-in"
+        className={`${SURFACE} w-full max-w-sm`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="px-4 pt-4 pb-2">
-          <h3 id="delete-confirm-title" className="text-xs font-semibold text-noc-text">
+          <h3 id="delete-confirm-title" className={TITLE}>
             {title}
           </h3>
         </div>
 
         {/* Body */}
         <div className="px-4 pb-4">
-          <p className="text-2xs text-noc-text-muted leading-relaxed">{message}</p>
+          <p className="text-base text-foreground-secondary">{message}</p>
         </div>
 
         {/* Actions */}
         <div className="flex items-center justify-end gap-2 px-4 pb-4">
-          <button
-            ref={cancelButtonRef}
-            onClick={onCancel}
-            className="px-3 py-1.5 text-2xs font-medium text-noc-text-muted bg-noc-bg border border-noc-border rounded hover:bg-noc-surface transition-colors"
-          >
+          <button ref={cancelButtonRef} onClick={onCancel} className={BUTTON}>
             Cancel
           </button>
           <button
             onClick={onConfirm}
-            className="px-3 py-1.5 text-2xs font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded hover:bg-red-500/20 transition-colors"
+            className={BUTTON_DESTRUCTIVE}
           >
             Delete
           </button>

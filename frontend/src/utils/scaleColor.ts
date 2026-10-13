@@ -1,7 +1,51 @@
 import type { ScaleBand } from "@/types";
 
 /** Color used when the scale is empty/malformed and nothing can be resolved. */
-const NO_DATA_COLOR = "hsl(220 10% 46%)";
+const NO_DATA_COLOR = "#8c949e";
+
+/**
+ * Theme tokens a scale band (or any map color) may use instead of a hex value.
+ * They resolve against the active theme, so one stored scale reads correctly
+ * in light, dark and SCADA.
+ */
+export const COLOR_TOKENS: Record<string, { cssVar: string; label: string }> = {
+  "@quiet": { cssVar: "--color-scale-quiet", label: "Quiet" },
+  "@load": { cssVar: "--color-scale-load", label: "Load" },
+  "@watch": { cssVar: "--color-warning-mark", label: "Watch" },
+  "@incident": { cssVar: "--color-destructive", label: "Incident" },
+  "@muted": { cssVar: "--color-muted-foreground", label: "Muted" },
+  "@ink": { cssVar: "--color-foreground", label: "Ink" },
+  "@accent": { cssVar: "--color-link", label: "Accent" },
+};
+
+export const isColorToken = (color: string): boolean => color.startsWith("@");
+
+let cachedThemeKey = "";
+const tokenCache = new Map<string, string>();
+
+/**
+ * Resolve a scale color: hex values pass through, "@tokens" are read from the
+ * CSS variables of the current theme (cached until the <html> class changes).
+ * Callers that render colors must re-render when the theme changes.
+ */
+export function resolveColor(color: string): string {
+  if (!isColorToken(color)) return color;
+  if (typeof document === "undefined") return NO_DATA_COLOR;
+  const themeKey = document.documentElement.className;
+  if (themeKey !== cachedThemeKey) {
+    tokenCache.clear();
+    cachedThemeKey = themeKey;
+  }
+  let value = tokenCache.get(color);
+  if (value === undefined) {
+    const token = COLOR_TOKENS[color];
+    value = token
+      ? getComputedStyle(document.documentElement).getPropertyValue(token.cssVar).trim() || NO_DATA_COLOR
+      : NO_DATA_COLOR;
+    tokenCache.set(color, value);
+  }
+  return value;
+}
 
 /** Parse a CSS hex color (#rgb / #rrggbb) to [r, g, b]; non-hex falls back to grey. */
 function parseColor(color: string): [number, number, number] {
@@ -26,6 +70,27 @@ function lerpColor(c1: string, c2: string, t: number): string {
   return rgbToHex(r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t);
 }
 
+export type Severity = "normal" | "watch" | "incident";
+
+/**
+ * How abnormal a utilization is. Uses the band's status token when the scale
+ * has them (@watch / @incident); scales with only custom colors fall back to
+ * the Ledger thresholds (70% watch, 90% incident).
+ */
+export function utilizationSeverity(pct: number, scales: ScaleBand[]): Severity {
+  const bands = scales.filter((b) => b.max > b.min).sort((a, b) => a.min - b.min);
+  if (bands.some((b) => isColorToken(b.color))) {
+    const band = bands.find((b, i) => pct >= b.min && (pct < b.max || (i === bands.length - 1 && pct <= b.max)))
+      ?? (pct >= (bands[bands.length - 1]?.max ?? 100) ? bands[bands.length - 1] : undefined);
+    if (band?.color === "@incident") return "incident";
+    if (band?.color === "@watch") return "watch";
+    return "normal";
+  }
+  if (pct >= 90) return "incident";
+  if (pct >= 70) return "watch";
+  return "normal";
+}
+
 /**
  * Map a utilization percentage (0-100) to a scale color.
  *
@@ -38,7 +103,10 @@ function lerpColor(c1: string, c2: string, t: number): string {
  * Shared by MapView (private) and PublicMapView so both views color identically.
  */
 export function getScaleColor(pct: number, scales: ScaleBand[], gradient = false): string {
-  const bands = scales.filter((b) => b.max > b.min).sort((a, b) => a.min - b.min);
+  const bands = scales
+    .filter((b) => b.max > b.min)
+    .sort((a, b) => a.min - b.min)
+    .map((b) => ({ ...b, color: resolveColor(b.color) }));
   if (bands.length === 0) return NO_DATA_COLOR;
 
   if (!gradient) {

@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import get_settings
-from app.models.database import init_db
+from app.models.database import init_db, run_data_migrations
 from app.auth.oauth import router as auth_router, setup_oauth
 from app.api.maps import router as maps_router
 from app.api.nodes import router as nodes_router
@@ -26,6 +26,7 @@ logger = logging.getLogger("netmap")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    await run_data_migrations()
     yield
     await observium.close_pool()
 

@@ -72,42 +72,32 @@ export function PropertyPanel() {
 
   return (
     <div
-      className={`fixed top-12 right-0 h-[calc(100vh-48px)] w-72 noc-glass border-l border-noc-border/50 z-30 flex flex-col transition-transform duration-200 ${
+      className={`fixed top-12 right-0 h-[calc(100vh-48px)] w-72 max-w-full bg-card border-l border-border z-30 flex flex-col transition-transform duration-150 ${
         isOpen ? "translate-x-0" : "translate-x-full"
       }`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2.5 border-b border-noc-border/50 shrink-0">
-        <div className="flex items-center gap-2">
-          <svg
-            viewBox="0 0 24 24"
-            className="w-3.5 h-3.5 text-accent"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth={2}
-          >
-            <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z" />
-          </svg>
-          <span className="noc-label">
-            {multiNodes
-              ? `${selectedNodeIds.length} Nodes`
-              : multiLinks
-                ? `${selectedLinkIds.length} Links`
-                : selectedNode
-                  ? "Node Properties"
-                  : selectedLink
-                    ? "Link Properties"
-                    : "Properties"}
-          </span>
-        </div>
+      <div className="flex items-center justify-between px-3 py-2.5 border-b border-border shrink-0">
+        <h2 className="text-lg font-semibold text-foreground">
+          {multiNodes
+            ? `${selectedNodeIds.length} nodes selected`
+            : multiLinks
+              ? `${selectedLinkIds.length} links selected`
+              : selectedNode
+                ? "Node"
+                : selectedLink
+                  ? "Link"
+                  : "Properties"}
+        </h2>
         <button
           onClick={clearSelection}
-          className="text-noc-text-dim hover:text-noc-text transition-colors"
+          className="w-7 h-7 inline-flex items-center justify-center rounded text-foreground-secondary hover:bg-muted hover:text-foreground transition-colors"
           aria-label="Close properties"
+          title="Close"
         >
           <svg
             viewBox="0 0 24 24"
-            className="w-3.5 h-3.5"
+            className="w-4 h-4"
             fill="none"
             stroke="currentColor"
             strokeWidth={2}
@@ -147,14 +137,9 @@ export function PropertyPanel() {
       </div>
 
       {/* Save indicator */}
-      <div className="shrink-0 px-3 py-2 border-t border-noc-border/50">
-        <div className="text-2xs text-noc-text-dim text-center">
-          {saving && (
-            <span className="flex items-center justify-center gap-1.5">
-              <div className="w-2 h-2 border border-accent/40 border-t-accent rounded-full animate-spin-slow" />
-              Saving...
-            </span>
-          )}
+      <div className="shrink-0 px-3 py-2 border-t border-border">
+        <div className="text-sm text-muted-foreground" aria-live="polite">
+          {saving && <span>Saving…</span>}
           {!saving && savedAgo !== null && (
             <span>Saved {savedAgo}s ago</span>
           )}
