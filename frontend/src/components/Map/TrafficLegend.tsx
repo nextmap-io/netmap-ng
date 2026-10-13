@@ -1,14 +1,23 @@
 import { useState } from "react";
 import type { ScaleBand } from "@/types";
 import { useMapStore } from "@/hooks/useMapStore";
+import { resolveColor } from "@/utils/scaleColor";
 import { LINK_STATUS_STYLE } from "./linkStatus";
+import { useThemeKey } from "./canvasTheme";
 
 interface TrafficLegendProps {
   scales: ScaleBand[];
 }
 
+/**
+ * Floating "Link load" key: the map's scale bands (resolved for the current
+ * theme), then the link states drawn exactly like the edges.
+ * Positioned inside the canvas container (which is `relative`).
+ */
 export function TrafficLegend({ scales }: TrafficLegendProps) {
   const [collapsed, setCollapsed] = useState(false);
+  // Re-render on theme change: swatch colors are resolved from tokens.
+  useThemeKey();
   // The PropertyPanel (w-72, fixed right-0) slides in when something is
   // selected in edit mode — shift the legend left by its width to avoid overlap.
   const panelOpen = useMapStore(
@@ -16,8 +25,7 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
       s.editMode &&
       (s.selectedNodeIds.length > 0 || s.selectedLinkIds.length > 0),
   );
-  // top-16 keeps clear of the header; right offset dodges the property panel.
-  const posClass = panelOpen ? "fixed top-16 right-76 z-40" : "fixed top-16 right-3 z-40";
+  const posClass = panelOpen ? "absolute top-3 right-76 z-20" : "absolute top-3 right-3 z-20";
 
   if (!scales.length) return null;
 
@@ -27,54 +35,56 @@ export function TrafficLegend({ scales }: TrafficLegendProps) {
     return (
       <button
         onClick={() => setCollapsed(false)}
-        className={`${posClass} noc-glass rounded p-1.5 hover:bg-noc-surface/50 transition-colors`}
+        className={`${posClass} flex items-center gap-1.5 bg-card border border-border rounded px-2 py-1 text-sm text-foreground-secondary hover:text-foreground hover:bg-muted transition-colors`}
         title="Show legend"
       >
-        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-noc-text-muted" fill="none" stroke="currentColor" strokeWidth={2}>
+        <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
           <path d="M18 20V10M12 20V4M6 20v-6" />
         </svg>
+        Legend
       </button>
     );
   }
 
   return (
-    <div className={`${posClass} noc-glass rounded p-2 sm:p-3`}>
-      <div className="flex items-center justify-between mb-1.5 sm:mb-2.5">
-        <div className="noc-label text-[8px] sm:text-[10px]">Traffic Load</div>
+    <div className={`${posClass} bg-card border border-border rounded px-3 py-2`}>
+      <div className="flex items-center justify-between gap-4 mb-1.5">
+        <h2 className="text-sm font-semibold text-foreground">Link load</h2>
         <button
           onClick={() => setCollapsed(true)}
-          className="p-0.5 rounded hover:bg-noc-surface/50 text-noc-text-dim hover:text-noc-text transition-colors -mr-1 ml-3"
+          className="p-0.5 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors -mr-1"
           title="Hide legend"
+          aria-label="Hide legend"
         >
-          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
+          <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2}>
             <path d="M18 6L6 18M6 6l12 12" />
           </svg>
         </button>
       </div>
-      <div className="flex flex-col gap-1 sm:gap-1.5">
+      <div className="flex flex-col gap-1">
         {sorted.map((band) => (
-          <div key={`${band.min}-${band.max}`} className="flex items-center gap-1.5 sm:gap-2">
-            <div
-              className="w-4 sm:w-5 h-2 sm:h-2.5 rounded-xs"
-              style={{ backgroundColor: band.color }}
+          <div key={`${band.min}-${band.max}`} className="flex items-center gap-2">
+            <span
+              className="w-5 h-2 rounded-sm shrink-0"
+              style={{ backgroundColor: resolveColor(band.color) }}
             />
-            <span className="text-[9px] sm:text-2xs text-noc-text-muted tabular-nums">{band.label}</span>
+            <span className="text-xs text-foreground-secondary tabular-nums">{band.label}</span>
           </div>
         ))}
       </div>
-      <div className="h-px bg-noc-border/50 my-1.5 sm:my-2" />
+      <div className="border-t border-border-soft my-2" />
       <div className="flex flex-col gap-1">
         {LINK_STATE_ROWS.map((row) => (
-          <div key={row.label} className="flex items-center gap-1.5 sm:gap-2" title={row.title}>
-            <svg className="w-4 sm:w-5 h-2 sm:h-2.5 shrink-0" viewBox="0 0 20 10" preserveAspectRatio="none" aria-hidden>
+          <div key={row.label} className="flex items-center gap-2" title={row.title}>
+            <svg className="w-5 h-2 shrink-0" viewBox="0 0 20 8" preserveAspectRatio="none" aria-hidden>
               <line
-                x1="0" y1="5" x2="20" y2="5"
-                stroke={row.color}
+                x1="0" y1="4" x2="20" y2="4"
+                stroke={resolveColor(row.color)}
                 strokeWidth={3}
                 strokeDasharray={row.dash}
               />
             </svg>
-            <span className="text-[9px] sm:text-2xs text-noc-text-muted">{row.label}</span>
+            <span className="text-xs text-foreground-secondary">{row.label}</span>
           </div>
         ))}
       </div>
@@ -90,5 +100,5 @@ const LINK_STATE_ROWS = [
 
 function pick(status: "down" | "admin_down" | "nodata") {
   const s = LINK_STATUS_STYLE[status];
-  return { color: s?.color ?? "currentColor", dash: s?.dash, title: s?.title ?? "" };
+  return { color: s?.color ?? "@muted", dash: s?.dash, title: s?.title ?? "" };
 }
