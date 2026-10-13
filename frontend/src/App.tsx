@@ -14,9 +14,9 @@ export default function App() {
       <Route
         path="*"
         element={
-          <div className="min-h-screen bg-noc-bg text-noc-text flex flex-col">
+          <div className="h-screen bg-background text-foreground flex flex-col">
             <Header />
-            <main className="flex-1">
+            <main className="flex-1 min-h-0 overflow-y-auto">
               <Routes>
                 <Route path="/" element={<MapList />} />
                 <Route path="/map/:mapId" element={<MapView />} />
