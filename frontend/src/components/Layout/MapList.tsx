@@ -3,7 +3,15 @@ import { Link } from "react-router-dom";
 import { api } from "@/api/client";
 import type { MapSummary } from "@/types";
 
-const SKELETON_PLACEHOLDERS = ["skel-a", "skel-b", "skel-c"] as const;
+const VISIBILITY_LABEL: Record<string, string> = {
+  private: "Private",
+  internal: "Internal",
+  public: "Public",
+};
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" });
+}
 
 export function MapList() {
   const [maps, setMaps] = useState<MapSummary[]>([]);
@@ -68,125 +76,114 @@ export function MapList() {
     setMenuOpen(menuOpen === mapId ? null : mapId);
   };
 
-  if (loading) {
-    return (
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="mb-8">
-          <div className="h-3 w-32 bg-noc-surface rounded animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, hsl(220 15% 20%) 50%, transparent 100%)", backgroundSize: "200% 100%" }} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {SKELETON_PLACEHOLDERS.map((slot, i) => (
-            <div key={slot} className="noc-card p-4 h-28 animate-shimmer" style={{ backgroundImage: "linear-gradient(90deg, transparent 0%, hsl(220 15% 14%) 50%, transparent 100%)", backgroundSize: "200% 100%", animationDelay: `${i * 0.15}s` }} />
-          ))}
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header */}
-      <div className="flex items-end justify-between mb-8 animate-fade-in">
-        <div>
-          <h1 className="noc-label mb-1">Network Maps</h1>
-          <p className="text-xs text-noc-text-dim">
-            {maps.length} map{maps.length !== 1 ? "s" : ""}
+      <div className="flex flex-wrap items-end justify-between gap-4 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold text-foreground">Network maps</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {loading
+              ? "Your maps and the maps shared with you, most recently updated first."
+              : `${maps.length} map${maps.length !== 1 ? "s" : ""}: yours and the ones shared with you, most recently updated first.`}
           </p>
         </div>
         <button
+          type="button"
           onClick={createMap}
-          className="px-3 py-1.5 bg-accent/10 text-accent border border-accent/20 rounded text-2xs font-medium tracking-wider uppercase hover:bg-accent/20 transition-colors focus-visible:ring-1 focus-visible:ring-accent"
+          className="h-8 px-3 rounded bg-foreground text-background text-base font-medium hover:opacity-90 transition-opacity"
         >
-          + New Map
+          New map
         </button>
       </div>
 
-      {maps.length === 0 ? (
-        <div className="text-center py-20 animate-fade-in">
-          <svg viewBox="0 0 24 24" className="w-10 h-10 mx-auto mb-4 text-noc-text-dim opacity-40" fill="none" stroke="currentColor" strokeWidth={1}>
-            <circle cx="12" cy="5" r="2" />
-            <circle cx="5" cy="19" r="2" />
-            <circle cx="19" cy="19" r="2" />
-            <path d="M12 7v4M10.5 12.5l-4 5M13.5 12.5l4 5" />
-            <rect x="9" y="11" width="6" height="3" rx="1" />
-          </svg>
-          <p className="text-xs text-noc-text-muted mb-1">No maps yet</p>
-          <p className="text-2xs text-noc-text-dim">Create your first network weathermap</p>
-        </div>
+      {loading ? (
+        <div className="h-40 rounded bg-muted" role="status" aria-label="Loading maps" />
+      ) : maps.length === 0 ? (
+        <p className="border-t border-border pt-4 text-base text-foreground-secondary">
+          There are no maps you can see yet. Create one with New map, then add devices from Observium in the editor.
+        </p>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {maps.map((m, i) => (
-            <Link
-              key={m.id}
-              to={`/map/${m.id}`}
-              className={`group noc-card p-4 hover:border-accent/30 transition-all duration-200 animate-fade-in opacity-0 stagger-${Math.min(i + 1, 6)}`}
-            >
-              <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded bg-accent/10 flex items-center justify-center shrink-0">
-                    <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 text-accent" fill="none" stroke="currentColor" strokeWidth={2}>
-                      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                    </svg>
-                  </div>
-                  {m.visibility && m.visibility !== "private" && (
-                    <span className="text-2xs text-noc-text-dim opacity-60 uppercase tracking-wider">
-                      {m.visibility === "public" ? "pub" : "int"}
-                    </span>
+        <table className="w-full table-fixed border-collapse text-base">
+          <thead>
+            <tr className="border-b border-border text-left text-sm text-muted-foreground">
+              <th scope="col" className="py-2 pr-3 font-normal">Name</th>
+              <th scope="col" className="py-2 pr-3 font-normal hidden md:table-cell">Description</th>
+              <th scope="col" className="py-2 pr-3 font-normal w-20 sm:w-24">Visibility</th>
+              <th scope="col" className="py-2 pr-3 font-normal text-right w-24 sm:w-28">Updated</th>
+              <th scope="col" className="py-2 w-9"><span className="sr-only">Actions</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {maps.map((m) => (
+              <tr key={m.id} className="border-b border-border-soft align-top hover:bg-muted transition-colors">
+                <td className="py-2.5 pr-3 min-w-0">
+                  <Link to={`/map/${m.id}`} className="block truncate font-medium text-foreground hover:underline">
+                    {m.name}
+                  </Link>
+                  {m.description && (
+                    <p className="md:hidden mt-0.5 text-sm text-foreground-secondary line-clamp-2">{m.description}</p>
                   )}
-                </div>
+                </td>
+                <td className="py-2.5 pr-3 hidden md:table-cell text-sm text-foreground-secondary">
+                  <span className="line-clamp-2">{m.description || <span className="text-muted-foreground">—</span>}</span>
+                </td>
+                <td className="py-2.5 pr-3">
+                  <span className="inline-block rounded border border-border px-1.5 text-sm text-foreground-secondary">
+                    {VISIBILITY_LABEL[m.visibility ?? "private"] ?? m.visibility}
+                  </span>
+                </td>
+                <td className="py-2.5 pr-3 text-right text-sm text-foreground-secondary whitespace-nowrap">
+                  <time dateTime={m.updated_at}>{formatDate(m.updated_at)}</time>
+                </td>
+                <td className="py-1.5 text-right">
+                  <div className="relative inline-block" ref={menuOpen === m.id ? menuRef : undefined}>
+                    <button
+                      type="button"
+                      onClick={(e) => toggleMenu(e, m.id)}
+                      className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                      title="Actions"
+                      aria-label={`Actions for ${m.name}`}
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpen === m.id}
+                    >
+                      <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor" aria-hidden="true">
+                        <circle cx="12" cy="5" r="1.5" />
+                        <circle cx="12" cy="12" r="1.5" />
+                        <circle cx="12" cy="19" r="1.5" />
+                      </svg>
+                    </button>
 
-                {/* Actions menu */}
-                <div className="relative" ref={menuOpen === m.id ? menuRef : undefined}>
-                  <button
-                    onClick={(e) => toggleMenu(e, m.id)}
-                    className="p-1 rounded text-noc-text-dim hover:text-noc-text hover:bg-noc-surface transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                    title="Actions"
-                  >
-                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="currentColor">
-                      <circle cx="12" cy="5" r="1.5" />
-                      <circle cx="12" cy="12" r="1.5" />
-                      <circle cx="12" cy="19" r="1.5" />
-                    </svg>
-                  </button>
-
-                  {menuOpen === m.id && (
-                    <div className="absolute right-0 top-7 z-50 noc-card border border-noc-border rounded py-1 min-w-[140px] shadow-lg">
-                      <button
-                        onClick={(e) => { e.preventDefault(); e.stopPropagation(); duplicateMap(m.id); }}
-                        className="w-full text-left px-3 py-1.5 text-2xs text-noc-text hover:bg-noc-surface transition-colors flex items-center gap-2"
+                    {menuOpen === m.id && (
+                      <div
+                        role="menu"
+                        className="absolute right-0 top-8 z-50 min-w-[140px] rounded border border-border bg-card py-1 text-left"
                       >
-                        <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
-                          <rect x="9" y="9" width="13" height="13" rx="2" />
-                          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-                        </svg>
-                        Duplicate
-                      </button>
-                      {userEmail && m.owner === userEmail && (
                         <button
-                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteMap(m.id, m.name); }}
-                          className="w-full text-left px-3 py-1.5 text-2xs text-red-400 hover:bg-red-500/10 transition-colors flex items-center gap-2"
+                          type="button"
+                          role="menuitem"
+                          onClick={(e) => { e.preventDefault(); e.stopPropagation(); duplicateMap(m.id); }}
+                          className="w-full text-left px-3 py-1.5 text-sm text-foreground hover:bg-muted transition-colors"
                         >
-                          <svg viewBox="0 0 24 24" className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2}>
-                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                          Delete
+                          Duplicate
                         </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <h2 className="text-xs font-medium text-noc-text mb-1 truncate">{m.name}</h2>
-              {m.description && (
-                <p className="text-2xs text-noc-text-muted mb-2 line-clamp-2">{m.description}</p>
-              )}
-              <p className="text-2xs text-noc-text-dim mt-1">
-                {new Date(m.updated_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
-              </p>
-            </Link>
-          ))}
-        </div>
+                        {userEmail && m.owner === userEmail && (
+                          <button
+                            type="button"
+                            role="menuitem"
+                            onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteMap(m.id, m.name); }}
+                            className="w-full text-left px-3 py-1.5 text-sm text-destructive hover:bg-muted transition-colors"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );

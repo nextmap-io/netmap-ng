@@ -16,23 +16,16 @@ export function NotFound({
   fullScreen = false,
 }: NotFoundProps) {
   const wrapperClass = fullScreen
-    ? "min-h-screen bg-noc-bg flex items-center justify-center px-4"
-    : "h-[calc(100vh-48px)] bg-noc-bg flex items-center justify-center px-4";
+    ? "min-h-screen bg-background text-foreground px-4"
+    : "h-[calc(100vh-48px)] bg-background text-foreground px-4";
 
   return (
     <div className={wrapperClass}>
-      <div className="noc-card p-8 max-w-sm w-full text-center animate-fade-in">
-        <div className="text-5xl font-bold text-accent mb-2 tabular-nums tracking-tight">
-          {title}
-        </div>
-        <div className="noc-label mb-4">Not found</div>
-        <p className="text-2xs text-noc-text-muted mb-6 leading-relaxed">
-          {message}
-        </p>
-        <Link
-          to={backHref}
-          className="inline-block px-4 py-2 bg-accent/10 text-accent border border-accent/20 rounded text-2xs font-medium tracking-wider uppercase hover:bg-accent/20 transition-colors"
-        >
+      <div className="max-w-xl mx-auto pt-16 sm:pt-24">
+        <h1 className="text-2xl font-semibold text-foreground">Not found</h1>
+        <p className="mt-2 text-base text-foreground-secondary">{message}</p>
+        <p className="mt-1 text-sm text-muted-foreground">Error {title}</p>
+        <Link to={backHref} className="inline-block mt-6 text-base text-link hover:underline">
           {backLabel}
         </Link>
       </div>

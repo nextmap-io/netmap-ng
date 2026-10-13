@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    .m { fill: none; stroke: #15181c; stroke-width: 3; }
+    @media (prefers-color-scheme: dark) { .m { stroke: #eceef1; } }
+  </style>
+  <circle class="m" cx="8" cy="23" r="4.5" />
+  <circle class="m" cx="24" cy="9" r="4.5" />
+  <path class="m" d="M11.4 20 L20.6 12" stroke-linecap="round" />
+</svg>

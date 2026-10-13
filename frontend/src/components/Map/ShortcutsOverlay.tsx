@@ -21,38 +21,41 @@ export function ShortcutsOverlay({ open, onClose }: ShortcutsOverlayProps) {
   return (
     <div
       role="presentation"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 px-4"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Keyboard shortcuts"
-        className="noc-card w-80 p-4 animate-fade-in"
+        aria-labelledby="shortcuts-title"
+        className="w-full max-w-sm rounded border border-border bg-card p-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
-          <span className="noc-label">Keyboard Shortcuts</span>
+          <h2 id="shortcuts-title" className="text-lg font-semibold text-foreground">Keyboard shortcuts</h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-noc-text-dim hover:text-noc-text transition-colors"
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             aria-label="Close shortcuts"
           >
-            <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={1.5}>
+            <svg viewBox="0 0 16 16" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} aria-hidden="true">
               <path d="M4 4l8 8M12 4l-8 8" />
             </svg>
           </button>
         </div>
-        <ul className="space-y-1.5">
+        <dl>
           {SHORTCUTS.map((s) => (
-            <li key={s.keys} className="flex items-center justify-between gap-3">
-              <span className="text-2xs text-noc-text-muted">{s.label}</span>
-              <kbd className="text-2xs text-noc-text bg-noc-bg border border-noc-border rounded px-1.5 py-0.5 tabular-nums whitespace-nowrap">
-                {s.keys}
-              </kbd>
-            </li>
+            <div key={s.keys} className="flex items-center justify-between gap-3 py-1.5 border-t border-border-soft">
+              <dt className="text-sm text-foreground-secondary">{s.label}</dt>
+              <dd>
+                <kbd className="font-mono text-xs text-foreground bg-background border border-border rounded px-1.5 py-0.5 whitespace-nowrap">
+                  {s.keys}
+                </kbd>
+              </dd>
+            </div>
           ))}
-        </ul>
+        </dl>
       </div>
     </div>
   );
