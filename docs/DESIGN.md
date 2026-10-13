@@ -136,9 +136,12 @@ startup; customized scales are kept.
 - **Mirror chart**: in (series A) above a solid zero line, out (series B)
   below, **one shared scale**.
 - **Step area (`stepAfter`)**: data is aggregated per RRD interval.
-- **Scaled to capacity** when the link has a bandwidth: the top of the chart is
-  100% of capacity (both directions), never auto-scale. Without capacity, fall
-  back to the shared max.
+- **Fit / Capacity** (segmented control, remembered per browser). *Fit*
+  (default) sizes the shared scale to the traffic, capped at the capacity,
+  and the header says how full the link got ("peak 4.2% of it") — a lightly
+  used 40G link must stay readable. *Capacity* pins the top to 100% of the
+  link capacity (a full chart means a full pipe). Never a separate scale per
+  direction. Without capacity, the shared max.
 - Horizontal grid lines only, `border-soft`; axes 12px tertiary with units
   ("800M", "1.2 Gb/s"); no chart border.
 - One useful annotation: the window **peak** (dashed line + short label), and
