@@ -96,7 +96,9 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
       onMouseLeave={() => setHovered(false)}
       className={clsx(
         "relative rounded bg-card border border-border hover:border-muted-foreground transition-colors duration-100 flex items-center justify-center",
-        isLarge ? (stacked ? "flex-col gap-0.5 px-1.5 overflow-hidden" : "px-1.5 overflow-hidden") : "px-2 py-1 min-w-[72px]",
+        // No overflow clipping here: the Down badge, status ring and lock /
+        // bound glyphs sit outside the box. The text row clips instead.
+        isLarge ? (stacked ? "flex-col gap-0.5 px-1.5" : "px-1.5") : "px-2 py-1 min-w-[72px]",
       )}
       style={isLarge ? { width: nodeWidth, height: nodeHeight } : undefined}
     >
@@ -146,7 +148,7 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-1 min-w-0 max-w-full" title={`${NODE_TYPE_NAMES[nodeType] || "Custom"} · ${label}`}>
+      <div className="flex items-center gap-1 min-w-0 max-w-full overflow-hidden" title={`${NODE_TYPE_NAMES[nodeType] || "Custom"} · ${label}`}>
         {showType && (
           <span className="shrink-0 canvas-text text-muted-foreground">{NODE_ICONS[nodeType] || "—"}</span>
         )}
