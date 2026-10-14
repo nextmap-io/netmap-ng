@@ -54,9 +54,16 @@
   --color-success: #63c08a;
   --color-on-destructive: #191c20;
 
-  /* Traffic scale tokens (map links): normal load stays quiet. */
-  --color-scale-quiet: #5f6771;
-  --color-scale-load: #c9cfd6;
+  /* Traffic scale (map links): normal load is a neutral ramp from nearly
+     idle (1) to busy (5); only Watch / Incident get a status color.
+     @quiet / @load are kept as aliases for scales saved before the ramp. */
+  --color-scale-1: #4a515a;
+  --color-scale-2: #646c76;
+  --color-scale-3: #858d97;
+  --color-scale-4: #aab1ba;
+  --color-scale-5: #dde1e6;
+  --color-scale-quiet: var(--color-scale-2);
+  --color-scale-load: var(--color-scale-5);
 
   /* Ordinal palette (8 series), muted and evenly spaced, no pure red. */
   --color-ordinal-1: #7d9bff;
@@ -90,8 +97,11 @@
     --color-destructive-muted: #fdecea;
     --color-success: #2e7d4f;
     --color-on-destructive: #ffffff;
-    --color-scale-quiet: #a3aab3;
-    --color-scale-load: #3b424b;
+    --color-scale-1: #c5cbd2;
+    --color-scale-2: #a0a8b1;
+    --color-scale-3: #7b838d;
+    --color-scale-4: #555d67;
+    --color-scale-5: #2a2f36;
     --color-ordinal-1: #2f55d4;
     --color-ordinal-2: #12857f;
     --color-ordinal-3: #a8730f;
@@ -124,8 +134,11 @@
     --color-destructive-muted: #3d1f1c;
     --color-success: #5fe39a;
     --color-on-destructive: #0b0d0c;
-    --color-scale-quiet: #4f6457;
-    --color-scale-load: #cfe8d6;
+    --color-scale-1: #34453a;
+    --color-scale-2: #4f6457;
+    --color-scale-3: #72907c;
+    --color-scale-4: #a2c4ac;
+    --color-scale-5: #d8f0df;
   }
 
   html {

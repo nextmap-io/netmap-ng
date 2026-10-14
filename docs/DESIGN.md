@@ -57,15 +57,18 @@ ink/accent — no glow, no scanlines).
 | OK | `success` | Rarely shown (header health dot) |
 | Ordinal | `ordinal-1..8` | Categories when needed |
 
-Map colors may be **tokens** instead of hex: `@quiet`, `@load`, `@watch`,
-`@incident`, `@muted`, `@ink`, `@accent`. Resolve with
+Map colors may be **tokens** instead of hex: `@level1`…`@level5` (a neutral
+ramp from nearly idle to busy), `@watch`, `@incident`, `@muted`, `@ink`,
+`@accent` (`@quiet` / `@load` remain as aliases of levels 2 and 5). Resolve with
 `resolveColor()` (`utils/scaleColor.ts`); anything drawing resolved colors must
 re-render when the theme changes (`useTheme().resolvedTheme`).
 
-Default traffic scale (backend `DEFAULT_SCALE`): 0–40% `@quiet`, 40–70%
-`@load`, 70–90% `@watch` ("Watch ≥ 70%"), 90–100% `@incident`
-("Incident ≥ 90%"). Maps still on the pre-Ledger default are migrated at
-startup; customized scales are kept.
+Default traffic scale (backend `DEFAULT_SCALE`): fine neutral steps where
+most links live — 0–1% `@level1`, 1–5% `@level2`, 5–15% `@level3`, 15–40%
+`@level4`, 40–70% `@level5` — then 70–90% `@watch` ("Watch ≥ 70%") and
+90–100% `@incident` ("Incident ≥ 90%"). Maps still on a former default (the
+pre-Ledger one or the first two-step Ledger one) are migrated at startup;
+customized scales are kept.
 
 ### Old → new classes (the `noc-*` aliases are transitional and must go)
 

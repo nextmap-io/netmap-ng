@@ -6,7 +6,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .map import DEFAULT_SCALE, LEGACY_DEFAULT_SCALE, Map
+from .map import DEFAULT_SCALE, SUPERSEDED_DEFAULT_SCALES, Map
 
 logger = logging.getLogger("netmap.migrations")
 
@@ -21,14 +21,15 @@ def _band_key(band: Any) -> tuple[float, float, str] | None:
 
 
 def is_legacy_default_scale(bands: Any) -> bool:
-    """True when ``bands`` is exactly the pre-Ledger default (labels ignored)."""
-    if not isinstance(bands, list) or len(bands) != len(LEGACY_DEFAULT_SCALE):
+    """True when ``bands`` is exactly a former default scale (labels ignored)."""
+    if not isinstance(bands, list):
         return False
-    return [_band_key(b) for b in bands] == [_band_key(b) for b in LEGACY_DEFAULT_SCALE]
+    keys = [_band_key(b) for b in bands]
+    return any(keys == [_band_key(b) for b in old] for old in SUPERSEDED_DEFAULT_SCALES)
 
 
 async def migrate_default_scales(session: AsyncSession) -> int:
-    """Move maps still on the legacy default scale to the Ledger default.
+    """Move maps still on a former default scale to the current Ledger default.
 
     Safe to run on every start and from several workers at once: it only
     rewrites maps that still hold the exact legacy bands, to the same value.

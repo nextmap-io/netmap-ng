@@ -36,6 +36,17 @@ def test_detects_only_the_exact_legacy_default():
     assert not is_legacy_default_scale(tweaked)
     assert not is_legacy_default_scale(LEGACY[1:])
     assert not is_legacy_default_scale(DEFAULT_SCALE)
+    # The first Ledger default (two neutral steps) is superseded too.
+    v1 = [
+        {"min": 0, "max": 40, "color": "@quiet", "label": "0–40%"},
+        {"min": 40, "max": 70, "color": "@load", "label": "40–70%"},
+        {"min": 70, "max": 90, "color": "@watch", "label": "Watch ≥ 70%"},
+        {"min": 90, "max": 100, "color": "@incident", "label": "Incident ≥ 90%"},
+    ]
+    assert is_legacy_default_scale(v1)
+    v1_custom = [dict(b) for b in v1]
+    v1_custom[0]["max"] = 30
+    assert not is_legacy_default_scale(v1_custom)
     assert not is_legacy_default_scale(None)
     assert not is_legacy_default_scale([{"min": "x"}] * 5)
 
