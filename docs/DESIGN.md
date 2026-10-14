@@ -131,6 +131,24 @@ startup; customized scales are kept.
 - **Toasts**: card surface + rule; an error toast says "Couldn't …" plus the
   backend reason, with the incident color on a word, not a red box.
 
+## Map canvas
+
+- Canvas text is drawn in map coordinates (it scales with zoom) and has to fit
+  the node boxes people laid out, so it is compact: `canvas-name` (11px,
+  condensed Archivo, 500) for node names and `canvas-text` (10px, condensed)
+  for edge values, capacity labels and badges. This is the one place below
+  12px; never use these classes outside the canvas.
+- Sized nodes have no vertical padding and use one row when shorter than 44px;
+  boxes narrower than 80px drop the type word (kept in the tooltip). Edge
+  value labels have no border. Rates drop a trailing ".0" ("200Mbps").
+- View mode, signed in: hovering a link shows a card (endpoints and
+  interfaces, in/out with utilization bars against capacity, status word,
+  capacity, last update); hovering a node shows its type, status, totals and
+  busiest links. Clicking a node opens a bottom panel listing all its links
+  (busiest first, traffic seen from the node); a row opens the link graph,
+  whose header shows the live values and the port pages when `info_url_*`
+  are set. Nothing of this in edit mode (the property panel covers it).
+
 ## Charts (traffic graph)
 
 - **Mirror chart**: in (series A) above a solid zero line, out (series B)

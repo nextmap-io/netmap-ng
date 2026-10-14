@@ -11,7 +11,7 @@ const NODE_ICONS: Record<NodeType, string> = {
   customer: "CST", group: "GRP", label: "TXT", custom: "—",
 };
 
-const NODE_TYPE_NAMES: Record<NodeType, string> = {
+export const NODE_TYPE_NAMES: Record<NodeType, string> = {
   router: "Router", switch_l3: "L3 switch", switch_l2: "L2 switch", server: "Server",
   firewall: "Firewall", cloud: "Cloud", internet: "Internet",
   ix: "Internet exchange", transit: "Transit", pni: "Private interconnect", provider: "Provider",

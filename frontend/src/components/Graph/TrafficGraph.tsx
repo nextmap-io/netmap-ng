@@ -1,7 +1,7 @@
 import { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { api } from "@/api/client";
 import { useMapStore } from "@/hooks/useMapStore";
-import type { MapLink, TrafficHistory } from "@/types";
+import type { MapLink, TrafficData, TrafficHistory } from "@/types";
 import {
   CHART_HEIGHT,
   PERIODS,
@@ -30,7 +30,12 @@ interface TrafficGraphPanelProps {
    * referentially stable (useCallback): a new identity triggers a refetch.
    */
   fetcher?: TrafficHistoryFetcher;
+  /** The link's current live values, shown above the history ("Now …"). */
+  live?: TrafficData[string];
 }
+
+/** "<1%" for small non-zero values, so light traffic never reads as idle. */
+const pctText = (pct: number) => (pct > 0 && pct < 1 ? "<1%" : `${Math.round(pct)}%`);
 
 interface Loaded {
   h: TrafficHistory;
@@ -50,7 +55,7 @@ const swapDirections = (h: TrafficHistory): TrafficHistory => ({
 const maxOf = (xs: readonly (number | null | undefined)[]): number =>
   xs.reduce<number>((m, v) => (v != null && Number.isFinite(v) && v > m ? v : m), 0);
 
-export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelProps) {
+export function TrafficGraphPanel({ link, onClose, fetcher, live }: TrafficGraphPanelProps) {
   const mapId = useMapStore((s) => s.map?.id);
   const [period, setPeriod] = useState<Period>("-24h");
   const [compare, setCompare] = useState(false);
@@ -205,6 +210,32 @@ export function TrafficGraphPanel({ link, onClose, fetcher }: TrafficGraphPanelP
               <h2 className="truncate text-lg font-semibold text-foreground">{link.name}</h2>
               {secondary.length > 0 && (
                 <p className="text-sm text-foreground-secondary">{secondary.join(" · ")}</p>
+              )}
+              {live && (live.status === undefined || live.status === "ok" || live.status === "stale") && (
+                <p className="text-sm tabular-nums text-foreground">
+                  <span className="text-muted-foreground">Now </span>
+                  {live.in_bps !== undefined && <>in {formatRate(live.in_bps)} </>}
+                  <span className="text-muted-foreground">({pctText(live.in_pct)})</span>
+                  {" · "}
+                  {live.out_bps !== undefined && <>out {formatRate(live.out_bps)} </>}
+                  <span className="text-muted-foreground">({pctText(live.out_pct)})</span>
+                  {live.status === "stale" && <span className="text-warning"> · Stale</span>}
+                </p>
+              )}
+              {(link.info_url_in || link.info_url_out) && (
+                <p className="text-sm">
+                  {link.info_url_in && (
+                    <a href={link.info_url_in} target="_blank" rel="noreferrer" className="text-link hover:underline">
+                      Port page (A)
+                    </a>
+                  )}
+                  {link.info_url_in && link.info_url_out && <span className="text-muted-foreground"> · </span>}
+                  {link.info_url_out && (
+                    <a href={link.info_url_out} target="_blank" rel="noreferrer" className="text-link hover:underline">
+                      Port page (B)
+                    </a>
+                  )}
+                </p>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2">

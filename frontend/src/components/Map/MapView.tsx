@@ -28,6 +28,8 @@ import { TrafficEdge } from "./NetworkLink";
 import { TrafficLegend } from "./TrafficLegend";
 import { CanvasSearch } from "./CanvasSearch";
 import { RightNowBand } from "./RightNowBand";
+import { HoverCard, type HoverTarget } from "./HoverCard";
+import { NodePanel } from "./NodePanel";
 import { canvasColors, useThemeKey } from "./canvasTheme";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
 import { EditorToolbox } from "../Editor/EditorToolbox";
@@ -168,6 +170,10 @@ function MapViewInner() {
   );
 
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  // View mode: the node whose links are listed in the bottom panel, and the
+  // link/node under the pointer (hover card).
+  const [panelNodeId, setPanelNodeId] = useState<string | null>(null);
+  const [hover, setHover] = useState<HoverTarget | null>(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
   // Theme key (the <html> class): resolved canvas colors depend on it.
@@ -460,6 +466,8 @@ function MapViewInner() {
         selectLinks([edge.id]);
       } else {
         // View mode: open traffic graph
+        setHover(null);
+        setPanelNodeId(null);
         setSelectedEdgeId(edge.id);
         selectLink(edge.id);
       }
@@ -469,7 +477,15 @@ function MapViewInner() {
 
   const handleNodeClick = useCallback(
     (event: React.MouseEvent, node: Node) => {
-      if (!editMode) return;
+      if (!editMode) {
+        // View mode: list the node's links in the bottom panel.
+        if (node.type !== "network") return;
+        setHover(null);
+        setSelectedEdgeId(null);
+        selectLink(null);
+        setPanelNodeId(node.id);
+        return;
+      }
       const { selectedNodeIds } = useMapStore.getState();
       if (event.shiftKey || event.metaKey) {
         // Toggle: add or remove from selection
@@ -482,7 +498,7 @@ function MapViewInner() {
         selectNodes([node.id]);
       }
     },
-    [editMode, selectNodes],
+    [editMode, selectNodes, selectLink],
   );
 
   const handleConnect = useCallback(
@@ -548,7 +564,23 @@ function MapViewInner() {
 
   const handlePaneClick = useCallback(() => {
     clearSelection();
+    setPanelNodeId(null);
   }, [clearSelection]);
+
+  // Hover cards (view mode only: in edit mode the property panel does this).
+  const handleEdgeMouseEnter = useCallback(
+    (e: React.MouseEvent, edge: Edge) => {
+      if (!editMode) setHover({ kind: "link", id: edge.id, x: e.clientX, y: e.clientY });
+    },
+    [editMode],
+  );
+  const handleNodeMouseEnter = useCallback(
+    (e: React.MouseEvent, node: Node) => {
+      if (!editMode && node.type === "network") setHover({ kind: "node", id: node.id, x: e.clientX, y: e.clientY });
+    },
+    [editMode],
+  );
+  const clearHover = useCallback(() => setHover(null), []);
 
   const handleConfirmDelete = useCallback(async () => {
     const pending = pendingDelete;
@@ -593,6 +625,7 @@ function MapViewInner() {
   if (!map) return null;
 
   const selectedLink = selectedEdgeId ? map.links.find((l: MapLink) => l.id === selectedEdgeId) : null;
+  const panelNode = panelNodeId ? map.nodes.find((n: MapNode) => n.id === panelNodeId) ?? null : null;
 
   const deleteMessage = pendingDelete
     ? [
@@ -639,6 +672,11 @@ function MapViewInner() {
           onEdgeClick={handleEdgeClick}
           onNodeClick={handleNodeClick}
           onPaneClick={handlePaneClick}
+          onEdgeMouseEnter={handleEdgeMouseEnter}
+          onEdgeMouseLeave={clearHover}
+          onNodeMouseEnter={handleNodeMouseEnter}
+          onNodeMouseLeave={clearHover}
+          onMoveStart={clearHover}
           onConnect={handleConnect}
           onSelectionChange={handleSelectionChange}
           onDragOver={handleDragOver}
@@ -682,9 +720,38 @@ function MapViewInner() {
           <ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
         )}
 
+        {hover && !editMode && (
+          <HoverCard
+            target={hover}
+            nodes={map.nodes}
+            links={map.links}
+            traffic={traffic}
+            nodeStatus={nodeStatus}
+            scales={scales}
+          />
+        )}
+
+        {panelNode && !selectedLink && !editMode && (
+          <NodePanel
+            node={panelNode}
+            nodes={map.nodes}
+            links={map.links}
+            traffic={traffic}
+            nodeStatus={nodeStatus}
+            scales={scales}
+            onOpenLink={(id) => {
+              setPanelNodeId(null);
+              setSelectedEdgeId(id);
+              selectLink(id);
+            }}
+            onClose={() => setPanelNodeId(null)}
+          />
+        )}
+
         {selectedLink && (
           <TrafficGraphPanel
             link={selectedLink}
+            live={traffic[selectedLink.id]}
             onClose={() => {
               setSelectedEdgeId(null);
               selectLink(null);
