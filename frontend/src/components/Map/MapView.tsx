@@ -95,10 +95,13 @@ function mapNodeToFlow(
 }
 
 export function formatBps(bps: number): string {
-  if (bps >= 1e12) return `${(bps / 1e12).toFixed(1)}Tbps`;
-  if (bps >= 1e9) return `${(bps / 1e9).toFixed(1)}Gbps`;
-  if (bps >= 1e6) return `${(bps / 1e6).toFixed(1)}Mbps`;
-  if (bps >= 1e3) return `${(bps / 1e3).toFixed(1)}Kbps`;
+  // One decimal, dropped when it is ".0" ("200Mbps", "1.2Gbps"): map labels
+  // are dense, every character counts.
+  const fmt = (v: number, unit: string) => `${v.toFixed(1).replace(/\.0$/, "")}${unit}`;
+  if (bps >= 1e12) return fmt(bps / 1e12, "Tbps");
+  if (bps >= 1e9) return fmt(bps / 1e9, "Gbps");
+  if (bps >= 1e6) return fmt(bps / 1e6, "Mbps");
+  if (bps >= 1e3) return fmt(bps / 1e3, "Kbps");
   return `${bps.toFixed(0)}bps`;
 }
 

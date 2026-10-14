@@ -73,6 +73,11 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
   const nodeWidth = Number(data.width) || 0;
   const nodeHeight = Number(data.height) || 0;
   const isLarge = nodeWidth > 0 && nodeHeight > 0;
+  // Stack type/name/capacity only in boxes tall enough; low boxes get one row.
+  const stacked = isLarge && nodeHeight >= 44;
+  // Narrow boxes drop the type word so the name keeps the room (it stays in
+  // the tooltip).
+  const showType = !isLarge || nodeWidth >= 80;
   const locked = !!data.locked;
   const isBound = !!data.isBound;
   const status = data.status as NodeStatus | undefined;
@@ -91,7 +96,7 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
       onMouseLeave={() => setHovered(false)}
       className={clsx(
         "relative rounded bg-card border border-border hover:border-muted-foreground transition-colors duration-100 flex items-center justify-center",
-        isLarge ? "flex-col gap-1 p-2" : "px-2 py-1 min-w-[72px]",
+        isLarge ? (stacked ? "flex-col gap-0.5 px-1.5 overflow-hidden" : "px-1.5 overflow-hidden") : "px-2 py-1 min-w-[72px]",
       )}
       style={isLarge ? { width: nodeWidth, height: nodeHeight } : undefined}
     >
@@ -107,7 +112,7 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
           />
           <span
             title="Device down"
-            className="absolute -top-2.5 left-1 rounded-sm px-1 text-xs leading-4 font-semibold bg-destructive text-on-destructive"
+            className="absolute -top-2.5 left-1 rounded-sm px-1 canvas-text font-semibold bg-destructive text-on-destructive"
           >
             Down
           </span>
@@ -141,17 +146,14 @@ function NetworkNodeComponent({ data, selected }: NodeProps) {
         </div>
       )}
 
-      <div className="flex items-center gap-1.5 min-w-0">
-        <span
-          title={NODE_TYPE_NAMES[nodeType] || "Custom"}
-          className="shrink-0 rounded-sm border border-border px-1 text-xs leading-4 text-muted-foreground"
-        >
-          {NODE_ICONS[nodeType] || "—"}
-        </span>
-        <span title={label} className="text-sm leading-[18px] font-medium text-foreground truncate max-w-[120px]">{label}</span>
+      <div className="flex items-center gap-1 min-w-0 max-w-full" title={`${NODE_TYPE_NAMES[nodeType] || "Custom"} · ${label}`}>
+        {showType && (
+          <span className="shrink-0 canvas-text text-muted-foreground">{NODE_ICONS[nodeType] || "—"}</span>
+        )}
+        <span className={clsx("canvas-name text-foreground truncate", !isLarge && "max-w-[140px]")}>{label}</span>
       </div>
-      {data.bandwidthLabel ? (
-        <div title={String(data.bandwidthLabel)} className="text-xs leading-4 text-muted-foreground">{String(data.bandwidthLabel)}</div>
+      {data.bandwidthLabel && (stacked || !isLarge) ? (
+        <div title={String(data.bandwidthLabel)} className="canvas-text text-muted-foreground">{String(data.bandwidthLabel)}</div>
       ) : null}
     </div>
   );

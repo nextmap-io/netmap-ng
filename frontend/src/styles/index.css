@@ -223,6 +223,21 @@
   .font-ip {
     font-stretch: 88%;
   }
+
+  /* Map canvas text. Drawn in map coordinates (it scales with zoom) and sized
+     to the node boxes people laid out, so it is compact: condensed Archivo
+     rather than a smaller size. See docs/DESIGN.md "Map canvas". */
+  .canvas-name {
+    font-size: 11px;
+    line-height: 14px;
+    font-weight: 500;
+    font-stretch: 82%;
+  }
+  .canvas-text {
+    font-size: 10px;
+    line-height: 14px;
+    font-stretch: 85%;
+  }
 }
 
 /* ─── ReactFlow ─── */
