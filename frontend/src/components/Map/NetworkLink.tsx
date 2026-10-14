@@ -33,7 +33,7 @@ function curvedPath(pts: Pt[]): string {
 
 /** Edge value label: 12px tabular ink on the card surface, soft rule, flat. */
 const EDGE_VALUE_CLASS =
-  "bg-card border border-border-soft rounded-sm px-1 text-xs leading-4 text-foreground whitespace-nowrap tabular-nums";
+  "bg-card rounded-sm px-[3px] canvas-text text-foreground whitespace-nowrap tabular-nums";
 
 const LINK_STATUSES: readonly LinkStatus[] = ["ok", "down", "admin_down", "nodata", "unbound", "stale"];
 
@@ -348,8 +348,8 @@ function TrafficEdgeComponent({
             <div
               className={
                 statusStyle.tone === "incident"
-                  ? "rounded-sm px-1 text-xs leading-4 font-semibold whitespace-nowrap bg-destructive text-on-destructive"
-                  : "rounded-sm px-1 text-xs leading-4 whitespace-nowrap bg-card text-muted-foreground border border-border"
+                  ? "rounded-sm px-[3px] canvas-text font-semibold whitespace-nowrap bg-destructive text-on-destructive"
+                  : "rounded-sm px-[3px] canvas-text whitespace-nowrap bg-card text-muted-foreground border border-border"
               }
             >
               {statusStyle.label}
@@ -361,7 +361,7 @@ function TrafficEdgeComponent({
             transform: `${labelTranslate} translate(${midX + offX}px, ${midY + offY}px)`,
             pointerEvents: isStale ? "auto" : undefined,
           }}>
-            <div className="flex items-center gap-1 whitespace-nowrap text-xs leading-4 text-muted-foreground">
+            <div className="flex items-center gap-1 whitespace-nowrap canvas-text text-muted-foreground">
               {isStale && <ClockIcon className="w-3 h-3" />}
               {typeLabel && <span className="font-semibold">{typeLabel}</span>}
               <span className="tabular-nums">{bandwidthLabel}</span>
