@@ -143,7 +143,7 @@ export function MapSettingsDialog({ open, onClose }: MapSettingsDialogProps) {
     const lastMax = bands.length > 0 ? bands[bands.length - 1].max : 0;
     setBands((prev) => [
       ...prev,
-      { min: lastMax, max: lastMax + 10, color: "@load", label: "", _key: nextBandKey() },
+      { min: lastMax, max: lastMax + 10, color: "@level5", label: "", _key: nextBandKey() },
     ]);
   };
 

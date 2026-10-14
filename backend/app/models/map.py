@@ -13,11 +13,15 @@ if TYPE_CHECKING:
     from .link import Link
 
 
-# Ledger utilization scale: normal load stays quiet (two neutral steps), only
-# abnormal load gets a status color, each with a word in its label.
+# Ledger utilization scale: normal load is a neutral ramp (fine steps where
+# most links live, under 15%), only abnormal load gets a status color, each
+# with a word in its label.
 DEFAULT_SCALE: list[dict] = [
-    {"min": 0, "max": 40, "color": "@quiet", "label": "0–40%"},
-    {"min": 40, "max": 70, "color": "@load", "label": "40–70%"},
+    {"min": 0, "max": 1, "color": "@level1", "label": "0–1%"},
+    {"min": 1, "max": 5, "color": "@level2", "label": "1–5%"},
+    {"min": 5, "max": 15, "color": "@level3", "label": "5–15%"},
+    {"min": 15, "max": 40, "color": "@level4", "label": "15–40%"},
+    {"min": 40, "max": 70, "color": "@level5", "label": "40–70%"},
     {"min": 70, "max": 90, "color": "@watch", "label": "Watch ≥ 70%"},
     {"min": 90, "max": 100, "color": "@incident", "label": "Incident ≥ 90%"},
 ]
@@ -33,6 +37,19 @@ LEGACY_DEFAULT_SCALE: list[dict] = [
 ]
 
 
+# First Ledger default (two neutral steps), superseded by DEFAULT_SCALE.
+LEDGER_V1_SCALE: list[dict] = [
+    {"min": 0, "max": 40, "color": "@quiet"},
+    {"min": 40, "max": 70, "color": "@load"},
+    {"min": 70, "max": 90, "color": "@watch"},
+    {"min": 90, "max": 100, "color": "@incident"},
+]
+
+# Former defaults: a map still holding one of them unchanged is moved to
+# DEFAULT_SCALE at startup. Customized scales are never touched.
+SUPERSEDED_DEFAULT_SCALES: list[list[dict]] = [LEGACY_DEFAULT_SCALE, LEDGER_V1_SCALE]
+
+
 class Map(Base):
     __tablename__ = "maps"
 
@@ -46,7 +63,7 @@ class Map(Base):
     background_image: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     # Scale definitions: list of {min, max, color, label?}. Colors are hex or
-    # theme tokens ("@quiet", "@load", "@watch", "@incident") resolved by the UI.
+    # theme tokens ("@level1".."@level5", "@watch", "@incident", ...) resolved by the UI.
     scales: Mapped[dict] = mapped_column(
         JSON,
         default=lambda: {"default": [dict(band) for band in DEFAULT_SCALE]},
