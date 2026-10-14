@@ -48,7 +48,7 @@ Python backend, React frontend in `frontend/`.
 | `frontend/src/components/Map/GroupNode.tsx` | Container node for sites/racks/logical groups |
 | `frontend/src/components/Map/TrafficLegend.tsx` | Color scale legend overlay |
 | `frontend/src/components/Map/RightNowBand.tsx` | "Right now" status band (links/devices down, busiest link, data age) |
-| `frontend/src/components/Graph/TrafficGraph.tsx` | Recharts bottom panel (teal in / amber out) |
+| `frontend/src/components/Graph/TrafficGraph.tsx` | Link graph panel: mirror chart (in above / out below), Fit or Capacity scale, peak, stats |
 | `frontend/src/components/Editor/MapEditor.tsx` | Editor sidebar panel |
 | `frontend/src/components/Editor/PropertyPanel.tsx` | Node/link property editor |
 | `frontend/src/components/Editor/NodeProperties.tsx` | Node-specific property fields |
