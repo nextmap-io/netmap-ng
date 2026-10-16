@@ -31,11 +31,11 @@
     "eslint": "^10.12.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
-    "postcss": "^8.5.29",
+    "postcss": "^8.5.30",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.4.5",
-    "typescript-eslint": "^8.71.1",
-    "vite": "^8.3.3"
+    "typescript-eslint": "^8.71.2",
+    "vite": "^8.3.4"
   },
   "overrides": {
     "lodash": "^4.18.1"
