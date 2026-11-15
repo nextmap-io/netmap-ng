@@ -193,7 +193,12 @@ async def port_history(
     # Observium names port RRD files `port-{ifIndex}.rrd` per device.
     hostname = port_info["hostname"]
     port_identifier = str(port_info.get("ifIndex") or port_info["port_id"])
-    return await rrd.fetch_history(hostname, port_identifier, start, end, resolution)
+    # Relative windows ("-24h"/"now") barely move within the cache TTL, and
+    # this bounds how often anonymous public viewers can make us run rrdtool.
+    return await observium.cached(
+        ("rrd_history", hostname, port_identifier, start, end, resolution),
+        lambda: rrd.fetch_history(hostname, port_identifier, start, end, resolution),
+    )
 
 
 async def link_history(

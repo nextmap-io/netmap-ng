@@ -197,7 +197,7 @@ All settings are environment variables; [`.env.example`](.env.example) documents
 | `OAUTH_AUTHORIZE_URL`, `OAUTH_TOKEN_URL`, `OAUTH_USERINFO_URL` | — | OIDC endpoints. |
 | `OAUTH_SCOPES` | `openid profile email` | Requested scopes. |
 | `OAUTH_ROLES_CLAIM` | `roles` | Claim that holds the user's roles. |
-| `OAUTH_EDITOR_ROLE`, `OAUTH_ADMIN_ROLE` | — | Role values for editors and admins (empty: every signed-in user can edit). |
+| `OAUTH_EDITOR_ROLE`, `OAUTH_ADMIN_ROLE` | — | Role values for editors and admins. Empty editor role: every signed-in user can edit. Empty admin role: nobody is admin. |
 | `OBSERVIUM_DB_HOST`, `OBSERVIUM_DB_PORT` | —, `3306` | Observium MySQL server. |
 | `OBSERVIUM_DB_USER`, `OBSERVIUM_DB_PASSWORD`, `OBSERVIUM_DB_NAME` | —, —, `observium` | Read-only credentials. |
 | `OBSERVIUM_RRD_PATH` | `/opt/observium/rrd` | Observium RRD directory. |

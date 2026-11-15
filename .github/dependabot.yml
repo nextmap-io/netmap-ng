@@ -57,6 +57,10 @@ updates:
     directory: /backend
     schedule:
       interval: monthly
+    ignore:
+      # Python stays on the version prod and CI run (3.12); move all three together.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
 
   - package-ecosystem: docker
     directory: /frontend

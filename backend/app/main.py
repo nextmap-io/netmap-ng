@@ -75,6 +75,19 @@ trusted_origins.add(_origin(settings.app_base_url))
 trusted_origins.discard("")
 
 
+# Map writes are far smaller than 1 MiB; the cap stops a client from storing
+# huge JSON blobs (extra, style, scales...) that every viewer then downloads.
+MAX_BODY_BYTES = 1024 * 1024
+
+
+@app.middleware("http")
+async def limit_body_size(request: Request, call_next):
+    length = request.headers.get("content-length")
+    if length is not None and (not length.isdigit() or int(length) > MAX_BODY_BYTES):
+        return JSONResponse(status_code=413, content={"detail": "Request too large"})
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def enforce_trusted_origin(request: Request, call_next):
     """Reject cross-origin writes that could ride an authenticated session."""
@@ -94,7 +107,6 @@ async def security_headers(request: Request, call_next):
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     if is_https:
         response.headers["Strict-Transport-Security"] = (
@@ -132,7 +144,6 @@ app.include_router(nodes_router)
 app.include_router(links_router)
 app.include_router(datasources_router)
 app.include_router(public_router)
-# AI router removed for security (no uncontrolled third-party API access)
 
 
 @app.get("/health")

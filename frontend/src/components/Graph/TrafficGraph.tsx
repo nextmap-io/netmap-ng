@@ -14,6 +14,7 @@ import {
 import { alignShifted, chartScale, seriesStats, type ScaleMode, type SeriesStats } from "./trafficStats";
 import type { ChartDatum, PeakAnnotation } from "./TrafficChart";
 import { useKeyedResult } from "./useKeyedResult";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 const TrafficChart = lazy(() => import("./TrafficChart"));
 
@@ -57,6 +58,8 @@ const maxOf = (xs: readonly (number | null | undefined)[]): number =>
 
 export function TrafficGraphPanel({ link, onClose, fetcher, live }: TrafficGraphPanelProps) {
   const mapId = useMapStore((s) => s.map?.id);
+  const portUrlA = safeHttpUrl(link.info_url_in);
+  const portUrlB = safeHttpUrl(link.info_url_out);
   const [period, setPeriod] = useState<Period>("-24h");
   const [compare, setCompare] = useState(false);
   // Fit to traffic by default: pinned to capacity, a lightly used fat link is
@@ -222,16 +225,16 @@ export function TrafficGraphPanel({ link, onClose, fetcher, live }: TrafficGraph
                   {live.status === "stale" && <span className="text-warning"> · Stale</span>}
                 </p>
               )}
-              {(link.info_url_in || link.info_url_out) && (
+              {(portUrlA || portUrlB) && (
                 <p className="text-sm">
-                  {link.info_url_in && (
-                    <a href={link.info_url_in} target="_blank" rel="noreferrer" className="text-link hover:underline">
+                  {portUrlA && (
+                    <a href={portUrlA} target="_blank" rel="noreferrer" className="text-link hover:underline">
                       Port page (A)
                     </a>
                   )}
-                  {link.info_url_in && link.info_url_out && <span className="text-muted-foreground"> · </span>}
-                  {link.info_url_out && (
-                    <a href={link.info_url_out} target="_blank" rel="noreferrer" className="text-link hover:underline">
+                  {portUrlA && portUrlB && <span className="text-muted-foreground"> · </span>}
+                  {portUrlB && (
+                    <a href={portUrlB} target="_blank" rel="noreferrer" className="text-link hover:underline">
                       Port page (B)
                     </a>
                   )}

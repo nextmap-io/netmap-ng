@@ -179,12 +179,14 @@ export function Header() {
 
         <ThemeToggle />
 
-        <a
-          href="/auth/logout"
-          className="hidden md:inline text-sm text-foreground-secondary hover:text-foreground transition-colors"
-        >
-          Log out
-        </a>
+        <form method="post" action="/auth/logout" className="hidden md:inline">
+          <button
+            type="submit"
+            className="text-sm text-foreground-secondary hover:text-foreground transition-colors"
+          >
+            Log out
+          </button>
+        </form>
       </div>
     </header>
   );

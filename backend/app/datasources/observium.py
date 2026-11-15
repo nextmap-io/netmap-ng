@@ -81,6 +81,8 @@ async def get_observium_db() -> AsyncIterator[Any]:
 # ── TTL cache ──
 
 _cache: dict[Hashable, tuple[float, Any]] = {}
+# Loads in progress, so concurrent misses on one key share a single query.
+_inflight: dict[Hashable, asyncio.Future[Any]] = {}
 
 
 def _now() -> float:
@@ -89,15 +91,44 @@ def _now() -> float:
 
 def clear_cache() -> None:
     _cache.clear()
+    _inflight.clear()
 
 
-async def _cached(key: Hashable, loader: Callable[[], Awaitable[Any]]) -> Any:
-    """Return a cached value younger than CACHE_TTL_SECONDS, else load it."""
+async def cached(key: Hashable, loader: Callable[[], Awaitable[Any]]) -> Any:
+    """Return a cached value younger than CACHE_TTL_SECONDS, else load it.
+
+    Concurrent callers missing the same key await one shared load instead of
+    each running it (many viewers opening the same graph at once).
+    """
     now = _now()
     hit = _cache.get(key)
     if hit is not None and hit[0] > now:
         return hit[1]
-    value = await loader()
+    pending = _inflight.get(key)
+    if pending is not None:
+        try:
+            return await asyncio.shield(pending)
+        except asyncio.CancelledError:
+            if not pending.cancelled():
+                raise  # this caller was cancelled
+            # The loading caller went away (client disconnect): load ourselves.
+    future: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
+    _inflight[key] = future
+    try:
+        value = await loader()
+    except Exception as exc:
+        future.set_exception(exc)
+        future.exception()  # mark retrieved when nobody else is waiting
+        raise
+    except BaseException:
+        future.cancel()
+        raise
+    else:
+        future.set_result(value)
+    finally:
+        if _inflight.get(key) is future:
+            del _inflight[key]
+    now = _now()
     if len(_cache) >= CACHE_MAX_ENTRIES:
         # Drop expired entries first, then the oldest ones (dict keeps
         # insertion order) until there is room.
@@ -199,7 +230,14 @@ async def get_port_rrd_info(port_id: int) -> dict[str, Any] | None:
 
     Observium names port RRD files as `port-{ifIndex}.rrd` per device, not
     `port-{port_id}.rrd` (port_id is the global Observium identifier).
+    Cached like the polling queries: every graph open needs it.
     """
+    return await cached(
+        ("port_rrd_info", port_id), lambda: _query_port_rrd_info(port_id)
+    )
+
+
+async def _query_port_rrd_info(port_id: int) -> dict[str, Any] | None:
     async with get_observium_db() as conn:
         async with conn.cursor(asyncmy.cursors.DictCursor) as cur:
             await cur.execute(
@@ -243,7 +281,7 @@ async def get_ports_traffic(port_ids: list[int]) -> dict[int, dict[str, Any]]:
     unique_ids = frozenset(pid for pid in port_ids if pid)
     if not unique_ids:
         return {}
-    return await _cached(
+    return await cached(
         ("ports_traffic", unique_ids),
         lambda: _query_ports_traffic(sorted(unique_ids)),
     )
@@ -276,7 +314,7 @@ async def get_devices_status(device_ids: list[int]) -> dict[int, dict[str, Any]]
     unique_ids = frozenset(did for did in device_ids if did)
     if not unique_ids:
         return {}
-    return await _cached(
+    return await cached(
         ("devices_status", unique_ids),
         lambda: _query_devices_status(sorted(unique_ids)),
     )

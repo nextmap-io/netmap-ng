@@ -46,14 +46,6 @@ class Settings(BaseSettings):
     # Observium RRD
     observium_rrd_path: str = "/opt/observium/rrd"
 
-    # Observium API (optional)
-    observium_api_url: str = ""
-    observium_api_user: str = ""
-    observium_api_password: str = ""
-
-    # Claude API
-    anthropic_api_key: str = ""
-
     # App DB
     app_db_url: str = "sqlite+aiosqlite:///./data/netmap.db"
 

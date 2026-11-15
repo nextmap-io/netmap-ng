@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.oauth import get_current_user, _has_role
+from app.auth.oauth import get_current_user, _has_role, _is_admin
 from app.config import get_settings
 from app.models import Map, get_db
 
@@ -19,7 +19,7 @@ def is_editor(user: dict) -> bool:
 
 def is_admin(user: dict) -> bool:
     """Check if user has the admin role."""
-    return _has_role(user, get_settings().oauth_admin_role)
+    return _is_admin(user, get_settings().oauth_admin_role)
 
 
 async def require_editor(user=Depends(get_current_user)):

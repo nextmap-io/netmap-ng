@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo, useState, useRef } from "react";
+import { lazy, Suspense, useEffect, useCallback, useMemo, useState, useRef } from "react";
 import { useParams } from "react-router-dom";
 import {
   ReactFlow,
@@ -32,15 +32,23 @@ import { HoverCard, type HoverTarget } from "./HoverCard";
 import { NodePanel } from "./NodePanel";
 import { canvasColors, useThemeKey } from "./canvasTheme";
 import { TrafficGraphPanel } from "../Graph/TrafficGraph";
-import { EditorToolbox } from "../Editor/EditorToolbox";
-import { EditorToolbar } from "../Editor/EditorToolbar";
-import { PropertyPanel } from "../Editor/PropertyPanel";
 import { DeleteConfirmDialog } from "../Editor/DeleteConfirmDialog";
 import { ToastViewport } from "../Layout/Toast";
 import { NotFound } from "../Layout/NotFound";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import type { MapNode, MapLink, NodeType } from "@/types";
 import { buildEdges, computeLinkHandles, computeUsedHandles } from "@/utils/buildEdges";
+
+// The editor is only for editors in edit mode: keep it out of the viewer bundle.
+const EditorToolbox = lazy(() =>
+  import("../Editor/EditorToolbox").then((m) => ({ default: m.EditorToolbox })),
+);
+const EditorToolbar = lazy(() =>
+  import("../Editor/EditorToolbar").then((m) => ({ default: m.EditorToolbar })),
+);
+const PropertyPanel = lazy(() =>
+  import("../Editor/PropertyPanel").then((m) => ({ default: m.PropertyPanel })),
+);
 
 const nodeTypes = {
   network: NetworkNode,
@@ -714,8 +722,12 @@ function MapViewInner() {
         {/* Data freshness and live-data errors are reported by the
             "Right now" band above the canvas. */}
 
-        <EditorToolbox />
-        <EditorToolbar />
+        {editMode && (
+          <Suspense fallback={null}>
+            <EditorToolbox />
+            <EditorToolbar />
+          </Suspense>
+        )}
         {editMode && (
           <ShortcutsOverlay open={showShortcuts} onClose={() => setShowShortcuts(false)} />
         )}
@@ -760,7 +772,11 @@ function MapViewInner() {
         )}
       </div>
       </div>
-      {editMode && <PropertyPanel />}
+      {editMode && (
+        <Suspense fallback={null}>
+          <PropertyPanel />
+        </Suspense>
+      )}
       <DeleteConfirmDialog
         open={pendingDelete !== null}
         title="Delete selection"

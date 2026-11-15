@@ -95,7 +95,6 @@ Python backend, React frontend in `frontend/`.
 ## Running
 
 ```bash
-make docker-up          # Redis
 make backend-dev        # Terminal 1
 make frontend-dev       # Terminal 2
 ```
