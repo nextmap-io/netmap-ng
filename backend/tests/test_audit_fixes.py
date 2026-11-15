@@ -163,3 +163,25 @@ async def test_cached_failure_is_shared_then_retried():
         return 42
 
     assert await observium.cached(("f",), ok) == 42  # failures are not cached
+
+
+@pytest.mark.anyio
+async def test_oversized_chunked_body_rejected(client):
+    """No Content-Length (chunked): the limit counts the bytes received."""
+    map_id = await _make_map(client)
+    blob = b'{"settings": {"blob": "' + b"x" * (1024 * 1024) + b'"}}'
+
+    async def chunks():
+        for i in range(0, len(blob), 64 * 1024):
+            yield blob[i : i + 64 * 1024]
+
+    resp = await client.put(
+        f"/api/maps/{map_id}",
+        content=chunks(),
+        headers={"content-type": "application/json"},
+    )
+    assert resp.status_code == 413
+    # The map is untouched.
+    assert "blob" not in (
+        (await client.get(f"/api/maps/{map_id}")).json()["settings"] or {}
+    )

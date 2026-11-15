@@ -5,7 +5,9 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import get_settings
 from app.models.database import init_db, run_data_migrations
@@ -80,12 +82,58 @@ trusted_origins.discard("")
 MAX_BODY_BYTES = 1024 * 1024
 
 
-@app.middleware("http")
-async def limit_body_size(request: Request, call_next):
-    length = request.headers.get("content-length")
-    if length is not None and (not length.isdigit() or int(length) > MAX_BODY_BYTES):
-        return JSONResponse(status_code=413, content={"detail": "Request too large"})
-    return await call_next(request)
+class _BodyTooLarge(StarletteHTTPException):
+    # An HTTPException, so FastAPI's body parsing re-raises it as a 413
+    # instead of turning it into a generic 400.
+    def __init__(self) -> None:
+        super().__init__(status_code=413, detail="Request too large")
+
+
+class BodyLimitMiddleware:
+    """Reject bodies over MAX_BODY_BYTES, counting the bytes actually received
+    (a Content-Length can be absent with chunked encoding, or understated)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        too_large = JSONResponse(
+            status_code=413, content={"detail": "Request too large"}
+        )
+        for name, value in scope.get("headers", []):
+            if name == b"content-length":
+                if not value.isdigit() or int(value) > MAX_BODY_BYTES:
+                    await too_large(scope, receive, send)
+                    return
+        received = 0
+        started = False
+
+        async def limited_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > MAX_BODY_BYTES:
+                    raise _BodyTooLarge
+            return message
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, limited_receive, tracking_send)
+        except _BodyTooLarge:
+            if not started:
+                await too_large(scope, receive, send)
+
+
+app.add_middleware(BodyLimitMiddleware)
 
 
 @app.middleware("http")
