@@ -1,6 +1,6 @@
 # Exact pins: reproducible installs, and the CI pip-age supply-chain gate only
 # evaluates pinned versions. Dependabot bumps these (python-deps group).
-fastapi==0.162.5
+fastapi==0.162.0
 uvicorn[standard]==0.54.0
 sqlalchemy[asyncio]==2.1.8
 aiosqlite==0.22.1
