@@ -5,7 +5,9 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import get_settings
 from app.models.database import init_db, run_data_migrations
@@ -75,6 +77,65 @@ trusted_origins.add(_origin(settings.app_base_url))
 trusted_origins.discard("")
 
 
+# Map writes are far smaller than 1 MiB; the cap stops a client from storing
+# huge JSON blobs (extra, style, scales...) that every viewer then downloads.
+MAX_BODY_BYTES = 1024 * 1024
+
+
+class _BodyTooLarge(StarletteHTTPException):
+    # An HTTPException, so FastAPI's body parsing re-raises it as a 413
+    # instead of turning it into a generic 400.
+    def __init__(self) -> None:
+        super().__init__(status_code=413, detail="Request too large")
+
+
+class BodyLimitMiddleware:
+    """Reject bodies over MAX_BODY_BYTES, counting the bytes actually received
+    (a Content-Length can be absent with chunked encoding, or understated)."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        too_large = JSONResponse(
+            status_code=413, content={"detail": "Request too large"}
+        )
+        for name, value in scope.get("headers", []):
+            if name == b"content-length":
+                if not value.isdigit() or int(value) > MAX_BODY_BYTES:
+                    await too_large(scope, receive, send)
+                    return
+        received = 0
+        started = False
+
+        async def limited_receive() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > MAX_BODY_BYTES:
+                    raise _BodyTooLarge
+            return message
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, limited_receive, tracking_send)
+        except _BodyTooLarge:
+            if not started:
+                await too_large(scope, receive, send)
+
+
+app.add_middleware(BodyLimitMiddleware)
+
+
 @app.middleware("http")
 async def enforce_trusted_origin(request: Request, call_next):
     """Reject cross-origin writes that could ride an authenticated session."""
@@ -94,7 +155,6 @@ async def security_headers(request: Request, call_next):
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
-    response.headers["X-XSS-Protection"] = "1; mode=block"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     if is_https:
         response.headers["Strict-Transport-Security"] = (
@@ -132,7 +192,6 @@ app.include_router(nodes_router)
 app.include_router(links_router)
 app.include_router(datasources_router)
 app.include_router(public_router)
-# AI router removed for security (no uncontrolled third-party API access)
 
 
 @app.get("/health")

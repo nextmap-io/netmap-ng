@@ -21,9 +21,6 @@ cd netmap-ng
 cp .env.example .env
 # Set AUTH_DISABLED=true in .env for local development without OIDC
 
-# Start infrastructure (Redis)
-make docker-up
-
 # Backend
 cd backend
 python -m venv .venv && source .venv/bin/activate

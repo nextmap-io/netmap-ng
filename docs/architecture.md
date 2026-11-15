@@ -116,7 +116,6 @@ netmap-ng/
 │   │   │   ├── nodes.py         # Nodes CRUD + batch move
 │   │   │   ├── links.py         # Links CRUD
 │   │   │   ├── datasources.py   # Observium + RRD data endpoints
-│   │   │   └── ai.py            # Claude-powered layout generation
 │   │   └── datasources/
 │   │       ├── observium.py     # Observium MySQL queries
 │   │       └── rrd.py           # RRD file reading

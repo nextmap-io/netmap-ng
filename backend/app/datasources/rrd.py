@@ -1,6 +1,6 @@
 """
 Read RRD files (Observium format) for historical traffic data.
-Uses rrdtool Python bindings or falls back to subprocess.
+Runs `rrdtool xport` as a subprocess (argv list, no shell, bounded concurrency).
 """
 
 import asyncio
@@ -9,7 +9,6 @@ import logging
 import math
 import os
 import re
-import subprocess
 from typing import Any
 
 from fastapi import HTTPException
@@ -19,13 +18,6 @@ logger = logging.getLogger("netmap.rrd")
 
 # Max wall time for one `rrdtool xport` run; the process is killed past this.
 RRD_TIMEOUT_SECONDS = 30.0
-
-try:
-    import rrdtool as _rrdtool
-
-    HAS_RRDTOOL = True
-except ImportError:
-    HAS_RRDTOOL = False
 
 # Strict validation patterns
 _HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9._-]+$")
@@ -66,37 +58,6 @@ def _safe_rrd_path(hostname: str, port_identifier: str | int) -> str:
     if not path.startswith(base + os.sep):
         raise HTTPException(400, "Invalid path")
     return path
-
-
-def fetch_current(hostname: str, port_identifier: str | int) -> dict[str, float]:
-    """Fetch the latest data point from an RRD file."""
-    path = _safe_rrd_path(hostname, port_identifier)
-    if not os.path.exists(path):
-        return {"in_bps": 0.0, "out_bps": 0.0}
-
-    if HAS_RRDTOOL:
-        info = _rrdtool.lastupdate(path)
-        ds = info.get("ds", {})
-        in_bytes = ds.get("INOCTETS", 0) or 0
-        out_bytes = ds.get("OUTOCTETS", 0) or 0
-    else:
-        result = subprocess.run(
-            ["rrdtool", "lastupdate", path],
-            capture_output=True,
-            text=True,
-            timeout=10,
-        )
-        lines = result.stdout.strip().split("\n")
-        if len(lines) >= 2:
-            headers = lines[0].split()
-            values = lines[-1].split(":")[-1].strip().split()
-            ds = dict(zip(headers, values))
-            in_bytes = float(ds.get("INOCTETS", 0))
-            out_bytes = float(ds.get("OUTOCTETS", 0))
-        else:
-            in_bytes = out_bytes = 0.0
-
-    return {"in_bps": in_bytes * 8, "out_bps": out_bytes * 8}
 
 
 def _empty_history() -> dict[str, list[Any]]:

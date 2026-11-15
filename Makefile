@@ -2,8 +2,7 @@
 
 # ── Development ──────────────────────────────────────
 
-dev: docker-up
-	@echo "Redis is running."
+dev:
 	@echo "Run 'make backend-dev' and 'make frontend-dev' in separate terminals."
 
 backend-dev:

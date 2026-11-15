@@ -4,6 +4,7 @@ import { formatBps } from "./MapView";
 import { NODE_TYPE_NAMES } from "./NetworkNode";
 import { UtilBar } from "./UtilBar";
 import { LINK_STATUS_WORD, nodeInfo, nodeName, peerOf } from "./linkInfo";
+import { safeHttpUrl } from "../../utils/safeUrl";
 
 interface Props {
   node: MapNode;
@@ -50,10 +51,10 @@ export function NodePanel({ node, nodes, links, traffic, nodeStatus, scales, onO
               ]
                 .filter(Boolean)
                 .join(" · ")}
-              {node.info_url && (
+              {safeHttpUrl(node.info_url) && (
                 <>
                   {" · "}
-                  <a href={node.info_url} target="_blank" rel="noreferrer" className="text-link hover:underline">
+                  <a href={safeHttpUrl(node.info_url)} target="_blank" rel="noreferrer" className="text-link hover:underline">
                     Open device page
                   </a>
                 </>

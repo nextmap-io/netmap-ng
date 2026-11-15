@@ -103,14 +103,9 @@ async def callback(request: Request):
     if not userinfo:
         userinfo = await oauth.provider.userinfo(token=token)
 
-    # Extract roles from ID token or userinfo
-    id_token_claims = (
-        token.get("id_token", {}) if isinstance(token.get("id_token"), dict) else {}
-    )
+    # Authlib's "userinfo" holds the verified ID token claims, roles included.
     settings = get_settings()
     roles = _extract_roles(userinfo, settings.oauth_roles_claim)
-    if not roles:
-        roles = _extract_roles(id_token_claims, settings.oauth_roles_claim)
 
     subject = str(userinfo.get("sub") or "").strip()
     email = str(
@@ -131,10 +126,11 @@ async def callback(request: Request):
     return RedirectResponse(url="/")
 
 
-@router.get("/logout")
+@router.post("/logout")
 async def logout(request: Request):
     request.session.clear()
-    return RedirectResponse(url="/")
+    # 303 so the browser follows the redirect with a GET.
+    return RedirectResponse(url="/", status_code=303)
 
 
 @router.get("/me")
@@ -143,7 +139,7 @@ async def me(user=Depends(get_current_user)):
     return {
         **user,
         "is_editor": _has_role(user, settings.oauth_editor_role),
-        "is_admin": _has_role(user, settings.oauth_admin_role),
+        "is_admin": _is_admin(user, settings.oauth_admin_role),
     }
 
 
@@ -169,3 +165,8 @@ def _has_role(user: dict, role: str) -> bool:
     if not role:
         return True
     return role in user.get("roles", [])
+
+
+def _is_admin(user: dict, role: str) -> bool:
+    """Admin is never implied: an empty admin role means nobody is admin."""
+    return bool(role) and role in user.get("roles", [])

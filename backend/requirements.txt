@@ -9,10 +9,7 @@ python-dotenv==1.2.4
 authlib==1.9.1
 httpx==0.28.1
 itsdangerous==2.2.0
-python-multipart==0.0.32
 pydantic==2.14.1
 pydantic-settings==2.16.0
-redis==8.1.0
 websockets==17.3
-# rrdtool requires librrd-dev system package — installed in Docker only
-# pip install rrdtool  (optional, falls back to subprocess)
+# RRD files are read with the `rrdtool` command (system package), not a binding.

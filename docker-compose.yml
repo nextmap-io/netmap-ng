@@ -21,8 +21,6 @@ services:
       # Mount Observium RRD directory (read-only)
       # Uncomment and adjust the path to your Observium RRD directory:
       # - /opt/observium/rrd:/rrd:ro
-    depends_on:
-      - redis
 
   # React frontend with Vite dev server (HMR)
   frontend:
@@ -36,12 +34,6 @@ services:
       - ./frontend/src:/app/src
     environment:
       - VITE_API_URL=http://localhost:8000
-
-  # Redis for session storage and caching
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
 
 volumes:
   app-data:

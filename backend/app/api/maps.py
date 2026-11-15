@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.models import Map, Node, Link, get_db
 from app.auth.oauth import get_current_user
-from app.auth.guards import require_map_owner, require_map_read, is_editor
+from app.auth.guards import require_map_owner, require_map_read, is_admin, is_editor
 
 router = APIRouter(prefix="/api/maps", tags=["maps"])
 
@@ -108,7 +108,10 @@ async def get_map(
         "scales": m.scales,
         "settings": m.settings,
         "visibility": m.visibility,
-        "public_token": m.public_token,
+        # The share link is the owner's to hand out, not every reader's.
+        "public_token": m.public_token
+        if is_admin(user) or m.owner == user.get("email")
+        else None,
         "public_settings": m.public_settings,
         "owner": m.owner,
         "nodes": [_serialize_node(n) for n in m.nodes],
@@ -131,6 +134,10 @@ async def update_map(
         raise HTTPException(404, "Map not found")
     for field, value in data.model_dump(exclude_none=True).items():
         setattr(m, field, value)
+    if data.visibility is not None and data.visibility != "public":
+        # Leaving "public" revokes the link, as DELETE /share does, so an old
+        # token cannot come back to life when the map is made public again.
+        m.public_token = None
     await db.commit()
     return {"ok": True}
 
