@@ -15,8 +15,9 @@ import { alignShifted, chartScale, seriesStats, type ScaleMode, type SeriesStats
 import type { ChartDatum, PeakAnnotation } from "./TrafficChart";
 import { useKeyedResult } from "./useKeyedResult";
 import { safeHttpUrl } from "../../utils/safeUrl";
+import { importOrReload } from "../../utils/staleChunk";
 
-const TrafficChart = lazy(() => import("./TrafficChart"));
+const TrafficChart = lazy(importOrReload(() => import("./TrafficChart")));
 
 /** Fetch history for a period ("-6h", "-24h", …). */
 export type TrafficHistoryFetcher = (period: string) => Promise<TrafficHistory>;
