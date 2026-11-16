@@ -38,16 +38,23 @@ import { NotFound } from "../Layout/NotFound";
 import { ShortcutsOverlay } from "./ShortcutsOverlay";
 import type { MapNode, MapLink, NodeType } from "@/types";
 import { buildEdges, computeLinkHandles, computeUsedHandles } from "@/utils/buildEdges";
+import { importOrReload } from "@/utils/staleChunk";
 
 // The editor is only for editors in edit mode: keep it out of the viewer bundle.
-const EditorToolbox = lazy(() =>
-  import("../Editor/EditorToolbox").then((m) => ({ default: m.EditorToolbox })),
+const EditorToolbox = lazy(
+  importOrReload(() =>
+    import("../Editor/EditorToolbox").then((m) => ({ default: m.EditorToolbox })),
+  ),
 );
-const EditorToolbar = lazy(() =>
-  import("../Editor/EditorToolbar").then((m) => ({ default: m.EditorToolbar })),
+const EditorToolbar = lazy(
+  importOrReload(() =>
+    import("../Editor/EditorToolbar").then((m) => ({ default: m.EditorToolbar })),
+  ),
 );
-const PropertyPanel = lazy(() =>
-  import("../Editor/PropertyPanel").then((m) => ({ default: m.PropertyPanel })),
+const PropertyPanel = lazy(
+  importOrReload(() =>
+    import("../Editor/PropertyPanel").then((m) => ({ default: m.PropertyPanel })),
+  ),
 );
 
 const nodeTypes = {
