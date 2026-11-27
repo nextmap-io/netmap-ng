@@ -1,15 +1,15 @@
 # Exact pins: reproducible installs, and the CI pip-age supply-chain gate only
 # evaluates pinned versions. Dependabot bumps these (python-deps group).
-fastapi==0.162.0
+fastapi==0.165.0
 uvicorn[standard]==0.54.0
-sqlalchemy[asyncio]==2.1.8
+sqlalchemy[asyncio]==2.1.9
 aiosqlite==0.22.1
 asyncmy==0.2.18
 python-dotenv==1.2.4
-authlib==1.9.5
+authlib==1.9.10
 httpx==0.28.1
 itsdangerous==2.2.0
-pydantic==2.14.3
-pydantic-settings==2.16.2
+pydantic==2.14.4
+pydantic-settings==2.16.3
 websockets==17.4
 # RRD files are read with the `rrdtool` command (system package), not a binding.
